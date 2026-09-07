@@ -27,10 +27,69 @@ public struct SyncBootstrapRemoteSnapshot: Sendable {
     }
 }
 
+public enum SyncBootstrapSourceProof: Equatable, Sendable {
+    case archive(sha256: Data)
+    case missingArchive(treeSHA256: Data)
+
+    fileprivate enum Keys: String, CodingKey { case sourceArchiveFingerprint, sourceKind, sourceTreeFingerprint }
+    fileprivate static func decode(from decoder: Decoder, version: Int) throws -> Self {
+        let values = try decoder.container(keyedBy: Keys.self)
+        switch version {
+        case 1:
+            guard !values.contains(.sourceKind), !values.contains(.sourceTreeFingerprint) else { throw SyncBootstrapError.corrupt }
+            let digest = try values.decode(Data.self, forKey: .sourceArchiveFingerprint)
+            guard digest.count == 32 else { throw SyncBootstrapError.corrupt }
+            return .archive(sha256: digest)
+        case 2:
+            guard !values.contains(.sourceArchiveFingerprint),
+                  try values.decode(String.self, forKey: .sourceKind) == "missingArchive" else { throw SyncBootstrapError.corrupt }
+            let digest = try values.decode(Data.self, forKey: .sourceTreeFingerprint)
+            guard digest.count == 32 else { throw SyncBootstrapError.corrupt }
+            return .missingArchive(treeSHA256: digest)
+        default: throw SyncBootstrapError.corrupt
+        }
+    }
+    fileprivate func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: Keys.self)
+        switch self {
+        case let .archive(digest): try values.encode(digest, forKey: .sourceArchiveFingerprint)
+        case let .missingArchive(digest):
+            try values.encode("missingArchive", forKey: .sourceKind)
+            try values.encode(digest, forKey: .sourceTreeFingerprint)
+        }
+    }
+    fileprivate var version: Int { if case .archive = self { return 1 }; return 2 }
+}
+
 public struct SyncBootstrapReceipt: Codable, Equatable, Sendable {
     public let transactionID: UUID
     public let accountIDHash: String
-    public let sourceArchiveFingerprint: Data
+    public let sourceProof: SyncBootstrapSourceProof
+    public var sourceArchiveFingerprint: Data? {
+        guard case let .archive(digest) = sourceProof else { return nil }; return digest
+    }
+    private enum CodingKeys: String, CodingKey { case transactionID, accountIDHash, formatVersion }
+    init(transactionID: UUID, accountIDHash: String, sourceProof: SyncBootstrapSourceProof) {
+        self.transactionID = transactionID; self.accountIDHash = accountIDHash; self.sourceProof = sourceProof
+    }
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        let version: Int
+        if values.contains(.formatVersion) {
+            version = try values.decode(Int.self, forKey: .formatVersion)
+            guard version == 2 else { throw SyncBootstrapError.corrupt }
+        } else { version = 1 }
+        transactionID = try values.decode(UUID.self, forKey: .transactionID)
+        accountIDHash = try values.decode(String.self, forKey: .accountIDHash)
+        sourceProof = try .decode(from: decoder, version: version)
+    }
+    public func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(transactionID, forKey: .transactionID)
+        try values.encode(accountIDHash, forKey: .accountIDHash)
+        if sourceProof.version == 2 { try values.encode(2, forKey: .formatVersion) }
+        try sourceProof.encode(to: encoder)
+    }
 }
 
 /// Capture pending() and then sourceFingerprint() while the same caller-owned
@@ -102,16 +161,51 @@ public final class SyncBootstrapTransaction {
     private enum Phase: String, Codable { case prepared, installed, committed, rollingBack, rolledBack }
     private struct FileProof: Codable, Equatable { let bytes: Int64; let digest: Data }
     private struct Manifest: Codable, Equatable {
-        let version: Int
+        var version: Int { sourceProof.version }
         let id: UUID
         var context: SyncBootstrapContext
         let livePath: String
         let journalPath: String
-        let sourceArchiveFingerprint: Data
+        let sourceProof: SyncBootstrapSourceProof
         let original: [String: FileProof]
         let installed: [String: FileProof]
         let mutations: [SyncMutation]
         var phase: Phase
+        private enum CodingKeys: String, CodingKey {
+            case version, id, context, livePath, journalPath, original, installed, mutations, phase
+        }
+        init(id: UUID, context: SyncBootstrapContext, livePath: String, journalPath: String,
+             sourceProof: SyncBootstrapSourceProof, original: [String: FileProof], installed: [String: FileProof],
+             mutations: [SyncMutation], phase: Phase) {
+            self.id = id; self.context = context; self.livePath = livePath; self.journalPath = journalPath
+            self.sourceProof = sourceProof; self.original = original; self.installed = installed
+            self.mutations = mutations; self.phase = phase
+        }
+        init(from decoder: Decoder) throws {
+            let values = try decoder.container(keyedBy: CodingKeys.self)
+            sourceProof = try .decode(from: decoder, version: values.decode(Int.self, forKey: .version))
+            id = try values.decode(UUID.self, forKey: .id)
+            context = try values.decode(SyncBootstrapContext.self, forKey: .context)
+            livePath = try values.decode(String.self, forKey: .livePath)
+            journalPath = try values.decode(String.self, forKey: .journalPath)
+            original = try values.decode([String: FileProof].self, forKey: .original)
+            installed = try values.decode([String: FileProof].self, forKey: .installed)
+            mutations = try values.decode([SyncMutation].self, forKey: .mutations)
+            phase = try values.decode(Phase.self, forKey: .phase)
+        }
+        func encode(to encoder: Encoder) throws {
+            var values = encoder.container(keyedBy: CodingKeys.self)
+            try values.encode(version, forKey: .version)
+            try values.encode(id, forKey: .id)
+            try values.encode(context, forKey: .context)
+            try values.encode(livePath, forKey: .livePath)
+            try values.encode(journalPath, forKey: .journalPath)
+            try values.encode(original, forKey: .original)
+            try values.encode(installed, forKey: .installed)
+            try values.encode(mutations, forKey: .mutations)
+            try values.encode(phase, forKey: .phase)
+            try sourceProof.encode(to: encoder)
+        }
     }
     private struct Envelope: Codable { let payload: Data; let digest: Data }
     private let live: URL
@@ -155,12 +249,8 @@ public final class SyncBootstrapTransaction {
             let path = url.path
             return path.hasPrefix("/var/") || path.hasPrefix("/tmp/") ? "/private" + path : path
         }
-        guard manifest.version == 1, manifest.context.accountIDHash == account.accountIDHash,
-              manifest.livePath == live.path, safeRelativePath(manifest.journalPath),
-              posixPath(live.appendingPathComponent(manifest.journalPath)) == posixPath(journalURL),
-              manifest.original.keys.allSatisfy(safeRelativePath), manifest.installed.keys.allSatisfy(safeRelativePath),
-              manifest.sourceArchiveFingerprint.count == 32,
-              manifest.original["projects-v1.json"]?.digest == manifest.sourceArchiveFingerprint else { throw SyncBootstrapError.corrupt }
+        try validateSourceEvidence(manifest, accountIDHash: account.accountIDHash, livePath: live.path,
+            journalMatches: posixPath(live.appendingPathComponent(manifest.journalPath)) == posixPath(journalURL))
         // Only a valid nonterminal manifest authorizes the caller to enter the
         // existing recovery route. Foreign or malformed authority is distinct.
         guard manifest.phase == .committed || manifest.phase == .rolledBack else { throw SyncBootstrapError.invalidPhase }
@@ -181,7 +271,7 @@ public final class SyncBootstrapTransaction {
             let receipt = try JSONDecoder().decode(SyncBootstrapReceipt.self,
                 from: read("working-set/SyncMetadata/bootstrap-receipt.json"))
             guard receipt.transactionID == manifest.id, receipt.accountIDHash == account.accountIDHash,
-                  receipt.sourceArchiveFingerprint == manifest.sourceArchiveFingerprint else { throw SyncBootstrapError.corrupt }
+                  receipt.sourceProof == manifest.sourceProof else { throw SyncBootstrapError.corrupt }
         } else {
             guard proofs(under: "working-set/") == manifest.original else { throw SyncBootstrapError.sourceChanged }
         }
@@ -218,6 +308,22 @@ public final class SyncBootstrapTransaction {
         remote: SyncBootstrapRemoteSnapshot,
         pendingSnapshot: SyncBootstrapPendingSnapshot? = nil,
         counterReminderContext: SyncCounterReminderMergeContext = .init()) throws -> SyncBootstrapPreparation {
+        try prepare(local: local, baseArchive: sourceArchive, remote: remote, pendingSnapshot: pendingSnapshot,
+            counterReminderContext: counterReminderContext)
+    }
+
+    /// Requires a positively selected account working tree and a caller-owned
+    /// freeze. Completeness remains the remote collector's responsibility.
+    public func prepareReconstruction(remote: SyncBootstrapRemoteSnapshot,
+        pendingSnapshot: SyncBootstrapPendingSnapshot,
+        counterReminderContext: SyncCounterReminderMergeContext = .init()) throws -> SyncBootstrapPreparation {
+        try prepare(local: nil, baseArchive: .init(version: ProjectArchive.currentVersion, projects: []),
+            remote: remote, pendingSnapshot: pendingSnapshot, counterReminderContext: counterReminderContext)
+    }
+
+    private func prepare(local: SyncExportPackage?, baseArchive sourceArchive: ProjectArchive,
+        remote: SyncBootstrapRemoteSnapshot, pendingSnapshot: SyncBootstrapPendingSnapshot?,
+        counterReminderContext: SyncCounterReminderMergeContext) throws -> SyncBootstrapPreparation {
         try checkContext()
         guard remote.context == context else { throw SyncBootstrapError.contextChanged }
         guard remote.isComplete else { throw SyncBootstrapError.incompleteFetch }
@@ -234,11 +340,17 @@ public final class SyncBootstrapTransaction {
                 throw previous.phase == .committed ? SyncBootstrapError.alreadyCommitted : SyncBootstrapError.invalidPhase
             }
         }
-        let sourceData = try read(live.appendingPathComponent("projects-v1.json"))
+        let sourceData: Data?
+        if local != nil {
+            sourceData = try read(live.appendingPathComponent("projects-v1.json"))
+            guard try Self.sameArchive(JSONDecoder().decode(ProjectArchive.self, from: sourceData!), sourceArchive) else { throw SyncBootstrapError.sourceChanged }
+        } else {
+            try requireMissingArchive()
+            sourceData = nil
+        }
         guard !exists(SyncPublicationTransactionFile(archiveURL: live.appendingPathComponent("projects-v1.json")).url) else {
             throw SyncPublicationError.pendingRepair
         }
-        guard try Self.sameArchive(JSONDecoder().decode(ProjectArchive.self, from: sourceData), sourceArchive) else { throw SyncBootstrapError.sourceChanged }
         let id = UUID()
         // Use one generated, bound directory identity in the persisted manifest.
         let transactionDirectory = transactionRoot(id)
@@ -246,6 +358,9 @@ public final class SyncBootstrapTransaction {
         let originalRoot = transactionDirectory.appendingPathComponent("Original")
         let stage = transactionDirectory.appendingPathComponent("Staged")
         let original = try inventory(live)
+        if local == nil {
+            guard !original.keys.contains(where: Self.isReconstructionAuthority) else { throw SyncPublicationError.pendingRepair }
+        }
         let journalComponents = journalPath.split(separator: "/").map(String.init)
         let hiddenJournalPrefix = (journalComponents.dropLast() + ["." + journalComponents.last!]).joined(separator: "/")
         let journalExists = original.keys.contains {
@@ -256,19 +371,38 @@ public final class SyncBootstrapTransaction {
               (!journalExists && pendingSnapshot == nil) || pendingSnapshot?.sourceTreeFingerprint == originalFingerprint else {
             throw SyncBootstrapError.sourceChanged
         }
+        let sourceProof: SyncBootstrapSourceProof = sourceData.map { .archive(sha256: Self.hash($0)) }
+            ?? .missingArchive(treeSHA256: originalFingerprint)
+        let pending = pendingSnapshot?.mutations ?? []
+        var localSources = local?.attachments ?? [:]
+        if local == nil {
+            for mutation in pending {
+                let validated = try mutation.validatedForJournalLoad()
+                guard let source = validated.attachmentSource else { continue }
+                _ = try verifiedSource(source)
+                let id = validated.recordID.uuid
+                if let prior = localSources[id], prior.contentSHA256 != source.contentSHA256 || prior.byteCount != source.byteCount {
+                    throw SyncBootstrapError.corrupt
+                }
+                localSources[id] = source
+            }
+        }
         try copyTree(live, to: originalRoot, proofs: original)
         guard try inventory(live) == original else { throw SyncBootstrapError.sourceChanged }
         try copyTree(originalRoot, to: stage, proofs: original)
         // Public backup validation reuses archive/domain and media validators;
         // the full-tree copy above additionally preserves all sync/journal data.
-        _ = try KnitNoteBackupService(liveRoot: originalRoot,
-            workRoot: transactionDirectory.appendingPathComponent("ValidationOriginal"),
-            patternFolderNameContext: patternFolderNameContext).createPackage(appVersion: "bootstrap")
-        let sources = try stagedSources(local.attachments, remote.attachments, root: transactionDirectory)
-        let localRoundtrip = try ProjectArchiveSyncMapper.materialize(records: local.records, attachments: sources, baseArchive: sourceArchive)
-        guard Self.sameArchive(localRoundtrip.archive, sourceArchive, checkingVersion: false) else { throw SyncBootstrapError.sourceChanged }
-        let pending = pendingSnapshot?.mutations ?? []
-        let merged = try SyncMergeEngine().merge(local: local.records, remote: remote.records,
+        if local != nil {
+            _ = try KnitNoteBackupService(liveRoot: originalRoot,
+                workRoot: transactionDirectory.appendingPathComponent("ValidationOriginal"),
+                patternFolderNameContext: patternFolderNameContext).createPackage(appVersion: "bootstrap")
+        }
+        let sources = try stagedSources(localSources, remote.attachments, root: transactionDirectory)
+        if let local {
+            let localRoundtrip = try ProjectArchiveSyncMapper.materialize(records: local.records, attachments: sources, baseArchive: sourceArchive)
+            guard Self.sameArchive(localRoundtrip.archive, sourceArchive, checkingVersion: false) else { throw SyncBootstrapError.sourceChanged }
+        }
+        let merged = try SyncMergeEngine().merge(local: local?.records ?? [], remote: remote.records,
             pendingLocalMutations: pending, counterReminderContext: counterReminderContext)
         let result = try ProjectArchiveSyncMapper.materialize(records: merged.records, attachments: sources, baseArchive: sourceArchive)
         for file in result.files {
@@ -320,8 +454,10 @@ public final class SyncBootstrapTransaction {
         let installed = try inventory(stage)
         guard try inventory(live) == original else { throw SyncBootstrapError.sourceChanged }
         try checkContext()
-        let manifest = Manifest(version: 1, id: id, context: context, livePath: live.path, journalPath: journalPath,
-            sourceArchiveFingerprint: Self.hash(sourceData), original: original, installed: installed, mutations: mutations, phase: .prepared)
+        if local == nil { try requireMissingArchive() }
+        let manifest = Manifest(id: id, context: context, livePath: live.path, journalPath: journalPath,
+            sourceProof: sourceProof, original: original, installed: installed, mutations: mutations, phase: .prepared)
+        try Self.validateSourceEvidence(manifest, accountIDHash: context.accountIDHash, livePath: live.path, journalMatches: true)
         try persist(manifest)
         try boundary(.afterPrepared)
         return preparation(manifest)
@@ -359,7 +495,7 @@ public final class SyncBootstrapTransaction {
             try FileSyncMutationJournal(url: live.appendingPathComponent(journalPath)).enqueue(manifest.mutations)
             try boundary(.afterJournal)
             let receipt = SyncBootstrapReceipt(transactionID: manifest.id, accountIDHash: context.accountIDHash,
-                sourceArchiveFingerprint: manifest.sourceArchiveFingerprint)
+                sourceProof: manifest.sourceProof)
             try write(Self.encode(receipt), to: live.appendingPathComponent("SyncMetadata/bootstrap-receipt.json"))
             try boundary(.afterReceipt)
             try checkContext()
@@ -646,16 +782,48 @@ public final class SyncBootstrapTransaction {
         let envelope = try JSONDecoder().decode(Envelope.self, from: data)
         guard Self.hash(envelope.payload) == envelope.digest else { throw SyncBootstrapError.corrupt }
         let manifest = try JSONDecoder().decode(Manifest.self, from: envelope.payload)
-        guard manifest.version == 1, manifest.context.accountIDHash == context.accountIDHash, manifest.livePath == live.path,
-              manifest.journalPath == journalPath,
-              manifest.original.keys.allSatisfy(Self.safeRelativePath), manifest.installed.keys.allSatisfy(Self.safeRelativePath) else { throw SyncBootstrapError.corrupt }
+        try Self.validateSourceEvidence(manifest, accountIDHash: context.accountIDHash, livePath: live.path,
+            journalMatches: manifest.journalPath == journalPath)
         return manifest
     }
     private func readReceipt(_ manifest: Manifest) throws -> SyncBootstrapReceipt {
         let receipt = try JSONDecoder().decode(SyncBootstrapReceipt.self, from: read(live.appendingPathComponent("SyncMetadata/bootstrap-receipt.json")))
         guard receipt.transactionID == manifest.id, receipt.accountIDHash == context.accountIDHash,
-              receipt.sourceArchiveFingerprint == manifest.sourceArchiveFingerprint else { throw SyncBootstrapError.corrupt }
+              receipt.sourceProof == manifest.sourceProof else { throw SyncBootstrapError.corrupt }
         return receipt
+    }
+
+    private static func validateSourceEvidence(_ manifest: Manifest, accountIDHash: String,
+        livePath: String, journalMatches: Bool) throws {
+        guard manifest.context.accountIDHash == accountIDHash, manifest.livePath == livePath,
+              journalMatches, safeRelativePath(manifest.journalPath),
+              manifest.original.keys.allSatisfy(safeRelativePath), manifest.installed.keys.allSatisfy(safeRelativePath) else {
+            throw SyncBootstrapError.corrupt
+        }
+        switch manifest.sourceProof {
+        case let .archive(digest):
+            guard digest.count == 32, manifest.original["projects-v1.json"]?.digest == digest,
+                  manifest.original["projects-v1.json/"] == nil else { throw SyncBootstrapError.corrupt }
+        case let .missingArchive(digest):
+            guard digest.count == 32, manifest.original["projects-v1.json"] == nil,
+                  !manifest.original.keys.contains(where: { $0.hasPrefix("projects-v1.json/") }),
+                  hash(try encode(manifest.original)) == digest else { throw SyncBootstrapError.corrupt }
+        }
+    }
+
+    private func requireMissingArchive() throws {
+        try checkDirectory(live)
+        var status = stat()
+        guard lstat(live.appendingPathComponent("projects-v1.json").path, &status) != 0 else {
+            throw SyncBootstrapError.sourceChanged
+        }
+        guard errno == ENOENT else { throw SyncBootstrapError.unsafePath }
+    }
+
+    private static func isReconstructionAuthority(_ path: String) -> Bool {
+        let names = [".projects-v1.json.sync-publication.json", "SyncMetadata/canonical.json",
+            "SyncMetadata/.canonical-next.json", "SyncMetadata/bootstrap-canonical.json", "SyncMetadata/bootstrap-receipt.json"]
+        return names.contains { path == $0 || path.hasPrefix($0 + "/") } || isCanonicalAuthority(path)
     }
 
     private func inventory(_ root: URL) throws -> [String: FileProof] {

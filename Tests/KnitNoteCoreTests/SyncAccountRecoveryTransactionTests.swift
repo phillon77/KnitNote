@@ -553,7 +553,8 @@ import Testing
         #expect(try transaction().authenticatedSelection(now: .now)?.phase == .cleanupComplete)
     }
 
-    @Test func terminalBootstrapAndExactPendingAttachmentAreRecoveredWithoutWholeArchive() throws {
+    @Test(arguments: ["v1", "v2-committed"])
+    func terminalBootstrapAndExactPendingAttachmentAreRecoveredWithoutWholeArchive(_ source: String) throws {
         let f = try RecoveryInventoryFixture(); defer { f.remove() }
         let archive = ProjectArchive(version: ProjectArchive.currentVersion, projects: [try StoredProject(name: "bootstrap project")])
         try JSONEncoder().encode(archive).write(to: f.archiveURL)
@@ -561,9 +562,18 @@ import Testing
         let bootstrap = try SyncBootstrapTransaction(liveRoot: f.paths.workingSet, context: context,
             journalRelativePath: "SyncMetadata/bootstrap-journal", validateContext: { _ in })
         let package = try ProjectArchiveSyncMapper.export(archive: archive, liveRoot: f.paths.workingSet, deviceID: "fixture")
-        let prepared = try bootstrap.prepare(local: package, sourceArchive: archive,
-            remote: .init(context: context, records: [], attachments: [:], isComplete: true))
-        try bootstrap.install(prepared); _ = try bootstrap.commit(prepared)
+        let prepared: SyncBootstrapPreparation
+        if source == "v1" {
+            prepared = try bootstrap.prepare(local: package, sourceArchive: archive,
+                remote: .init(context: context, records: [], attachments: [:], isComplete: true))
+        } else {
+            try FileManager.default.removeItem(at: f.archiveURL)
+            prepared = try bootstrap.prepareReconstruction(remote: .init(context: context, records: package.records,
+                attachments: package.attachments, isComplete: true),
+                pendingSnapshot: .init(mutations: [], sourceTreeFingerprint: bootstrap.sourceFingerprint()))
+        }
+        try bootstrap.install(prepared)
+        _ = try bootstrap.commit(prepared)
         let journal = FileSyncMutationJournal(url: f.paths.workingSet.appendingPathComponent("SyncMetadata/bootstrap-journal"))
         let source = f.paths.staging.appendingPathComponent("photo")
         let bytes = Data("exact pending photograph".utf8)
@@ -585,6 +595,38 @@ import Testing
         #expect(selection.inventory.packet.files.map(\.bytes) == [bytes])
         #expect(!selection.inventory.packet.files.contains(where: { $0.relativePath.hasSuffix("projects-v1.json") }))
         #expect(!FileManager.default.fileExists(atPath: f.paths.accountRoot.appendingPathComponent(".KnitNote-SyncBootstrap").path))
+    }
+
+    @Test func rolledBackReconstructionHasValidTerminalEvidenceButFullAccountSealingStillRequiresArchive() throws {
+        let f = try RecoveryInventoryFixture(); defer { f.remove() }
+        let archive = ProjectArchive(version: ProjectArchive.currentVersion, projects: [try StoredProject(name: "Pending reconstruction")])
+        try JSONEncoder().encode(archive).write(to: f.archiveURL)
+        let package = try ProjectArchiveSyncMapper.export(archive: archive, liveRoot: f.paths.workingSet, deviceID: "fixture")
+        let journal = FileSyncMutationJournal(url: f.paths.mutationJournalURL)
+        try journal.enqueue(package.records.map { try SyncMutation.save(recordVersion: SyncRecordVersion(record: $0), mutationID: UUID()) })
+        let pending = try journal.pending()
+        try FileManager.default.removeItem(at: f.archiveURL)
+        let original = try f.diskBytes()
+        let context = SyncBootstrapContext(accountIDHash: f.account.accountIDHash, epoch: UUID(), freezeID: UUID())
+        let bootstrap = try SyncBootstrapTransaction(liveRoot: f.paths.workingSet, context: context, validateContext: { _ in })
+        let prepared = try bootstrap.prepareReconstruction(remote: .init(context: context, records: [], attachments: [:], isComplete: true),
+            pendingSnapshot: .init(mutations: pending, sourceTreeFingerprint: bootstrap.sourceFingerprint()))
+        try bootstrap.install(prepared); try bootstrap.rollback(prepared)
+        for (path, bytes) in original { #expect(try Data(contentsOf: URL(fileURLWithPath: path)) == bytes) }
+        #expect(!FileManager.default.fileExists(atPath: f.archiveURL.path))
+        let before = try f.diskBytes()
+        try f.storage.withRecoveryInventory(paths: f.paths, account: f.account, maximumBytes: 100_000_000) { entries in
+            try SyncBootstrapTransaction.validateTerminalRecovery(account: f.account, accountRoot: f.paths.accountRoot,
+                liveRoot: f.paths.workingSet, journalURL: f.paths.mutationJournalURL, entries: entries)
+        }
+        #expect(try f.diskBytes() == before)
+        // Explicit integration gate: inventory capture/decode still require a
+        // real source archive. Terminal validation is not account-switch proof.
+        let recovery = SyncAccountRecoveryTransaction(storage: f.storage, paths: f.paths, account: f.account,
+            vault: SyncRecoveryVault(directory: f.paths.vault, keychain: TransactionKeys()), journal: journal)
+        #expect(throws: SyncAccountRecoveryInventory.Error.unsafeBinding) { try recovery.prepare(now: .now) }
+        #expect(try f.diskBytes() == before)
+        #expect(try journal.pending() == pending)
     }
 
     @Test func staleReceiptCannotReplaceCurrentIntentOrEraseLaterData() throws {

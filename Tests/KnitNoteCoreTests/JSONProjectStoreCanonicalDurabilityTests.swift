@@ -4,6 +4,25 @@ import Testing
 @testable import KnitNoteCore
 
 struct JSONProjectStoreCanonicalDurabilityTests {
+    @Test @MainActor func reconstructedBootstrapActivatesRealCanonicalStoreAfterRestart() throws {
+        let f = try Fixture(media: true, reconstruction: true); defer { f.remove() }
+        let context = SyncBootstrapContext(accountIDHash: f.account.accountIDHash, epoch: UUID(), freezeID: UUID())
+        let tx = try SyncBootstrapTransaction(liveRoot: f.live, context: context, validateContext: { candidate in
+            guard candidate == context else { throw SyncBootstrapError.contextChanged }
+        })
+        let handoff = try #require(try tx.recoverUnderCurrentContext())
+        var sources: [UUID: SyncAttachmentSource] = [:]
+        for version in handoff.checkpoint.records.compactMap(\.payload.attachment) {
+            sources[version.versionID] = try #require(try handoff.stagedAttachmentSource(version))
+        }
+        let store = f.store()
+        try store.activateSyncCanonicalState(checkpointStore: f.checkpoints, bootstrap: handoff, attachmentSources: sources)
+        #expect(store.projects.map(\.id) == [f.projectID])
+        try f.rename(store, "Reconstructed and editable")
+        #expect(store.projects.first?.name == "Reconstructed and editable")
+        #expect(try f.checkpoints.load() != nil)
+    }
+
     @Test @MainActor func recoveredBootstrapLocatorRetainsEveryConflictHeadAndRejectsChangedAuthority() throws {
         let f = try Fixture(media: true, conflict: true); defer { f.remove() }
         let context = SyncBootstrapContext(accountIDHash: f.account.accountIDHash, epoch: UUID(), freezeID: UUID())
@@ -786,7 +805,8 @@ struct JSONProjectStoreCanonicalDurabilityTests {
         let journal: FileSyncMutationJournal
         let account: SyncAccountIdentity
 
-        init(media: Bool = false, conflict: Bool = false, pattern: Bool = false, usage: Bool = false, remoteRevisions: Bool = false) throws {
+        init(media: Bool = false, conflict: Bool = false, pattern: Bool = false, usage: Bool = false, remoteRevisions: Bool = false,
+             reconstruction: Bool = false) throws {
             root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent(UUID().uuidString)
             live = root.appendingPathComponent("Live")
             try FileManager.default.createDirectory(at: live, withIntermediateDirectories: true)
@@ -835,8 +855,16 @@ struct JSONProjectStoreCanonicalDurabilityTests {
             let transaction = try SyncBootstrapTransaction(liveRoot: live, context: context, validateContext: { candidate in
                 guard candidate == context else { throw SyncBootstrapError.contextChanged }
             })
-            let prepared = try transaction.prepare(local: local, sourceArchive: archive,
-                remote: .init(context: context, records: remoteRecords, attachments: remote?.attachments ?? [:], isComplete: true))
+            let prepared: SyncBootstrapPreparation
+            if reconstruction {
+                try FileManager.default.removeItem(at: archiveURL)
+                prepared = try transaction.prepareReconstruction(remote: .init(context: context, records: local.records,
+                    attachments: local.attachments, isComplete: true),
+                    pendingSnapshot: .init(mutations: [], sourceTreeFingerprint: transaction.sourceFingerprint()))
+            } else {
+                prepared = try transaction.prepare(local: local, sourceArchive: archive,
+                    remote: .init(context: context, records: remoteRecords, attachments: remote?.attachments ?? [:], isComplete: true))
+            }
             try transaction.install(prepared)
             _ = try transaction.commit(prepared)
             handoff = try transaction.canonicalHandoff(prepared)

@@ -4,6 +4,359 @@ import Testing
 @testable import KnitNoteCore
 
 struct SyncBootstrapTransactionTests {
+    @Test(arguments: [false, true])
+    func preparationWireFormatKeepsArchiveV1DistinctFromAbsenceV2(reconstruction: Bool) throws {
+        let fixture = try Fixture(); defer { fixture.remove() }
+        let package = try fixture.export()
+        let tx = try fixture.transaction()
+        let prepared: SyncBootstrapPreparation
+        if reconstruction {
+            try FileManager.default.removeItem(at: fixture.live.appendingPathComponent("projects-v1.json"))
+            prepared = try tx.prepareReconstruction(remote: .init(context: fixture.context, records: package.records,
+                attachments: [:], isComplete: true), pendingSnapshot: .init(mutations: [], sourceTreeFingerprint: tx.sourceFingerprint()))
+        } else {
+            prepared = try tx.prepare(local: package, sourceArchive: fixture.archive,
+                remote: .init(context: fixture.context, records: [], attachments: [:], isComplete: true))
+        }
+        let envelope = try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: prepared.accountOwnedRoots[0].appendingPathComponent("active.json"))) as? [String: Any])
+        let encoded = try #require(envelope["payload"] as? String)
+        let bytes = try #require(Data(base64Encoded: encoded))
+        let manifest = try #require(try JSONSerialization.jsonObject(with: bytes) as? [String: Any])
+        let common = Set(["version", "id", "context", "livePath", "journalPath", "original", "installed", "mutations", "phase"])
+        #expect(Set(manifest.keys) == common.union(reconstruction ? ["sourceKind", "sourceTreeFingerprint"] : ["sourceArchiveFingerprint"]))
+        #expect(manifest["version"] as? Int == (reconstruction ? 2 : 1))
+        try tx.install(prepared)
+        let receipt = try tx.commit(prepared)
+        let wire = try #require(try JSONSerialization.jsonObject(with: JSONEncoder().encode(receipt)) as? [String: Any])
+        #expect(Set(wire.keys) == Set(["transactionID", "accountIDHash"]).union(reconstruction
+            ? ["formatVersion", "sourceKind", "sourceTreeFingerprint"] : ["sourceArchiveFingerprint"]))
+    }
+
+    @Test(arguments: ["freeze", "appeared-during-prepare", "appeared-before-install", "permission"])
+    func reconstructionRevalidatesFreezeAndNoFollowSourceAtBoundaries(_ damage: String) throws {
+        let fixture = try Fixture(); defer { fixture.remove() }
+        let remote = try fixture.export()
+        let archiveURL = fixture.live.appendingPathComponent("projects-v1.json")
+        try FileManager.default.removeItem(at: archiveURL)
+        let original = try treeBytes(fixture.live)
+        var triggered = false
+        let tx = try SyncBootstrapTransaction(liveRoot: fixture.live, context: fixture.context,
+            journalRelativePath: "SyncMetadata/bootstrap-journal", validateContext: { candidate in
+                guard candidate == fixture.context else { throw SyncBootstrapError.contextChanged }
+                guard !triggered, ["freeze", "appeared-during-prepare"].contains(damage),
+                      let paths = FileManager.default.enumerator(at: fixture.root, includingPropertiesForKeys: nil),
+                      paths.contains(where: { ($0 as? URL)?.lastPathComponent == "bootstrap-canonical.json" }) else { return }
+                triggered = true
+                if damage == "freeze" { throw SyncBootstrapError.contextChanged }
+                try Data("appeared while frozen".utf8).write(to: archiveURL)
+            })
+        let fingerprint = try tx.sourceFingerprint()
+        if damage == "permission" {
+            try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: fixture.live.path)
+        }
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: fixture.live.path) }
+        #expect(throws: (any Error).self) {
+            let prepared = try tx.prepareReconstruction(remote: .init(context: fixture.context, records: remote.records,
+                attachments: [:], isComplete: true), pendingSnapshot: .init(mutations: [], sourceTreeFingerprint: fingerprint))
+            if damage == "appeared-before-install" {
+                try Data("appeared while frozen".utf8).write(to: archiveURL)
+                try tx.install(prepared)
+            }
+        }
+        if damage == "permission" { try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: fixture.live.path) }
+        if damage.hasPrefix("appeared") {
+            var expected = original
+            expected["projects-v1.json"] = Data("appeared while frozen".utf8)
+            #expect(try treeBytes(fixture.live) == expected)
+        } else { #expect(try treeBytes(fixture.live) == original) }
+        if damage == "freeze" || damage == "appeared-during-prepare" { #expect(triggered) }
+    }
+
+    @Test(arguments: ["bytes", "remote-digest", "remote-size"])
+    func reconstructionRejectsPendingAttachmentSourceDisagreement(_ damage: String) throws {
+        let fixture = try Fixture(completeMedia: true); defer { fixture.remove() }
+        let package = try fixture.export()
+        let record = try #require(package.records.first { $0.id.kind == .attachment })
+        let source = try #require(package.attachments[record.id.uuid])
+        let journal = FileSyncMutationJournal(url: fixture.live.appendingPathComponent("SyncMetadata/bootstrap-journal"))
+        try journal.enqueue(SyncMutation.save(recordVersion: SyncRecordVersion(record: record), attachmentSource: source, mutationID: UUID()))
+        let pending = try journal.pending()
+        let pendingSource = try #require(pending.first?.attachmentSource)
+        var attachments = package.attachments
+        if damage == "bytes" { try Data("changed immutable bytes".utf8).write(to: pendingSource.fileURL) }
+        else {
+            attachments[record.id.uuid] = try .init(fileURL: source.fileURL,
+                contentSHA256: damage == "remote-digest" ? Data(repeating: 7, count: 32) : source.contentSHA256,
+                byteCount: damage == "remote-size" ? source.byteCount + 1 : source.byteCount)
+        }
+        try FileManager.default.removeItem(at: fixture.live.appendingPathComponent("projects-v1.json"))
+        let tx = try fixture.transaction()
+        let fingerprint = try tx.sourceFingerprint()
+        let original = try treeBytes(fixture.live)
+        #expect(throws: (any Error).self) {
+            try tx.prepareReconstruction(remote: .init(context: fixture.context, records: package.records,
+                attachments: attachments, isComplete: true), pendingSnapshot: .init(mutations: pending, sourceTreeFingerprint: fingerprint))
+        }
+        #expect(try treeBytes(fixture.live) == original)
+    }
+
+    @Test(arguments: ["digest", "kind", "mixed"])
+    func reconstructedReceiptTamperingRejectsFreshContextRecoveryWithoutWrites(_ damage: String) throws {
+        let fixture = try Fixture(); defer { fixture.remove() }
+        let remote = try fixture.export()
+        try FileManager.default.removeItem(at: fixture.live.appendingPathComponent("projects-v1.json"))
+        let tx = try fixture.transaction()
+        let prepared = try tx.prepareReconstruction(remote: .init(context: fixture.context, records: remote.records,
+            attachments: [:], isComplete: true), pendingSnapshot: .init(mutations: [], sourceTreeFingerprint: tx.sourceFingerprint()))
+        try tx.install(prepared); _ = try tx.commit(prepared)
+        let url = fixture.live.appendingPathComponent("SyncMetadata/bootstrap-receipt.json")
+        var receipt = try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        if damage == "digest" { receipt["sourceTreeFingerprint"] = Data(repeating: 9, count: 32).base64EncodedString() }
+        else if damage == "kind" { receipt["sourceKind"] = "archive" }
+        else { receipt["sourceArchiveFingerprint"] = Data(repeating: 9, count: 32).base64EncodedString() }
+        try JSONSerialization.data(withJSONObject: receipt).write(to: url)
+        let original = try treeBytes(fixture.root)
+        let current = SyncBootstrapContext(accountIDHash: fixture.context.accountIDHash, epoch: UUID(), freezeID: UUID())
+        let restarted = try SyncBootstrapTransaction(liveRoot: fixture.live, context: current,
+            journalRelativePath: "SyncMetadata/bootstrap-journal", validateContext: { candidate in
+                guard candidate == current else { throw SyncBootstrapError.contextChanged }
+            })
+        #expect(throws: (any Error).self) { try restarted.recoverUnderCurrentContext() }
+        #expect(try treeBytes(fixture.root) == original)
+    }
+
+    @Test(arguments: [false, true])
+    func reconstructionReplaysPendingOnlyGraphAndExactMediaFIFO(overlap: Bool) throws {
+        let fixture = try Fixture(completeMedia: true); defer { fixture.remove() }
+        let package = try fixture.export()
+        let journal = FileSyncMutationJournal(url: fixture.live.appendingPathComponent("SyncMetadata/bootstrap-journal"))
+        let saves = try package.records.map { record in
+            try SyncMutation.save(recordVersion: SyncRecordVersion(record: record),
+                attachmentSource: package.attachments[record.id.uuid], mutationID: UUID())
+        }
+        try journal.enqueue(saves)
+        if overlap {
+            var editedArchive = fixture.archive
+            try editedArchive.projects[0].rename(to: "Pending overlap edit")
+            let edited = try ProjectArchiveSyncMapper.export(archive: editedArchive, liveRoot: fixture.live, deviceID: "local")
+            var record = try #require(edited.records.first { $0.id.uuid == editedArchive.projects[0].id })
+            let stamp = SyncMutationStamp(logicalRevision: 99, modifiedAt: .now, deviceID: "local")
+            record.entityRevision = 99
+            record.payload.fields = record.payload.fields.mapValues { .init(value: $0.value, stamp: stamp) }
+            record.deletedAt = .init(value: nil, stamp: stamp)
+            try journal.enqueue(SyncMutation.save(recordVersion: SyncRecordVersion(record: record), mutationID: UUID()))
+        }
+        let pending = try journal.pending()
+        let sourceBytes = try pending.compactMap(\.attachmentSource).map { ($0.fileURL, try Data(contentsOf: $0.fileURL)) }
+        let other = try StoredProject(name: "Remote only")
+        let otherRecords = try SyncCanonicalPublicationSnapshot(archive: .init(version: 14, projects: [other]), deviceID: "cloud").records.values
+        let remoteRecords = overlap ? package.records + otherRecords : []
+        try FileManager.default.removeItem(at: fixture.live.appendingPathComponent("projects-v1.json"))
+        let original = try treeBytes(fixture.live)
+        let tx = try fixture.transaction()
+        let prepared = try tx.prepareReconstruction(remote: .init(context: fixture.context, records: remoteRecords,
+            attachments: [:], isComplete: true), pendingSnapshot: .init(mutations: pending, sourceTreeFingerprint: tx.sourceFingerprint()))
+        #expect(try treeBytes(fixture.live) == original)
+        try tx.install(prepared); _ = try tx.commit(prepared)
+        let after = try journal.pending()
+        #expect(Array(after.prefix(pending.count)) == pending)
+        #expect(Set(try fixture.readArchive().projects.map(\.id)) == Set(fixture.archive.projects.map(\.id) + (overlap ? [other.id] : [])))
+        if overlap { #expect(try fixture.readArchive().projects.first { $0.id == fixture.archive.projects[0].id }?.name == "Pending overlap edit") }
+        #expect(try tx.checkpoint(prepared).records.filter { $0.id.kind == .attachment }.count == 6)
+        for (url, bytes) in sourceBytes { #expect(try Data(contentsOf: url) == bytes) }
+        try tx.canonicalHandoff(prepared).revalidate()
+    }
+
+    @Test(arguments: SyncBootstrapBoundary.allCases)
+    func reconstructionEveryBoundaryRestoresExactAbsentTree(_ point: SyncBootstrapBoundary) throws {
+        let fixture = try Fixture(completeMedia: true); defer { fixture.remove() }
+        let remote = try fixture.export()
+        let journal = FileSyncMutationJournal(url: fixture.live.appendingPathComponent("SyncMetadata/bootstrap-journal"))
+        let record = try #require(remote.records.first { $0.id.kind == .attachment })
+        try journal.enqueue(SyncMutation.save(recordVersion: SyncRecordVersion(record: record),
+            attachmentSource: remote.attachments[record.id.uuid], mutationID: UUID()))
+        let pending = try journal.pending()
+        try FileManager.default.removeItem(at: fixture.live.appendingPathComponent("projects-v1.json"))
+        let original = try treeBytes(fixture.live)
+        var fired = false
+        let tx = try fixture.transaction(boundary: { reached in
+            if reached == point && !fired { fired = true; throw SyncBootstrapError.corrupt }
+            if fired && reached == .afterRollbackIntent { throw SyncBootstrapError.corrupt }
+        })
+        do {
+            let prepared = try tx.prepareReconstruction(remote: .init(context: fixture.context, records: remote.records,
+                attachments: remote.attachments, isComplete: true),
+                pendingSnapshot: .init(mutations: pending, sourceTreeFingerprint: tx.sourceFingerprint()))
+            try tx.install(prepared)
+            if [.afterRollbackIntent, .afterFailedMove, .afterOriginalRestore].contains(point) {
+                try tx.rollback(prepared)
+            } else { _ = try tx.commit(prepared) }
+        } catch {}
+        #expect(fired)
+        let current = SyncBootstrapContext(accountIDHash: fixture.context.accountIDHash, epoch: UUID(), freezeID: UUID())
+        let restarted = try SyncBootstrapTransaction(liveRoot: fixture.live, context: current,
+            journalRelativePath: "SyncMetadata/bootstrap-journal", validateContext: { candidate in
+                guard candidate == current else { throw SyncBootstrapError.contextChanged }
+            })
+        #expect(try restarted.recoverUnderCurrentContext() == nil)
+        #expect(try treeBytes(fixture.live) == original)
+        #expect(try journal.pending() == pending)
+    }
+
+    @Test(arguments: ["archive", "directory", "symlink", "incomplete", "context", "fingerprint", "parent", "counter", "media",
+        "publication", "canonical", "temporary", "bootstrap", "receipt", "revision"])
+    func reconstructionRejectsUnsafeOrIncompleteInputPreservingLive(_ damage: String) throws {
+        let fixture = try Fixture(completeMedia: damage == "media"); defer { fixture.remove() }
+        let package = try fixture.export()
+        let archiveURL = fixture.live.appendingPathComponent("projects-v1.json")
+        try FileManager.default.removeItem(at: archiveURL)
+        let tx = try fixture.transaction()
+        var fingerprint = try tx.sourceFingerprint()
+        var records = package.records
+        var context = fixture.context
+        switch damage {
+        case "archive": try Data("appeared".utf8).write(to: archiveURL)
+        case "directory": try FileManager.default.createDirectory(at: archiveURL, withIntermediateDirectories: false)
+        case "symlink": try FileManager.default.createSymbolicLink(at: archiveURL, withDestinationURL: fixture.root.appendingPathComponent("absent-target"))
+        case "context": context = .init(accountIDHash: context.accountIDHash, epoch: UUID(), freezeID: UUID())
+        case "fingerprint": fingerprint = Data(repeating: 0, count: 32)
+        case "parent": records.removeAll { $0.id.kind == .project }
+        case "counter": records.remove(at: try #require(records.firstIndex { $0.id.kind == .projectCounter }))
+        case "publication", "canonical", "temporary", "bootstrap", "receipt", "revision":
+            let paths = ["publication": ".projects-v1.json.sync-publication.json", "canonical": "SyncMetadata/canonical.json",
+                "temporary": "SyncMetadata/.canonical-next.json", "bootstrap": "SyncMetadata/bootstrap-canonical.json",
+                "receipt": "SyncMetadata/bootstrap-receipt.json", "revision": "SyncMetadata/revision-ledger.json"]
+            let url = fixture.live.appendingPathComponent(paths[damage]!)
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data("retained authority".utf8).write(to: url)
+            fingerprint = try tx.sourceFingerprint()
+        default: break
+        }
+        let original = try treeBytes(fixture.live)
+        #expect(throws: (any Error).self) {
+            try tx.prepareReconstruction(remote: .init(context: context, records: records,
+                attachments: [:], isComplete: damage != "incomplete"),
+                pendingSnapshot: .init(mutations: [], sourceTreeFingerprint: fingerprint))
+        }
+        #expect(try treeBytes(fixture.live) == original)
+    }
+
+    @Test(arguments: ["kind", "version", "short", "mixed", "directory", "archive", "tree"])
+    func reconstructionManifestRejectsContradictorySourceEvidence(_ damage: String) throws {
+        let fixture = try Fixture(); defer { fixture.remove() }
+        let remote = try fixture.export()
+        try FileManager.default.removeItem(at: fixture.live.appendingPathComponent("projects-v1.json"))
+        let tx = try fixture.transaction()
+        let prepared = try tx.prepareReconstruction(remote: .init(context: fixture.context, records: remote.records,
+            attachments: [:], isComplete: true), pendingSnapshot: .init(mutations: [], sourceTreeFingerprint: tx.sourceFingerprint()))
+        let manifestURL = prepared.accountOwnedRoots[0].appendingPathComponent("active.json")
+        try rewriteManifest(at: manifestURL) { manifest in
+            switch damage {
+            case "kind": manifest["sourceKind"] = "archive"
+            case "version": manifest["version"] = 3
+            case "short": manifest["sourceTreeFingerprint"] = Data([1]).base64EncodedString()
+            case "mixed": manifest["sourceArchiveFingerprint"] = Data(repeating: 1, count: 32).base64EncodedString()
+            case "tree": manifest["sourceTreeFingerprint"] = Data(repeating: 1, count: 32).base64EncodedString()
+            default:
+                var original = try #require(manifest["original"] as? [String: Any])
+                if damage == "archive" {
+                    let bytes = Data("contradictory original archive".utf8)
+                    original["projects-v1.json"] = ["bytes": bytes.count, "digest": Data(SHA256.hash(data: bytes)).base64EncodedString()]
+                    for root in [fixture.live, prepared.originalBackupRoot] { try bytes.write(to: root.appendingPathComponent("projects-v1.json")) }
+                } else {
+                    original["projects-v1.json/"] = ["bytes": -1, "digest": ""]
+                    for root in [fixture.live, prepared.originalBackupRoot] {
+                        try FileManager.default.createDirectory(at: root.appendingPathComponent("projects-v1.json"), withIntermediateDirectories: false)
+                    }
+                }
+                manifest["original"] = original
+                let encoded = try JSONSerialization.data(withJSONObject: original, options: [.sortedKeys])
+                manifest["sourceTreeFingerprint"] = Data(SHA256.hash(data: encoded)).base64EncodedString()
+            }
+        }
+        let before = try treeBytes(fixture.root)
+        #expect(throws: (any Error).self) { try tx.install(prepared) }
+        #expect(try treeBytes(fixture.root) == before)
+    }
+
+    @Test func receiptLiteralLegacyCompatibilityAndStrictV2Discrimination() throws {
+        let literal = Data(#"{"transactionID":"11111111-1111-1111-1111-111111111111","accountIDHash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","sourceArchiveFingerprint":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="}"#.utf8)
+        let legacy = try JSONDecoder().decode(SyncBootstrapReceipt.self, from: literal)
+        #expect(legacy.sourceProof == .archive(sha256: Data(repeating: 0, count: 32)))
+        let encoded = try #require(try JSONSerialization.jsonObject(with: JSONEncoder().encode(legacy)) as? [String: Any])
+        #expect(Set(encoded.keys) == Set(["transactionID", "accountIDHash", "sourceArchiveFingerprint"]))
+        for damage in ["missing-version", "version-one", "unknown-version", "unknown-kind", "mixed", "short", "null-archive"] {
+            var object: [String: Any] = ["transactionID": legacy.transactionID.uuidString, "accountIDHash": legacy.accountIDHash,
+                "formatVersion": 2, "sourceKind": "missingArchive", "sourceTreeFingerprint": Data(repeating: 0, count: 32).base64EncodedString()]
+            switch damage {
+            case "missing-version": object.removeValue(forKey: "formatVersion")
+            case "version-one": object["formatVersion"] = 1
+            case "unknown-version": object["formatVersion"] = 3
+            case "unknown-kind": object["sourceKind"] = "archive"
+            case "short": object["sourceTreeFingerprint"] = "AA=="
+            case "null-archive": object["sourceArchiveFingerprint"] = NSNull()
+            default: object["sourceArchiveFingerprint"] = Data(repeating: 0, count: 32).base64EncodedString()
+            }
+            #expect(throws: (any Error).self) { try JSONDecoder().decode(SyncBootstrapReceipt.self, from: JSONSerialization.data(withJSONObject: object)) }
+        }
+    }
+
+    private func rewriteManifest(at url: URL, edit: (inout [String: Any]) throws -> Void) throws {
+        var envelope = try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        let encodedPayload = try #require(envelope["payload"] as? String)
+        let payload = try #require(Data(base64Encoded: encodedPayload))
+        var manifest = try #require(try JSONSerialization.jsonObject(with: payload) as? [String: Any])
+        try edit(&manifest)
+        let changed = try JSONSerialization.data(withJSONObject: manifest, options: [.sortedKeys])
+        envelope["payload"] = changed.base64EncodedString()
+        envelope["digest"] = Data(SHA256.hash(data: changed)).base64EncodedString()
+        try JSONSerialization.data(withJSONObject: envelope, options: [.sortedKeys]).write(to: url)
+    }
+
+    @Test(arguments: [false, true])
+    func reconstructionCommitsRealAbsentSourceAndRecoversUnderFreshContext(empty: Bool) throws {
+        let fixture = try Fixture(empty: empty); defer { fixture.remove() }
+        let remote = try fixture.export()
+        try FileManager.default.removeItem(at: fixture.live.appendingPathComponent("projects-v1.json"))
+        let original = try treeBytes(fixture.live)
+        let transaction = try fixture.transaction()
+        let fingerprint = try transaction.sourceFingerprint()
+        let preparation = try transaction.prepareReconstruction(
+            remote: .init(context: fixture.context, records: remote.records, attachments: remote.attachments, isComplete: true),
+            pendingSnapshot: .init(mutations: [], sourceTreeFingerprint: fingerprint))
+        #expect(try treeBytes(fixture.live) == original)
+        #expect(try treeBytes(preparation.originalBackupRoot) == original)
+        try transaction.install(preparation)
+        let receipt = try transaction.commit(preparation)
+        #expect(receipt.sourceProof == .missingArchive(treeSHA256: fingerprint))
+        #expect(receipt.sourceArchiveFingerprint == nil)
+        try transaction.canonicalHandoff(preparation).revalidate()
+        #expect(try fixture.readArchive().projects == fixture.archive.projects)
+        let current = SyncBootstrapContext(accountIDHash: fixture.context.accountIDHash, epoch: UUID(), freezeID: UUID())
+        let restarted = try SyncBootstrapTransaction(liveRoot: fixture.live, context: current,
+            journalRelativePath: "SyncMetadata/bootstrap-journal", validateContext: { candidate in
+                guard candidate == current else { throw SyncBootstrapError.contextChanged }
+            })
+        try #require(try restarted.recoverUnderCurrentContext()).revalidate()
+        let wire = try #require(try JSONSerialization.jsonObject(with: JSONEncoder().encode(receipt)) as? [String: Any])
+        #expect(wire["formatVersion"] as? Int == 2)
+        #expect(wire["sourceKind"] as? String == "missingArchive")
+        #expect(wire["sourceTreeFingerprint"] as? String == fingerprint.base64EncodedString())
+        #expect(wire["sourceArchiveFingerprint"] == nil)
+    }
+
+    @Test func ordinaryPreparationRejectsMissingArchiveWithoutChangingLiveBytes() throws {
+        let fixture = try Fixture(); defer { fixture.remove() }
+        let remote = try fixture.export()
+        try FileManager.default.removeItem(at: fixture.live.appendingPathComponent("projects-v1.json"))
+        let original = try treeBytes(fixture.live)
+        #expect(throws: (any Error).self) {
+            try fixture.transaction().prepare(local: remote, sourceArchive: fixture.archive,
+                remote: .init(context: fixture.context, records: remote.records, attachments: remote.attachments, isComplete: true))
+        }
+        #expect(try treeBytes(fixture.live) == original)
+    }
+
     @Test func currentContextRecoveryPreservesCommittedEvidenceAndRevokesRetainedHandoff() throws {
         let fixture = try Fixture(); defer { fixture.remove() }
         let old = try fixture.transaction()
@@ -331,8 +684,8 @@ struct SyncBootstrapTransactionTests {
         #expect(!FileManager.default.fileExists(atPath: fixture.live.appendingPathComponent(".sync-deletions").path))
     }
 
-    @Test @MainActor func remoteProjectDeletionIsRetainedBeforeReceiptAndRestoresOnDay29() throws {
-        try verifyRemoteDeletionRetention(localRename: false)
+    @Test(arguments: [false, true]) @MainActor func remoteProjectDeletionIsRetainedBeforeReceiptAndRestoresOnDay29(reconstruction: Bool) throws {
+        try verifyRemoteDeletionRetention(localRename: false, reconstruction: reconstruction)
     }
 
     @Test @MainActor func mergedRemoteDeletionSelectsOnlyItsRealPendingRecoveryDependency() throws {
@@ -343,7 +696,7 @@ struct SyncBootstrapTransactionTests {
         try verifyRemoteDeletionRetention(localRename: false, liveMedia: true)
     }
 
-    @MainActor private func verifyRemoteDeletionRetention(localRename: Bool, liveMedia: Bool = false) throws {
+    @MainActor private func verifyRemoteDeletionRetention(localRename: Bool, liveMedia: Bool = false, reconstruction: Bool = false) throws {
         let f = try RecoveryInventoryFixture(); defer { f.remove() }
         let project = try StoredProject(name: "Remote project")
         let original = ProjectArchive(version: ProjectArchive.currentVersion, projects: [project])
@@ -395,9 +748,17 @@ struct SyncBootstrapTransactionTests {
         let bootstrap = try SyncBootstrapTransaction(liveRoot: f.paths.workingSet, context: context,
             journalRelativePath: "SyncMetadata/pending.json", validateContext: { _ in })
         let pending = try journal.pending()
-        let prepared = try bootstrap.prepare(local: local, sourceArchive: archive,
-            remote: .init(context: context, records: remote, attachments: remoteAttachments, isComplete: true),
-            pendingSnapshot: .init(mutations: pending, sourceTreeFingerprint: try bootstrap.sourceFingerprint()))
+        let prepared: SyncBootstrapPreparation
+        if reconstruction {
+            try FileManager.default.removeItem(at: f.archiveURL)
+            prepared = try bootstrap.prepareReconstruction(remote: .init(context: context, records: remote,
+                attachments: remoteAttachments, isComplete: true),
+                pendingSnapshot: .init(mutations: pending, sourceTreeFingerprint: bootstrap.sourceFingerprint()))
+        } else {
+            prepared = try bootstrap.prepare(local: local, sourceArchive: archive,
+                remote: .init(context: context, records: remote, attachments: remoteAttachments, isComplete: true),
+                pendingSnapshot: .init(mutations: pending, sourceTreeFingerprint: try bootstrap.sourceFingerprint()))
+        }
         try bootstrap.install(prepared)
         let installed = try SyncDeletionLedger(root: f.ledgerRoot).recentlyDeleted()
         #expect(installed.count == 1)
@@ -460,19 +821,26 @@ struct SyncBootstrapTransactionTests {
         #expect(try fixture.readArchive().projects[0].knittingReminders.map(\.id) == [reminder.id])
     }
 
-    @Test func legacyPendingJournalRequiresSemanticRepairWithoutChangingOriginal() throws {
+    @Test(arguments: [false, true])
+    func legacyPendingJournalRequiresSemanticRepairWithoutChangingOriginal(reconstruction: Bool) throws {
         let fixture = try Fixture()
         defer { fixture.remove() }
         let journal = FileSyncMutationJournal(url: fixture.live.appendingPathComponent("SyncMetadata/bootstrap-journal"))
         let old = SyncMutation.delete(.init(kind: .knittingReminder, uuid: UUID()), mutationID: UUID())
         try journal.enqueue([old])
         let pending = try journal.pending()
+        if reconstruction { try FileManager.default.removeItem(at: fixture.live.appendingPathComponent("projects-v1.json")) }
         let transaction = try fixture.transaction()
         let fingerprint = try transaction.sourceFingerprint()
         #expect(throws: SyncPublicationError.pendingRepair) {
-            try transaction.prepare(local: fixture.export(), sourceArchive: fixture.archive,
-                remote: .init(context: fixture.context, records: [], attachments: [:], isComplete: true),
-                pendingSnapshot: .init(mutations: pending, sourceTreeFingerprint: fingerprint))
+            if reconstruction {
+                _ = try transaction.prepareReconstruction(remote: .init(context: fixture.context, records: [], attachments: [:], isComplete: true),
+                    pendingSnapshot: .init(mutations: pending, sourceTreeFingerprint: fingerprint))
+            } else {
+                _ = try transaction.prepare(local: fixture.export(), sourceArchive: fixture.archive,
+                    remote: .init(context: fixture.context, records: [], attachments: [:], isComplete: true),
+                    pendingSnapshot: .init(mutations: pending, sourceTreeFingerprint: fingerprint))
+            }
         }
         #expect(try transaction.sourceFingerprint() == fingerprint)
         #expect(try journal.pending() == pending)

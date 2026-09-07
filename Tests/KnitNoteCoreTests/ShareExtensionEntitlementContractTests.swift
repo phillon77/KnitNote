@@ -10,13 +10,42 @@ import Testing
             "KnitNote/Entitlements/EntitlementCoordinator.swift"
         )
         let app = try readRepositoryFile("KnitNote/App/KnitNoteApp.swift")
+        let appInitializer = try entitlementProjectionFunction(
+            signature: "    init()",
+            in: app
+        )
+        let localFactory = try entitlementProjectionClosure(
+            after: "makeLocal:",
+            in: appInitializer
+        )
+        let snapshotCallback = try entitlementProjectionClosure(
+            after: "onSnapshotChange:",
+            in: localFactory
+        )
 
         #expect(writer.contains("data.write"))
         #expect(writer.contains("options: .atomic"))
         #expect(coordinator.contains("onSnapshotChange"))
         #expect(coordinator.contains("publishSnapshot("))
-        #expect(app.contains("EntitlementProjectionWriter.live()"))
-        #expect(app.contains("entitlementProjectionWriter?.write("))
+        #expect(localFactory.contains(
+            "let entitlementProjection = try? EntitlementProjectionWriter.live()"
+        ))
+        #expect(localFactory.contains("EntitlementCoordinator.configured("))
+        #expect(snapshotCallback.contains(
+            "try? entitlementProjection?.write(snapshot: snapshot, generatedAt: generatedAt)"
+        ))
+        #expect(
+            appInitializer.components(separatedBy: "EntitlementProjectionWriter.live()").count == 2
+        )
+        #expect(
+            localFactory.components(separatedBy: "EntitlementProjectionWriter.live()").count == 2
+        )
+        #expect(
+            appInitializer.components(separatedBy: "entitlementProjection?.write(").count == 2
+        )
+        #expect(
+            snapshotCallback.components(separatedBy: "entitlementProjection?.write(").count == 2
+        )
     }
 
     @Test func shareGateRunsBeforeProviderSelectionOrByteLoading() throws {
@@ -117,4 +146,56 @@ import Testing
             }
         }
     }
+}
+
+private func entitlementProjectionFunction(signature: String, in source: String) throws -> String {
+    let signatures = source.components(separatedBy: signature)
+    guard signatures.count == 2,
+          let start = source.range(of: signature)?.lowerBound,
+          let openingBrace = source[start...].firstIndex(of: "{") else {
+        throw EntitlementProjectionContractError.missingUniqueOwner
+    }
+    return try entitlementProjectionBracedBlock(from: start, openingBrace: openingBrace, in: source)
+}
+
+private func entitlementProjectionClosure(after marker: String, in source: String) throws -> String {
+    let markers = source.components(separatedBy: marker)
+    guard markers.count == 2,
+          let markerRange = source.range(of: marker),
+          let openingBrace = source[markerRange.upperBound...].firstIndex(of: "{") else {
+        throw EntitlementProjectionContractError.missingUniqueOwner
+    }
+    return try entitlementProjectionBracedBlock(
+        from: markerRange.lowerBound,
+        openingBrace: openingBrace,
+        in: source
+    )
+}
+
+private func entitlementProjectionBracedBlock(
+    from start: String.Index,
+    openingBrace: String.Index,
+    in source: String
+) throws -> String {
+    var depth = 0
+    var cursor = openingBrace
+    while cursor < source.endIndex {
+        switch source[cursor] {
+        case "{":
+            depth += 1
+        case "}":
+            depth -= 1
+            if depth == 0 {
+                return String(source[start...cursor])
+            }
+        default:
+            break
+        }
+        cursor = source.index(after: cursor)
+    }
+    throw EntitlementProjectionContractError.missingUniqueOwner
+}
+
+private enum EntitlementProjectionContractError: Error {
+    case missingUniqueOwner
 }

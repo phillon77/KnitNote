@@ -91,10 +91,15 @@ import Testing
         ]))
     }
 
-    @Test func mainAppProjectsAtLaunchAndOnEveryStoredSelectionChange() throws {
+    @Test func mainAppLazilyProjectsAtLaunchAndOnEveryStoredSelectionChange() throws {
         let source = try repositorySource("KnitNote/App/KnitNoteApp.swift")
-        let initializer = try #require(
-            sourceSection(source, from: "    init() {", to: "    private var selection:")
+        let initializer = try languageProjectionFunction(
+            signature: "    init()",
+            in: source
+        )
+        let localFactory = try languageProjectionClosure(
+            after: "makeLocal:",
+            in: initializer
         )
         let changeHandler = try #require(
             sourceSection(
@@ -104,10 +109,47 @@ import Testing
             )
         )
 
-        #expect(initializer.contains("LanguageSelectionProjection.live()"))
-        #expect(initializer.contains("languageSelectionProjection?.write("))
+        #expect(localFactory.contains("languageProjection = LanguageSelectionProjection.live()"))
+        #expect(localFactory.contains(
+            "let initialLanguage = UserDefaults.standard.string(forKey: \"languageSelection\")"
+        ))
+        #expect(localFactory.contains("languageProjection?.write(initialLanguage)"))
+        #expect(localFactory.contains("languageSelectionProjection: languageProjection"))
+        #expect(
+            initializer.components(separatedBy: "LanguageSelectionProjection.live()").count == 2
+        )
+        #expect(
+            localFactory.components(separatedBy: "LanguageSelectionProjection.live()").count == 2
+        )
         #expect(changeHandler.contains("languageSelectionProjection?.write("))
         #expect(changeHandler.contains("LanguageSelection(rawValue: newValue) ?? .system"))
+    }
+
+    @Test func screenshotLaunchReturnsBeforeTheOnlyLocalProjectionFactoryCall() throws {
+        let source = try repositorySource("KnitNote/App/AppSessionComposition.swift")
+        let makeLaunch = try languageProjectionFunction(
+            signature: "    static func makeLaunch(",
+            in: source
+        )
+        let screenshotStart = try #require(makeLaunch.range(
+            of: "if let screenshotBaseDirectory"
+        ))
+        let screenshotReturn = try #require(makeLaunch.range(
+            of: "return AppSessionLaunchResources("
+        ))
+        let localFactoryCall = try #require(makeLaunch.range(
+            of: "let local = try makeLocal()"
+        ))
+        let screenshotRoute = makeLaunch[
+            screenshotStart.lowerBound..<localFactoryCall.lowerBound
+        ]
+
+        #expect(screenshotStart.lowerBound < screenshotReturn.lowerBound)
+        #expect(screenshotReturn.lowerBound < localFactoryCall.lowerBound)
+        #expect(makeLaunch.components(separatedBy: "try makeLocal()").count == 2)
+        #expect(screenshotRoute.contains("languageSelectionProjection: nil"))
+        #expect(screenshotRoute.contains("makeWatch: { _ in nil }"))
+        #expect(!screenshotRoute.contains("LanguageSelectionProjection.live()"))
     }
 
     @Test func shareLaunchInjectsTheProjectedLocaleIntoItsSwiftUIView() throws {
@@ -181,8 +223,57 @@ private func sourceSection(
     return source[startRange.lowerBound..<endRange.lowerBound]
 }
 
+private func languageProjectionFunction(signature: String, in source: String) throws -> String {
+    let signatures = source.components(separatedBy: signature)
+    guard signatures.count == 2,
+          let start = source.range(of: signature)?.lowerBound,
+          let openingBrace = source[start...].firstIndex(of: "{") else {
+        throw LanguageSelectionProjectionTestError.missingUniqueOwner
+    }
+    return try languageProjectionBracedBlock(from: start, openingBrace: openingBrace, in: source)
+}
+
+private func languageProjectionClosure(after marker: String, in source: String) throws -> String {
+    let markers = source.components(separatedBy: marker)
+    guard markers.count == 2,
+          let markerRange = source.range(of: marker),
+          let openingBrace = source[markerRange.upperBound...].firstIndex(of: "{") else {
+        throw LanguageSelectionProjectionTestError.missingUniqueOwner
+    }
+    return try languageProjectionBracedBlock(
+        from: markerRange.lowerBound,
+        openingBrace: openingBrace,
+        in: source
+    )
+}
+
+private func languageProjectionBracedBlock(
+    from start: String.Index,
+    openingBrace: String.Index,
+    in source: String
+) throws -> String {
+    var depth = 0
+    var cursor = openingBrace
+    while cursor < source.endIndex {
+        switch source[cursor] {
+        case "{":
+            depth += 1
+        case "}":
+            depth -= 1
+            if depth == 0 {
+                return String(source[start...cursor])
+            }
+        default:
+            break
+        }
+        cursor = source.index(after: cursor)
+    }
+    throw LanguageSelectionProjectionTestError.missingUniqueOwner
+}
+
 private enum LanguageSelectionProjectionTestError: Error {
     case commandFailed(String)
+    case missingUniqueOwner
 }
 
 private let languageProjectionRepositoryRoot = URL(filePath: #filePath)

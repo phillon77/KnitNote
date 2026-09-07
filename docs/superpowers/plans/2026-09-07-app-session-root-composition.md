@@ -32,7 +32,7 @@
 - `AppSessionComposition.make(store:backupHistory:makeWatch:) throws -> AppSessionResources` creates its own presenters and inbox for the supplied fixed store, uses lazy `makeWatch: (JSONProjectStore) throws -> AppSessionWatchResources?`, and internally registers inbox/coordinator/adapter exactly once in the resource group. Ensure a failed construction stops/joins accepted work or prove none has started; factory must not start producers before successful full assembly.
 - `AppSessionRootView<Content: View, Unavailable: View>` consumes owner plus content/unavailable builders. It owns the actual conditional session selection, required presentation unwrap, four environment injections and `.id(session.id)` around the entire content subtree. Shared entitlement/locale/update environment comes from App outside boundary.
 
-- [ ] **Step 1: Write actual-source REDs for composition and root identity.** Create fresh `/tmp/knitnote-app-root-XXXXXX` harness from inspected current owner harness manifest/inventory via symlinks and add SwiftUI production/new tests. Preserve the old harness. No copied production implementation. Use explicit native operations and temporary Watch support root. Composition tests assert identical fixed store used by actual inbox/coordinator, different presenter identities between sessions, and stop/drain of all three real producers.
+- [x] **Step 1: Write actual-source REDs for composition and root identity.** Create fresh `/tmp/knitnote-app-root-XXXXXX` harness from inspected current owner harness manifest/inventory via symlinks and add SwiftUI production/new tests. Preserve the old harness. No copied production implementation. Use explicit native operations and temporary Watch support root. Composition tests assert identical fixed store used by actual inbox/coordinator, different presenter identities between sessions, and stop/drain of all three real producers.
 
 ```swift
 @Test @MainActor func oldAndNewSessionPresentationNeverMix() async throws {
@@ -58,7 +58,7 @@
 
 Fixture builds actual store/inbox/Watch components, independent direct component/store joins before deleting roots. It may reuse existing test fixtures only with verified lifetime and no private cross-file access. Native support root must be explicit rather than PhoneWatchSyncCoordinator's shared default.
 
-- [ ] **Step 2: Implement typed composition with one lifetime group.** Extend resource designated initializer privately/internal as necessary so presentation and producer group are fixed together. No arbitrary prebuilt inbox with unrelated store in the App public composition path. AppSessionWatchResources is platform-neutral because native adapter now compiles on macOS; only live construction is iOS conditional. Do not start Watch during factory construction.
+- [x] **Step 2: Implement typed composition with one lifetime group.** Extend resource designated initializer privately/internal as necessary so presentation and producer group are fixed together. No arbitrary prebuilt inbox with unrelated store in the App public composition path. AppSessionWatchResources is platform-neutral because native adapter now compiles on macOS; only live construction is iOS conditional. Do not start Watch during factory construction.
 
 ```swift
 let backup = PatternBackupReminderPresenter(history: backupHistory)
@@ -69,7 +69,7 @@ let watch = try makeWatch(store)
 // in the resource's private fixed group: inbox, optional coordinator, adapter.
 ```
 
-- [ ] **Step 3: Implement production root and real hosting tests.** Construct actual generic wrapper, not a test copy:
+- [x] **Step 3: Implement production root and real hosting tests.** Construct actual generic wrapper, not a test copy:
 
 ```swift
 Group {
@@ -88,13 +88,13 @@ Group {
 
 Use NSHostingView on macOS with instrumented Content reading actual environment and @State selection/preview markers. Drive host layout/event-cycle using the existing MacYarnEditorLayoutTests pattern, not sleep/yield/emptyTask assumptions. Verify two windows share fixed instances, A→nil removes content, B restores new identities/reset state even with identical project UUID, and shared entitlement/language changes do not replace B. Preserve and invoke old A mutation closure to assert A revoked/B unchanged. If runtime cannot prove actual subtree behavior, report that limitation; don't replace with source `.id` string assertions. No real user windows or production App host.
 
-- [ ] **Step 4: Wire KnitNoteApp through lazy launch routing.** Replace session-specific StateObjects with one owner. Preserve App-global entitlement, updates, language/locale and appropriate normal-mode projections. Keep RootView unchanged except any necessary explicit session callback routing. Publish one fully-composed compatibility local session during App initialization; no per-window factory. The shipping compatibility path continues existing non-sync global store behavior, not account binding/adoption. Language Watch publication reads the currently visible typed bundle only.
+- [x] **Step 4: Wire KnitNoteApp through lazy launch routing.** Replace session-specific StateObjects with one owner. Preserve App-global entitlement, updates, language/locale and appropriate normal-mode projections. Keep RootView unchanged except any necessary explicit session callback routing. Publish one fully-composed compatibility local session during App initialization; no per-window factory. The shipping compatibility path continues existing non-sync global store behavior, not account binding/adoption. Language Watch publication reads the currently visible typed bundle only.
 
 Screenshot branch must be selected before lazy live-store/Watch/projection/keychain/cloud factories. It uses explicit screenshot baseDirectory store overload and screenshot entitlement; no nativeWatch, languageprojection or entitlementprojection construction/write. Invalid screenshot requests retain existing fail-closed behavior. AppUpdateFixture remains a response fixture, not claimed to be an isolated full-session mode; don't broaden it into a new fixture product or change normal behavior under that flag silently. New isolated tests inject dependencies rather than launch real App.
 
 Add routing tests against the actual composition route with throwing/counting lazy production closures: screenshot/isolated composition must leave forbidden counts at zero. Avoid calling StoreScreenshotMode.resolve in a unit test since it mutates fixture folders; inject resolved mode/path. Normal route start Watch only after resource publication and only for existing local-only behavior; no true cross-account Watch route. Preserve platform conditional build and App update/user-facing behavior. Unavailable builder uses safe existing localized loading state during this compatibility slice; full account reason/retry presentation comes with real identity orchestration, not raw errors or invented synced state.
 
-- [ ] **Step 5: Focused/complete tests, self-review, commit.** Get runtime RED for wrong presentation identity and missing subtree reset, plus forbidden factory construction; restore before GREEN. Run combined new+existing owner/producer/native no-host suite once before commit. Existing relevant screenshot/App update/source contracts may need legitimate assertions updated for root delegation; do not weaken safety checks to accept new callsites. PBXlint/diffcheck, log paths/exits/hashes and precise source/target membership in report. Ask controller before any large build to avoid overlap.
+- [x] **Step 5: Focused/complete tests, self-review, commit.** Get runtime RED for wrong presentation identity and missing subtree reset, plus forbidden factory construction; restore before GREEN. Run combined new+existing owner/producer/native no-host suite once before commit. Existing relevant screenshot/App update/source contracts may need legitimate assertions updated for root delegation; do not weaken safety checks to accept new callsites. PBXlint/diffcheck, log paths/exits/hashes and precise source/target membership in report. Ask controller before any large build to avoid overlap.
 
 ```sh
 python3 /tmp/task4-run-bounded.py 900 arch -arm64 swift test --no-parallel
@@ -110,8 +110,8 @@ Explicit optional files only if changed. Report scope limits: this is actual loc
 
 **Files:** `docs/superpowers/reports/2026-09-07-app-session-root-composition-verification.md`.
 
-- [ ] Review Task1 and entire subplan baseline73d5749..HEAD, named root/fixture/account boundary risks, then scoped fixes. Preserve exact tests/runtime evidence and explicitly review source-contract changes.
-- [ ] Freeze candidate; run fullCore, combined actualsource/hosting tests, macOS unsignedbuildfortesting and iOS unsignedbuild serially. Reuse inspected boundedrunner, new unique logs and `/tmp/app-root-{macos,ios}-derived` directories. No live App host/services.
+- [x] Review Task1 and entire subplan baseline73d5749..HEAD, named root/fixture/account boundary risks, then scoped fixes. Preserve exact tests/runtime evidence and explicitly review source-contract changes.
+- [x] Freeze candidate; run fullCore, combined actualsource/hosting tests, macOS unsignedbuildfortesting and iOS unsignedbuild serially. Reuse inspected boundedrunner, new unique logs and `/tmp/app-root-{macos,ios}-derived` directories. No live App host/services.
 
 ```sh
 python3 /tmp/task4-run-bounded.py 3600 arch -arm64 swift test --no-parallel
@@ -120,7 +120,7 @@ python3 /tmp/task4-run-bounded.py 900 xcodebuild -project KnitNote.xcodeproj -sc
 python3 /tmp/task4-run-bounded.py 900 xcodebuild -project KnitNote.xcodeproj -scheme KnitNote -destination 'generic/platform=iOS' -derivedDataPath /tmp/app-root-ios-derived CODE_SIGNING_ALLOWED=NO build
 ```
 
-- [ ] Save report/loghashes/frozenidentities/rulings and continue account orchestration under existing approval, not pauseautomation. Account mapper `/tmp/app-account-install-mapping.md` identifies required real canonical install/ACK/source validation and bootstrap-restart bridge; identity notes `/tmp/app-account-identity-interface-notes.md`. Do not infer cache account/empty files as legacy evidence. All remaining release gates unchanged.
+- [x] Save report/loghashes/frozenidentities/rulings and continue account orchestration under existing approval, not pauseautomation. Account mapper `/tmp/app-account-install-mapping.md` identifies required real canonical install/ACK/source validation and bootstrap-restart bridge; identity notes `/tmp/app-account-identity-interface-notes.md`. Do not infer cache account/empty files as legacy evidence. All remaining release gates unchanged.
 
 ## Self-review
 

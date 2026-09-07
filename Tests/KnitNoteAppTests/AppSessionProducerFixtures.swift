@@ -224,3 +224,281 @@ func producerTestInboxItem() -> PatternInboxItem {
         stagedFilename: "fixture.pdf"
     )
 }
+
+@MainActor
+final class ProducerTestWatchTransport: WatchConnectivityTransport {
+    var onReceivedEnvelope: WatchConnectivityReceivedEnvelope?
+    var onReachabilityChanged: WatchConnectivityReachabilityChanged?
+    var onActivationCompleted: WatchConnectivityActivationCompleted?
+    var onTransferCompleted: WatchConnectivityTransferCompleted?
+    var isReachable = true
+
+    private(set) var activationCount = 0
+    private(set) var applicationContexts: [WatchConnectivityEnvelope] = []
+    private(set) var sentMessages: [WatchConnectivityEnvelope] = []
+    private(set) var sentEnvelopes: [WatchConnectivityEnvelope] = []
+    var onActivate: (() -> Void)?
+    var onUpdateApplicationContext: (() -> Void)?
+
+    func activate() {
+        activationCount += 1
+        onActivate?()
+    }
+
+    func updateApplicationContext(_ envelope: WatchConnectivityEnvelope) throws {
+        applicationContexts.append(envelope)
+        onUpdateApplicationContext?()
+    }
+
+    func sendMessage(
+        _ envelope: WatchConnectivityEnvelope,
+        reply: @escaping WatchConnectivityEnvelopeReply,
+        failure: @escaping WatchConnectivityFailure
+    ) {
+        sentMessages.append(envelope)
+    }
+
+    func transferUserInfo(_ envelope: WatchConnectivityEnvelope) {
+        sentEnvelopes.append(envelope)
+    }
+}
+
+struct ProducerTestDiskSnapshot: Equatable {
+    struct Entry: Equatable {
+        enum Kind: Equatable { case directory, regularFile }
+        let relativePath: String
+        let kind: Kind
+        let data: Data?
+    }
+
+    let entries: [Entry]
+
+    static func capture(root: URL) throws -> Self {
+        let fileManager = FileManager.default
+        guard fileManager.fileExists(atPath: root.path) else { return .init(entries: []) }
+        let keys: [URLResourceKey] = [.isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey]
+        var enumerationError: (any Error)?
+        guard let enumerator = fileManager.enumerator(
+            at: root,
+            includingPropertiesForKeys: keys,
+            options: [],
+            errorHandler: { _, error in
+                enumerationError = error
+                return false
+            }
+        ) else {
+            throw ProducerTestFailure.processingFailed
+        }
+
+        var entries: [Entry] = []
+        for case let url as URL in enumerator {
+            let values = try url.resourceValues(forKeys: Set(keys))
+            guard values.isSymbolicLink != true else {
+                throw ProducerTestFailure.processingFailed
+            }
+            let relativePath = String(url.path.dropFirst(root.path.count + 1))
+            if values.isDirectory == true {
+                entries.append(.init(relativePath: relativePath, kind: .directory, data: nil))
+            } else if values.isRegularFile == true {
+                entries.append(.init(
+                    relativePath: relativePath,
+                    kind: .regularFile,
+                    data: try Data(contentsOf: url)
+                ))
+            } else {
+                throw ProducerTestFailure.processingFailed
+            }
+        }
+        if let enumerationError { throw enumerationError }
+        return .init(entries: entries.sorted { $0.relativePath < $1.relativePath })
+    }
+}
+
+@MainActor
+final class ProducerTestMainActorEvent {
+    private(set) var count = 0
+    private var waiters: [(Int, CheckedContinuation<Void, Never>)] = []
+
+    func signal() {
+        count += 1
+        let ready = waiters.filter { count >= $0.0 }
+        waiters.removeAll { count >= $0.0 }
+        ready.forEach { $0.1.resume() }
+    }
+
+    func wait(for expected: Int = 1) async {
+        guard count < expected else { return }
+        await withCheckedContinuation { waiters.append((expected, $0)) }
+    }
+}
+
+@MainActor
+final class ProducerTestWatchSleep {
+    private var durations: [Duration] = []
+    private var continuations: [Int: CheckedContinuation<Void, Never>] = [:]
+    private var waiters: [(Int, CheckedContinuation<Void, Never>)] = []
+    private var released: Set<Int> = []
+    private var releaseEverything = false
+
+    func sleep(for duration: Duration) async throws {
+        durations.append(duration)
+        let call = durations.count
+        let ready = waiters.filter { durations.count >= $0.0 }
+        waiters.removeAll { durations.count >= $0.0 }
+        ready.forEach { $0.1.resume() }
+        guard !releaseEverything, !released.contains(call) else { return }
+        await withCheckedContinuation { continuation in
+            if releaseEverything || released.contains(call) {
+                continuation.resume()
+            } else {
+                continuations[call] = continuation
+            }
+        }
+    }
+
+    func waitUntilCallCount(_ expected: Int) async {
+        guard durations.count < expected else { return }
+        await withCheckedContinuation { waiters.append((expected, $0)) }
+    }
+
+    func release(call: Int) {
+        guard released.insert(call).inserted else { return }
+        continuations.removeValue(forKey: call)?.resume()
+    }
+
+    func releaseAll() {
+        releaseEverything = true
+        let pending = continuations.values
+        continuations.removeAll()
+        pending.forEach { $0.resume() }
+    }
+
+}
+
+final class ProducerTestGateProbe: @unchecked Sendable {
+    let states: AsyncStream<AppSessionCallbackGate.State>
+    private let continuation: AsyncStream<AppSessionCallbackGate.State>.Continuation
+
+    init() {
+        let events = AsyncStream<AppSessionCallbackGate.State>.makeStream()
+        states = events.stream
+        continuation = events.continuation
+    }
+
+    func record(_ state: AppSessionCallbackGate.State) {
+        continuation.yield(state)
+    }
+
+    func finish() {
+        continuation.finish()
+    }
+}
+
+@MainActor
+final class ProducerTestTrialPurchaseService: PurchaseService {
+    let entitlementUpdates: AsyncStream<Void>
+    let localizedLifetimePrice: String? = nil
+
+    init() {
+        entitlementUpdates = AsyncStream { continuation in continuation.finish() }
+    }
+
+    func prepare() async {}
+    func currentQualification() async -> PurchaseQualification { .none }
+    func purchaseLifetime() async throws -> PurchaseOutcome { .cancelled }
+    func restore() async throws -> PurchaseQualification { .none }
+}
+
+struct ProducerTestFixedTrialStore: TrialStore {
+    let record: TrialRecord
+    func load() throws -> TrialRecord? { record }
+    func startIfNeeded(now: Date) throws -> TrialRecord { record }
+}
+
+@MainActor
+struct ProducerTestWatchFixture {
+    let root: URL
+    let watchRoot: URL
+    let now: Date
+    let store: JSONProjectStore
+    let entitlement: EntitlementCoordinator
+    let transport: ProducerTestWatchTransport
+
+    init(entitlement: EntitlementCoordinator? = nil) throws {
+        root = URL(filePath: "/tmp/PhoneWatchSessionProducerTests-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let liveRoot = root.appending(path: "A/Live", directoryHint: .isDirectory)
+        watchRoot = root.appending(path: "A/Watch", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: liveRoot, withIntermediateDirectories: true)
+        now = Date(timeIntervalSince1970: 1_800_000_000)
+        store = JSONProjectStore(
+            url: liveRoot.appending(path: "projects.json"),
+            authorizeMutation: { mutation in
+                FeatureAccessPolicy.decision(
+                    for: mutation,
+                    snapshot: .legacyPaidOwner,
+                    now: Date(timeIntervalSince1970: 1_800_000_000)
+                )
+            }
+        )
+        try store.add(name: "A")
+        self.entitlement = entitlement ?? .configured(screenshotMode: true)
+        transport = ProducerTestWatchTransport()
+    }
+
+    func makeCoordinator(
+        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
+        observeCallbackGateState: @escaping @Sendable (AppSessionCallbackGate.State) -> Void = { _ in }
+    ) -> PhoneWatchSyncCoordinator {
+        PhoneWatchSyncCoordinator(
+            projectStore: store,
+            entitlementCoordinator: entitlement,
+            transport: transport,
+            applicationSupportRoot: watchRoot,
+            languageCode: { "en" },
+            now: { now },
+            sleep: sleep,
+            observeCallbackGateState: observeCallbackGateState
+        )
+    }
+
+    func cleanup() throws {
+        try FileManager.default.removeItem(at: root)
+    }
+}
+
+@MainActor
+func withProducerTestWatchFixture(
+    entitlement: EntitlementCoordinator? = nil,
+    controlledSleep: ProducerTestWatchSleep? = nil,
+    observeCallbackGateState: @escaping @Sendable (AppSessionCallbackGate.State) -> Void = { _ in },
+    operation: @MainActor (
+        ProducerTestWatchFixture,
+        PhoneWatchSyncCoordinator
+    ) async throws -> Void
+) async throws {
+    let fixture = try ProducerTestWatchFixture(entitlement: entitlement)
+    let coordinator = fixture.makeCoordinator(sleep: { duration in
+        if let controlledSleep {
+            try await controlledSleep.sleep(for: duration)
+        } else {
+            try await Task.sleep(for: duration)
+        }
+    }, observeCallbackGateState: observeCallbackGateState)
+    let result: Result<Void, any Error>
+    do {
+        result = .success(try await operation(fixture, coordinator))
+    } catch {
+        result = .failure(error)
+    }
+
+    let cleanup = Task { @MainActor in
+        controlledSleep?.releaseAll()
+        fixture.transport.onActivate = nil
+        fixture.transport.onUpdateApplicationContext = nil
+        coordinator.stopForSessionTransition()
+        _ = try? await coordinator.waitForStoppedOperations()
+        try? fixture.cleanup()
+    }
+    await cleanup.value
+    try result.get()
+}

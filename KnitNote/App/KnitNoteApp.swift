@@ -143,6 +143,7 @@ struct KnitNoteApp: App {
         let phoneWatchSyncCoordinator = PhoneWatchSyncCoordinator(
             projectStore: projectStore,
             entitlementCoordinator: entitlementCoordinator,
+            transport: PhoneWatchSession(),
             languageCode: {
                 let selection = UserDefaults.standard
                     .string(forKey: "languageSelection")

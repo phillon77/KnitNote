@@ -39,7 +39,7 @@
 - Produces required-injection `PhoneWatchSession.init(session:isSupported:)` with optional immutable gate State observer; only iOS supplies zero-argument convenience init.
 - Neutral nonisolated entries: `activationCompleted(activated:error:)`, `becameInactive()`, `deactivated()`, `reachabilityChanged(_:)`, `receivedApplicationContext(_:)`, `receivedMessage(_:)`, `receivedMessage(_:replyHandler:)`, `receivedUserInfo(_:)`, `transferCompleted(_:error:)`. iOS delegates synchronously forward without extra Task.
 
-- [ ] **Step 1: Prepare isolated actual-source test target and baseline.** Create a unique directory using `mktemp -d /tmp/knitnote-native-watch-XXXXXX`; use apply_patch for its Package.swift, symlinks for Core, actual AppSessionProducerLifecycle.swift, AppSessionCallbackGate.swift, PhoneWatchSession.swift and the new tests. Record every symlink target and exact manifest in report. Use target name KnitNote and test target KnitNoteAppTests, macOS v15, sources directories Core/App and Core resources. No copies of production Swift. Do not run old producer harness as this task's evidence.
+- [x] **Step 1: Prepare isolated actual-source test target and baseline.** Create a unique directory using `mktemp -d /tmp/knitnote-native-watch-XXXXXX`; use apply_patch for its Package.swift, symlinks for Core, actual AppSessionProducerLifecycle.swift, AppSessionCallbackGate.swift, PhoneWatchSession.swift and the new tests. Record every symlink target and exact manifest in report. Use target name KnitNote and test target KnitNoteAppTests, macOS v15, sources directories Core/App and Core resources. No copies of production Swift. Do not run old producer harness as this task's evidence.
 
 ```swift
 // swift-tools-version: 6.0
@@ -52,7 +52,7 @@ let package = Package(name: "NativeWatchLifecycle", defaultLocalization: "en",
     ])
 ```
 
-- [ ] **Step 2: Write failing lifecycle tests before implementation.** An initial unavailable-type failure may establish the platform extraction RED, but subsequent behavior needs runtime RED (remove the relevant guard/drain temporarily and restore via patch before GREEN). Build a MainActor operations fake recording delegate owner identity and native calls. Use native callback completion or immutable gate observations as explicit events; never sleep/yield/empty Task fence to infer completion.
+- [x] **Step 2: Write failing lifecycle tests before implementation.** An initial unavailable-type failure may establish the platform extraction RED, but subsequent behavior needs runtime RED (remove the relevant guard/drain temporarily and restore via patch before GREEN). Build a MainActor operations fake recording delegate owner identity and native calls. Use native callback completion or immutable gate observations as explicit events; never sleep/yield/empty Task fence to infer completion.
 
 ```swift
 @Test @MainActor func stoppedAdapterRejectsQueuedActivation() async throws {
@@ -70,7 +70,7 @@ let package = Package(name: "NativeWatchLifecycle", defaultLocalization: "en",
 
 Implement `NativeWatchOperationsSpy` conforming the neutral operations: weak owner, reachability read count, activation count, context/message/userInfo arrays, retained native reply/error closures, synchronous install/activation callout hooks. Do not hide adapter behavior inside fake.
 
-- [ ] **Step 3: Extract neutral adapter and add minimal lifetime implementation.** Keep imports/extension/delegate-only symbols conditional, preserve iOS caller. Use private gate and stopped flag. Operations detach only when delegate identity matches the owner. Throw an App-layer stopped error from context update; stopped void methods no-op and reachability false without native query. Close before nil callbacks and external removal; repeat stop safe.
+- [x] **Step 3: Extract neutral adapter and add minimal lifetime implementation.** Keep imports/extension/delegate-only symbols conditional, preserve iOS caller. Use private gate and stopped flag. Operations detach only when delegate identity matches the owner. Throw an App-layer stopped error from context update; stopped void methods no-op and reachability false without native query. Close before nil callbacks and external removal; repeat stop safe.
 
 ```swift
 func stopForSessionTransition() {
@@ -100,9 +100,9 @@ private nonisolated func enqueueCallback(
 
 Use this pattern for notification and native reply/error arrival. Retained outgoing closures capture weak adapter and only admit on arrival, never hold a gate token waiting on external network. Recheck stopped after synchronous external callouts before subsequent native operation. A retained inbound reply closure checks stopped at use. For FIFO: begin before enqueue; finish enqueue token immediately if another drain exists; otherwise Task owns token until loop has dequeued everything. On stopped drain, discard without coordinator notification or replyBox.fail. Normal invalid/no-listener failure remains one-shot. No extra Task in iOS delegate forwarding.
 
-- [ ] **Step 4: Complete deterministic regression matrix.** Cover normal activation/reachability/context/send/enqueue; all four raw input routes FIFO order and valid/invalid reply; one-shot reply/error competition; queued activation/inactive/deactivate/reachability/transfer and raw deliveries stopped before execution; onActivationCompleted and native install synchronous stop reentry; saved inbound reply after stop; outgoing reply/error before/after stop; repeated stop and every public stopped API; open wait throws; two waiters with one canceled; A stop after B delegate replacement leaves B live; late ingress cannot acquire ownership. All throwing/canceled test paths release and independently join owned work before any cleanup, including deliberately broken drain RED. Use in-memory fixtures where possible.
+- [x] **Step 4: Complete deterministic regression matrix.** Cover normal activation/reachability/context/send/enqueue; all four raw input routes FIFO order and valid/invalid reply; one-shot reply/error competition; queued activation/inactive/deactivate/reachability/transfer and raw deliveries stopped before execution; onActivationCompleted and native install synchronous stop reentry; saved inbound reply after stop; outgoing reply/error before/after stop; repeated stop and every public stopped API; open wait throws; two waiters with one canceled; A stop after B delegate replacement leaves B live; late ingress cannot acquire ownership. All throwing/canceled test paths release and independently join owned work before any cleanup, including deliberately broken drain RED. Use in-memory fixtures where possible.
 
-- [ ] **Step 5: Run focused and complete task harness plus source contracts, self-review and commit.** Commands below use an existing bounded subprocess runner; inspect it first. Request sandbox escalation for Swift caches only if needed. Capture command, exit status, complete log path, counts, warnings and source SHA; do not claim expected warnings pristine.
+- [x] **Step 5: Run focused and complete task harness plus source contracts, self-review and commit.** Commands below use an existing bounded subprocess runner; inspect it first. Request sandbox escalation for Swift caches only if needed. Capture command, exit status, complete log path, counts, warnings and source SHA; do not claim expected warnings pristine.
 
 ```sh
 python3 /tmp/task4-run-bounded.py 900 arch -arm64 swift test --no-parallel
@@ -121,8 +121,8 @@ Stage optional support/source-contract files explicitly only if changed. Report 
 
 **Interfaces:** Consumes reviewed Task 1 SHA and harness inventory. Produces immutable local verification report, not release approval.
 
-- [ ] **Step 1: Complete final independent review of this subplan's full diff and resolve load-bearing findings.** Use baseline `5b0dd6c` (the subplan boundary, not the unrelated ancestral feature history). Check bridge forwarding, callback registration races, owner replacement, cancellation, tests and deferred findings. Record rulings and exact review range.
-- [ ] **Step 2: Freeze HEAD and run full Core, combined actual-source no-host tests, unsigned macOS and iOS builds serially.** Extend the new harness inventory with existing producer test sources/dependencies by symlink, not copies, so full local evidence covers existing 34 producer tests and new native tests. Inspect the old harness manifest and symlinks only as routing, not its completed SDD. Do not include App host. Confirm remaining deadline before each expensive run; if insufficient, record pending rather than downgrade gate.
+- [x] **Step 1: Complete final independent review of this subplan's full diff and resolve load-bearing findings.** Use baseline `5b0dd6c` (the subplan boundary, not the unrelated ancestral feature history). Check bridge forwarding, callback registration races, owner replacement, cancellation, tests and deferred findings. Record rulings and exact review range.
+- [x] **Step 2: Freeze HEAD and run full Core, combined actual-source no-host tests, unsigned macOS and iOS builds serially.** Extend the new harness inventory with existing producer test sources/dependencies by symlink, not copies, so full local evidence covers existing 34 producer tests and new native tests. Inspect the old harness manifest and symlinks only as routing, not its completed SDD. Do not include App host. Confirm remaining deadline before each expensive run; if insufficient, record pending rather than downgrade gate.
 
 ```sh
 python3 /tmp/task4-run-bounded.py 3600 arch -arm64 swift test --no-parallel
@@ -134,7 +134,7 @@ git status --short
 git rev-parse HEAD
 ```
 
-- [ ] **Step 3: Record and commit evidence only after inspecting full summaries and diagnostics.** Report exact frozen SHA, command/workdir/log hash/exit/count, harness provenance, reviewed range, warnings, version identity and missing live/device/owner/release gates. Docs-only final commit must preserve tested code/test/PBX trees. Preserve local branch; pause this automation when complete or deadline reached. Do not delete evidence without preserving durable report.
+- [x] **Step 3: Record and commit evidence only after inspecting full summaries and diagnostics.** Report exact frozen SHA, command/workdir/log hash/exit/count, harness provenance, reviewed range, warnings, version identity and missing live/device/owner/release gates. Docs-only final commit must preserve tested code/test/PBX trees. Preserve local branch; pause this automation when complete or deadline reached. Do not delete evidence without preserving durable report.
 
 ## Plan self-review
 

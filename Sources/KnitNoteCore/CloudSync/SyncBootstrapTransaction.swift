@@ -241,6 +241,15 @@ public final class SyncBootstrapTransaction {
                                          liveRoot: URL, journalURL: URL,
                                          entries: [SyncAccountRecoveryInventory.Entry]) throws {
         _ = try terminalRecoveryEvidence(account: account, accountRoot: accountRoot, liveRoot: liveRoot,
+            journalURL: journalURL, entries: entries)
+    }
+
+    /// Physical counterpart of the pure parser. Nil means there is no terminal
+    /// evidence, not that a missing archive has been authorized.
+    static func terminalRecoveryEvidence(account: SyncAccountIdentity, accountRoot: URL,
+        liveRoot: URL, journalURL: URL,
+        entries: [SyncAccountRecoveryInventory.Entry]) throws -> SyncBootstrapTerminalRecoveryEvidence? {
+        try terminalRecoveryEvidence(account: account, accountRoot: accountRoot, liveRoot: liveRoot,
             journalURL: journalURL, entries: entries) { path in
             guard let proof = entries.first(where: { $0.relativePath == path && !$0.isDirectory }),
                   proof.byteCount >= 0, proof.byteCount <= 100_000_000 else { throw SyncBootstrapError.corrupt }

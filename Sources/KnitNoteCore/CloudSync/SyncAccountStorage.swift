@@ -127,12 +127,13 @@ public final class SyncAccountStorage: @unchecked Sendable {
         let base = try Self.openPath(normalized, create: mode != .existing)
         let allocation = try Self.directory(identity.accountIDHash, in: base, create: mode != .existing)
         let account = allocation.handle
+        let root = normalized.appendingPathComponent(identity.accountIDHash, isDirectory: true)
+        let preflightRollback: [SyncAccountRecoveryInventory.Entry]?
         if mode != .legacy && !allocation.created {
             // Read-only preflight precedes even creation of a lock or scaffold.
-            try Self.requireExistingEvidence(account)
-        }
+            preflightRollback = try Self.requireExistingEvidence(account, identity: identity, root: root)
+        } else { preflightRollback = nil }
         let lock = try Self.accountLock(in: account)
-        let root = normalized.appendingPathComponent(identity.accountIDHash, isDirectory: true)
         let names = ["working-set", "journal", "engine-state", "staging", "quarantine", "vault"]
         for name in names {
             _ = try Self.directory(name, in: account, create: mode == .legacy || allocation.created)
@@ -173,6 +174,12 @@ public final class SyncAccountStorage: @unchecked Sendable {
             staging: urls[3], quarantine: urls[4], vault: urls[5], decryptedTemporary: root.appendingPathComponent(Self.temporaryName))
         if mode != .legacy {
             try validateBindings()
+            if let preflightRollback {
+                // A valid replacement proof is still not the preflight proof.
+                // Check after taking ownership and before creating a session.
+                guard try !Self.hasRecoveryControlEvidence(in: account),
+                      try access.entries() == preflightRollback else { throw SyncAccountStorageError.unsafePath }
+            }
             if allocation.created {
                 let expected = Set(names + [Self.lockName, Self.temporaryName, Self.recoveryControlName])
                 func validateScaffold() throws {
@@ -224,7 +231,8 @@ public final class SyncAccountStorage: @unchecked Sendable {
         return paths
     }
 
-    private static func requireExistingEvidence(_ account: Handle) throws {
+    private static func requireExistingEvidence(_ account: Handle, identity: SyncAccountIdentity,
+        root: URL) throws -> [SyncAccountRecoveryInventory.Entry]? {
         func regular(_ path: String, parent: Handle) throws -> Bool {
             var status = stat()
             if fstatat(parent.fd, path, &status, AT_SYMLINK_NOFOLLOW) != 0 {
@@ -234,16 +242,32 @@ public final class SyncAccountStorage: @unchecked Sendable {
             return true
         }
         // Each path component is opened separately with O_NOFOLLOW.
-        for (directory, file) in [("working-set", "projects-v1.json"), (recoveryControlName, "intent.json"),
-                                  (".KnitNote-SyncBootstrap", "active.json")] {
+        for (directory, file) in [("working-set", "projects-v1.json"), (recoveryControlName, "intent.json")] {
             var status = stat()
             if fstatat(account.fd, directory, &status, AT_SYMLINK_NOFOLLOW) != 0 {
                 guard errno == ENOENT else { throw SyncAccountStorageError.unsafePath }; continue
             }
             let parent = try Self.directory(directory, in: account, create: false).handle
-            if try regular(file, parent: parent) { return }
+            if try regular(file, parent: parent) { return nil }
         }
-        throw SyncAccountStorageError.unsafePath
+        // Only exact no-control terminal rollback evidence extends the legacy
+        // archive/control routes. Empty or malformed bootstrap trees grant nothing.
+        guard try !hasRecoveryControlEvidence(in: account) else { throw SyncAccountStorageError.unsafePath }
+        var remaining = 100_000_000
+        let entries = try recoveryEntries(account, prefix: "", remaining: &remaining)
+        let live = root.appendingPathComponent("working-set", isDirectory: true)
+        guard let evidence = try SyncBootstrapTransaction.terminalRecoveryEvidence(account: identity,
+            accountRoot: root, liveRoot: live,
+            journalURL: live.appendingPathComponent(SyncBootstrapTransaction.defaultJournalRelativePath), entries: entries),
+              evidence.phase == .rolledBack, case .missingArchive = evidence.sourceProof else {
+            throw SyncAccountStorageError.unsafePath
+        }
+        remaining = 100_000_000
+        guard try !hasRecoveryControlEvidence(in: account),
+              try recoveryEntries(account, prefix: "", remaining: &remaining) == entries else {
+            throw SyncAccountStorageError.unsafePath
+        }
+        return entries
     }
 
     private func validateSourceOpen(paths: Paths, identity: SyncAccountIdentity, access: RecoveryAccess) throws {
@@ -276,7 +300,8 @@ public final class SyncAccountStorage: @unchecked Sendable {
                   intent.archiveURL == paths.workingSet.appendingPathComponent("projects-v1.json"),
                   intent.journalURL == paths.mutationJournalURL else { throw SyncAccountStorageError.unsafePath }
         case nil:
-            try Self.requireExistingEvidence(Handle(try Self.duplicate(access.accountDescriptor)))
+            _ = try Self.requireExistingEvidence(Handle(try Self.duplicate(access.accountDescriptor)),
+                identity: identity, root: paths.accountRoot)
         }
         try control.synchronize(observation, access: access)
         guard try access.entries() == originalEntries else { throw SyncAccountStorageError.unsafePath }

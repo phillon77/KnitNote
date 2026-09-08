@@ -1,9 +1,189 @@
 import CryptoKit
+import Darwin
 import Foundation
 import Testing
 @testable import KnitNoteCore
 
 @Suite struct SyncAccountRecoveryInventoryTests {
+    @Test(arguments: [false, true], [false, true])
+    func missingArchiveRollbackReopensWithoutControl(existingOnly: Bool, withMedia: Bool) throws {
+        let f = try RecoveryInventoryFixture(); defer { f.remove() }
+        let ledger = try SyncDeletionLedger(root: f.ledgerRoot)
+        if withMedia {
+            let deletion = try f.addDeletion(ledger: ledger, name: "Retained before rollback", attachment: true)
+            try FileSyncMutationJournal(url: f.paths.mutationJournalURL).enqueue(deletion.versions.map {
+                try SyncMutation.save(recordVersion: $0, mutationID: UUID())
+            })
+        }
+        let journal = try f.makeMissingArchiveRollback(withMedia: withMedia)
+        let pending = try journal.pending()
+        #expect(!pending.isEmpty)
+        if withMedia { #expect(pending.contains { $0.attachmentSource != nil }) }
+        try f.storage.close() // Ordinary close, not a simulated process crash.
+        let before = try f.diskBytes()
+        let reopened = SyncAccountStorage(baseURL: f.base); defer { try? reopened.close() }
+        let paths = try existingOnly
+            ? reopened.openExistingAccount(identity: f.account, validateAccount: {})
+            : reopened.openForVerifiedAccount(identity: f.account, validateAccount: {})
+        #expect(!FileManager.default.fileExists(atPath: f.archiveURL.path))
+        #expect(!FileManager.default.fileExists(atPath: paths.accountRoot.appendingPathComponent(".sealed-recovery-v1").path))
+        #expect(try f.diskBytes() == before)
+        let captured = try SyncAccountRecoveryInventory.capture(storage: reopened, paths: paths, account: f.account,
+            journal: journal, archiveURL: f.archiveURL)
+        #expect(captured.packet.mutations == pending)
+        if withMedia { #expect(!captured.packet.files.isEmpty); #expect(!captured.deletionFiles.isEmpty) }
+        guard case .absent(let evidence) = captured.sourceAuthority else { Issue.record("Expected rollback authority"); return }
+        #expect(evidence.rollbackEnvelope != nil)
+        #expect(try f.diskBytes() == before)
+    }
+
+    @Test(arguments: [false, true], ["empty", "missing-active", "bogus", "digest", "version", "source",
+        "prepared", "installed", "rollingBack", "committed", "account", "live", "journal", "namespace",
+        "missing-original", "changed-original", "changed-live", "extra-tree", "symlink", "hardlink", "fifo", "main", "next", "top-level"])
+    func invalidRollbackCannotAuthorizeStorageReopen(existingOnly: Bool, damage: String) throws {
+        let f = try RecoveryInventoryFixture(); defer { f.remove() }
+        _ = try f.makeMissingArchiveRollback()
+        try f.storage.close()
+        let activePath = try #require(try f.diskBytes().keys.first { $0.hasSuffix("/active.json") })
+        let active = URL(fileURLWithPath: activePath)
+        if damage == "top-level" {
+            try FileManager.default.removeItem(at: f.paths.accountRoot.appendingPathComponent(".KnitNote-SyncBootstrap"))
+            try f.write(".KnitNote-SyncBootstrap/active.json", Data("not bootstrap authority".utf8))
+        } else if damage == "empty" {
+            for path in try f.diskBytes().keys where path.contains("/.KnitNote-SyncBootstrap/") {
+                try FileManager.default.removeItem(atPath: path)
+            }
+        } else if damage == "missing-active" { try FileManager.default.removeItem(at: active) }
+        else if damage == "bogus" { try Data("not a manifest".utf8).write(to: active) }
+        else if damage == "namespace" {
+            try FileManager.default.moveItem(at: active.deletingLastPathComponent(),
+                to: active.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("foreign-live"))
+        } else if damage == "extra-tree" {
+            try FileManager.default.createDirectory(at: active.deletingLastPathComponent().appendingPathComponent("foreign-tree"),
+                withIntermediateDirectories: false)
+        } else if damage == "symlink" || damage == "hardlink" || damage == "fifo" {
+            let unsafe = active.deletingLastPathComponent().appendingPathComponent("unsafe-entry")
+            if damage == "symlink" { try FileManager.default.createSymbolicLink(at: unsafe, withDestinationURL: active) }
+            else if damage == "hardlink" { try FileManager.default.linkItem(at: active, to: unsafe) }
+            else { #expect(mkfifo(unsafe.path, 0o600) == 0) }
+        } else if damage == "missing-original" || damage == "changed-original" || damage == "changed-live" {
+            let path = try #require(try f.diskBytes().keys.first {
+                damage == "changed-live" ? $0 == f.paths.mutationJournalURL.appendingPathExtension("segment").path : $0.contains("/Original/")
+            })
+            if damage == "missing-original" { try FileManager.default.removeItem(atPath: path) }
+            else { try Data("changed proof".utf8).write(to: URL(fileURLWithPath: path)) }
+        } else if damage == "main" || damage == "next" {
+            try f.write(".sealed-recovery-v1/" + (damage == "main" ? "intent.json" : "intent-next.json"), Data("conflicting control".utf8))
+        } else {
+            var envelope = try JSONSerialization.jsonObject(with: Data(contentsOf: active)) as! [String: Any]
+            var manifest = try JSONSerialization.jsonObject(with: Data(base64Encoded: envelope["payload"] as! String)!) as! [String: Any]
+            if damage == "version" { manifest["version"] = 99 }
+            else if damage == "source" { manifest["sourceTreeFingerprint"] = Data(repeating: 7, count: 32).base64EncodedString() }
+            else if damage == "account" {
+                var context = manifest["context"] as! [String: Any]
+                context["accountIDHash"] = String(repeating: "b", count: 64); manifest["context"] = context
+            } else if damage == "live" { manifest["livePath"] = f.paths.accountRoot.appendingPathComponent("foreign").path }
+            else if damage == "journal" { manifest["journalPath"] = "SyncMetadata/foreign.json" }
+            else if damage != "digest" { manifest["phase"] = damage }
+            let payload = try JSONSerialization.data(withJSONObject: manifest, options: [.sortedKeys, .withoutEscapingSlashes])
+            envelope["payload"] = payload.base64EncodedString()
+            envelope["digest"] = (damage == "digest" ? Data(repeating: 9, count: 32) : Data(SHA256.hash(data: payload))).base64EncodedString()
+            try JSONSerialization.data(withJSONObject: envelope).write(to: active)
+        }
+        // No-control rejection must happen before even a lock file is created.
+        if damage != "main", damage != "next" {
+            try FileManager.default.removeItem(at: f.paths.accountRoot.appendingPathComponent(".storage-lock"))
+        }
+        let before = try f.diskBytes()
+        let names = try FileManager.default.subpathsOfDirectory(atPath: f.paths.accountRoot.path).sorted()
+        let reopened = SyncAccountStorage(baseURL: f.base)
+        #expect(throws: (any Error).self) {
+            if existingOnly { _ = try reopened.openExistingAccount(identity: f.account, validateAccount: {}) }
+            else { _ = try reopened.openForVerifiedAccount(identity: f.account, validateAccount: {}) }
+        }
+        #expect(try f.diskBytes() == before)
+        #expect(try FileManager.default.subpathsOfDirectory(atPath: f.paths.accountRoot.path).sorted() == names)
+    }
+
+    @Test(arguments: [false, true])
+    func validCommittedMissingArchiveEvidenceIsNotRollbackAdmission(existingOnly: Bool) throws {
+        let f = try RecoveryInventoryFixture(); defer { f.remove() }
+        _ = try f.makeMissingArchiveRollback()
+        let active = URL(fileURLWithPath: try #require(try f.diskBytes().keys.first { $0.hasSuffix("/active.json") }))
+        var envelope = try JSONSerialization.jsonObject(with: Data(contentsOf: active)) as! [String: Any]
+        var manifest = try JSONSerialization.jsonObject(with: Data(base64Encoded: envelope["payload"] as! String)!) as! [String: Any]
+        manifest["phase"] = "committed"
+        let payload = try JSONSerialization.data(withJSONObject: manifest, options: [.sortedKeys, .withoutEscapingSlashes])
+        envelope["payload"] = payload.base64EncodedString(); envelope["digest"] = Data(SHA256.hash(data: payload)).base64EncodedString()
+        try JSONSerialization.data(withJSONObject: envelope).write(to: active)
+        let receipt = SyncBootstrapReceipt(transactionID: UUID(uuidString: manifest["id"] as! String)!,
+            accountIDHash: f.account.accountIDHash,
+            sourceProof: .missingArchive(treeSHA256: Data(base64Encoded: manifest["sourceTreeFingerprint"] as! String)!))
+        try JSONEncoder().encode(receipt).write(to: f.paths.workingSet.appendingPathComponent("SyncMetadata/bootstrap-receipt.json"))
+        // Establish that this is valid terminal evidence, not merely corrupt JSON.
+        try f.storage.withRecoveryInventory(paths: f.paths, account: f.account, maximumBytes: 100_000_000) { entries in
+            let evidence = try #require(try SyncBootstrapTransaction.terminalRecoveryEvidence(account: f.account,
+                accountRoot: f.paths.accountRoot, liveRoot: f.paths.workingSet, journalURL: f.paths.mutationJournalURL, entries: entries))
+            #expect(evidence.phase == .committed)
+        }
+        try f.storage.close()
+        let before = try f.diskBytes()
+        let reopened = SyncAccountStorage(baseURL: f.base)
+        #expect(throws: (any Error).self) {
+            if existingOnly { _ = try reopened.openExistingAccount(identity: f.account, validateAccount: {}) }
+            else { _ = try reopened.openForVerifiedAccount(identity: f.account, validateAccount: {}) }
+        }
+        #expect(try f.diskBytes() == before)
+    }
+
+    @Test(arguments: [false, true])
+    func rollbackReopenGenerationRejectionPreservesOriginalBytes(existingOnly: Bool) throws {
+        let f = try RecoveryInventoryFixture(); defer { f.remove() }
+        _ = try f.makeMissingArchiveRollback(withMedia: true)
+        try f.storage.close()
+        let before = try f.diskBytes()
+        let reopened = SyncAccountStorage(baseURL: f.base)
+        var validations = 0
+        enum Changed: Error { case generation }
+        let validate = {
+            validations += 1
+            if validations == 2 { throw Changed.generation }
+        }
+        #expect(throws: Changed.generation) {
+            if existingOnly { _ = try reopened.openExistingAccount(identity: f.account, validateAccount: validate) }
+            else { _ = try reopened.openForVerifiedAccount(identity: f.account, validateAccount: validate) }
+        }
+        #expect(validations == 2)
+        #expect(try f.diskBytes() == before)
+        #expect(!FileManager.default.fileExists(atPath: f.paths.accountRoot.appendingPathComponent(".sealed-recovery-v1").path))
+    }
+
+    @Test(arguments: [false, true], ["active", "live"])
+    func rollbackEvidenceChangedDuringOwnedValidationCannotReturnSession(existingOnly: Bool, change: String) throws {
+        let f = try RecoveryInventoryFixture(); defer { f.remove() }
+        _ = try f.makeMissingArchiveRollback()
+        try f.storage.close()
+        let before = try f.diskBytes()
+        let target = change == "active"
+            ? URL(fileURLWithPath: try #require(before.keys.first { $0.hasSuffix("/active.json") }))
+            : f.paths.mutationJournalURL.appendingPathExtension("segment")
+        let injected = Data("concurrent evidence change".utf8)
+        final class Cut: @unchecked Sendable { var fired = false }
+        let cut = Cut()
+        let reopened = SyncAccountStorage(baseURL: f.base, synchronize: { descriptor in
+            if !cut.fired { cut.fired = true; try injected.write(to: target) }
+            guard fsync(descriptor) == 0 else { throw SyncAccountStorageError.unavailable }
+        })
+        #expect(throws: (any Error).self) {
+            if existingOnly { _ = try reopened.openExistingAccount(identity: f.account, validateAccount: {}) }
+            else { _ = try reopened.openForVerifiedAccount(identity: f.account, validateAccount: {}) }
+        }
+        #expect(cut.fired) // Mutation happens after preflight, with account ownership held.
+        var expected = before; expected[target.path] = injected
+        #expect(try f.diskBytes() == expected)
+        #expect(!FileManager.default.fileExists(atPath: f.paths.accountRoot.appendingPathComponent(".sealed-recovery-v1").path))
+    }
+
     @Test func legacyInventoryWireRemainsUnchanged() throws {
         // Literal emitted by the real pre-v2 capture in the behavioral RED run.
         let bytes = Data(#"{"accountIDHash":"819077780f769d0c256ce1b5f4ab944662a6d1b1a01e25217b44319381ce77c9","accountRoot":"file:///private/var/folders/s_/ylqd3gdx2rz79ppmgsw__8qm0000gn/T/recovery-inventory-BF4434E0-69A5-4AC2-BF97-76DA6384B07F/819077780f769d0c256ce1b5f4ab944662a6d1b1a01e25217b44319381ce77c9/","archiveURL":"file:///private/var/folders/s_/ylqd3gdx2rz79ppmgsw__8qm0000gn/T/recovery-inventory-BF4434E0-69A5-4AC2-BF97-76DA6384B07F/819077780f769d0c256ce1b5f4ab944662a6d1b1a01e25217b44319381ce77c9/working-set/projects-v1.json","deletionFiles":[],"entries":[{"byteCount":0,"device":16777234,"inode":348858192,"isDirectory":true,"relativePath":".decrypted-temporary","sha256":""},{"byteCount":0,"device":16777234,"inode":348858194,"isDirectory":true,"relativePath":".decrypted-temporary/88cc2a64-4069-445d-aaad-e33a45561b57","sha256":""},{"byteCount":0,"device":16777234,"inode":348858188,"isDirectory":true,"relativePath":"engine-state","sha256":""},{"byteCount":0,"device":16777234,"inode":348858187,"isDirectory":true,"relativePath":"journal","sha256":""},{"byteCount":0,"device":16777234,"inode":348858190,"isDirectory":true,"relativePath":"quarantine","sha256":""},{"byteCount":0,"device":16777234,"inode":348858189,"isDirectory":true,"relativePath":"staging","sha256":""},{"byteCount":0,"device":16777234,"inode":348858186,"isDirectory":true,"relativePath":"working-set","sha256":""},{"byteCount":17,"device":16777234,"inode":348858195,"isDirectory":false,"relativePath":"working-set/projects-v1.json","sha256":"7gD5EAa40EtyX4+769d+cgerq//lSLpHq78sAvZ7Ask="}],"fingerprint":"l9H0BDwyqFFvSw96UFRMlLge7MnJrb4SkUi0d3jjkUE=","journalURL":"file:///private/var/folders/s_/ylqd3gdx2rz79ppmgsw__8qm0000gn/T/recovery-inventory-BF4434E0-69A5-4AC2-BF97-76DA6384B07F/819077780f769d0c256ce1b5f4ab944662a6d1b1a01e25217b44319381ce77c9/journal/pending.json","packet":{"accountIDHash":"819077780f769d0c256ce1b5f4ab944662a6d1b1a01e25217b44319381ce77c9","accountRoot":"file:///private/var/folders/s_/ylqd3gdx2rz79ppmgsw__8qm0000gn/T/recovery-inventory-BF4434E0-69A5-4AC2-BF97-76DA6384B07F/819077780f769d0c256ce1b5f4ab944662a6d1b1a01e25217b44319381ce77c9/","files":[],"formatVersion":1,"mutations":[]},"pendingMarkerVersions":[]}"#.utf8)

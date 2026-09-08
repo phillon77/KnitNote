@@ -585,7 +585,8 @@ import Testing
         #expect(try f.diskBytes() == before)
     }
 
-    @Test func rollbackDecodeWorksAfterBootstrapPlaintextCleanup() throws {
+    @Test(arguments: [false, true])
+    func rollbackReopenDecodeWorksAfterBootstrapPlaintextCleanup(existingOnly: Bool) throws {
         let f = try RecoveryInventoryFixture(); defer { f.remove() }
         let ledger = try SyncDeletionLedger(root: f.ledgerRoot)
         let deleted = try f.addDeletion(ledger: ledger, name: "pending deletion", attachment: true)
@@ -600,11 +601,18 @@ import Testing
         try FileManager.default.createDirectory(at: abandoned, withIntermediateDirectories: false)
         try Data("old decoded copy".utf8).write(to: abandoned.appendingPathComponent("copy"))
         try Data("unselected".utf8).write(to: f.paths.quarantine.appendingPathComponent("discard"))
-        // The original owner can select a no-control legacy rollback. Its
-        // existing generic open gate is outside this source-selector adapter.
-        let paths = f.paths
+        // Cross the actual nil-control admission boundary before any selection
+        // exists, then exercise the complete authenticated recovery roundtrip.
+        try f.storage.close()
+        let beforeReopen = try f.diskBytes()
+        let storage = SyncAccountStorage(baseURL: f.base); defer { try? storage.close() }
+        let paths = try existingOnly
+            ? storage.openExistingAccount(identity: f.account, validateAccount: {})
+            : storage.openForVerifiedAccount(identity: f.account, validateAccount: {})
+        #expect(try f.diskBytes() == beforeReopen)
+        #expect(!FileManager.default.fileExists(atPath: paths.accountRoot.appendingPathComponent(".sealed-recovery-v1").path))
         let vault = SyncRecoveryVault(directory: paths.vault, keychain: TransactionKeys())
-        let tx = SyncAccountRecoveryTransaction(storage: f.storage, paths: paths, account: f.account, vault: vault, journal: journal)
+        let tx = SyncAccountRecoveryTransaction(storage: storage, paths: paths, account: f.account, vault: vault, journal: journal)
         let receipt = try tx.seal(tx.prepare(now: .now), now: .now)
         let captured = try #require(try tx.authenticatedSelection(now: .now)).inventory
         #expect(!captured.packet.files.isEmpty && !captured.deletionFiles.isEmpty && !captured.pendingMarkerVersions.isEmpty)
@@ -616,7 +624,7 @@ import Testing
         for file in captured.packet.files + captured.deletionFiles {
             #expect(try Data(contentsOf: paths.accountRoot.appendingPathComponent(file.relativePath)) == file.bytes)
         }
-        try f.storage.withRecoveryOwnership(paths: paths, account: f.account, maximumBytes: 100_000_000) { access in
+        try storage.withRecoveryOwnership(paths: paths, account: f.account, maximumBytes: 100_000_000) { access in
             let entries = try access.entries()
             let expected = Set((captured.packet.files + captured.deletionFiles).map(\.relativePath))
                 .union(["working-set/.sync-deletions/ledger.json", "working-set/SyncMetadata/pending.json.segment"])

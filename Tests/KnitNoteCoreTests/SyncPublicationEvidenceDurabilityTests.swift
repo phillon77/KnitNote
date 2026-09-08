@@ -4,6 +4,82 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite(.serialized) struct SyncPublicationEvidenceDurabilityTests {
+    @Test func saveReadsFirstConflictingAuthorityBeforeEncodingLaterOversizedAuthority() throws {
+        // Break caught: extracting codecs into a bulk pre-encode changes ordinary selected-read ordering.
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("attachment-versions.json")
+        let slot = SyncAttachmentSlot(owner: .init(kind: .project, uuid: UUID()), role: "project-photo", slotID: "primary")
+        let a = try version(slot: slot, bytes: Data("a".utf8))
+        let b = try version(slot: slot, bytes: Data("b".utf8), replacing: a.versionID)
+        let original = try #require(liveMutation(a).savedRecordVersion?.record)
+        var conflict = original
+        conflict.payload.fields["changed"] = .init(value: .string("immutable conflict"), stamp: original.deletedAt.stamp)
+        var oversized = try #require(liveMutation(b).savedRecordVersion?.record)
+        for index in 0..<65 {
+            oversized.payload.fields["large-\(index)"] = .init(value: .string(String(repeating: "a", count: 256 * 1_024)), stamp: oversized.deletedAt.stamp)
+        }
+        _ = try SyncRecordValidator().validate(oversized)
+        #expect(try JSONEncoder().encode(oversized).count > 16 * 1_024 * 1_024)
+        try SyncAttachmentPublicationEvidenceFile(url: url).save(.init(versions: [a], attachmentRecords: [original]))
+        let before = try Data(contentsOf: url)
+        let reader = PublicationOutputRecordingReader()
+        let file = SyncAttachmentPublicationEvidenceFile(url: url, reader: reader)
+        #expect(throws: SyncPublicationTransactionFileError.corrupt) {
+            try file.save(.init(versions: [a, b], attachmentRecords: [conflict, oversized]))
+        }
+        #expect(reader.paths.map { $0.lastPathComponent } == [a.versionID.uuidString.lowercased() + ".json"])
+        #expect(file.counters.snapshot.headReads == 0)
+        #expect(file.counters.snapshot.attachmentAuthorityLookups == 1)
+        #expect(file.counters.snapshot.attachmentAuthorityWrites == 0)
+        #expect(try Data(contentsOf: url) == before)
+        #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("attachment-versions.attachment-records/" + String(b.versionID.uuidString.lowercased().prefix(2)) + "/" + b.versionID.uuidString.lowercased() + ".json").path))
+        var calls = 0
+        #expect(throws: SyncPublicationTransactionFileError.corrupt) {
+            try SyncAttachmentPublicationEvidenceFile.planSave(.init(versions: [a, b], attachmentRecords: [original, oversized]),
+                initial: .init(directories: [""], files: []), temporaryID: { calls += 1; return UUID() })
+        }
+        #expect(calls == 0)
+    }
+
+    @Test func saveLeavesCreatedImmutableAuthorityWhenLaterHeadRenameFails() throws {
+        // Break caught: ordinary save adopts pure preplanning or reverses the head/immutable install sequence.
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("attachment-versions.json")
+        let attachment = try version(slot: .init(owner: .init(kind: .project, uuid: UUID()), role: "project-photo", slotID: "primary"), bytes: Data("a".utf8))
+        var renames = 0
+        let file = SyncAttachmentPublicationEvidenceFile(url: url, beforeDurabilityBoundary: { boundary in
+            if boundary == .beforeRename {
+                renames += 1
+                if renames == 2 { throw InjectedEvidenceFailure() }
+            }
+        })
+        #expect(throws: InjectedEvidenceFailure.self) { try file.save(.init(versions: [attachment])) }
+        #expect(renames == 2)
+        #expect(!FileManager.default.fileExists(atPath: url.path))
+        let name = attachment.versionID.uuidString.lowercased()
+        let authority = root.appendingPathComponent("attachment-versions.attachment-records/" + String(name.prefix(2)) + "/" + name + ".json")
+        #expect(FileManager.default.fileExists(atPath: authority.path))
+        #expect(file.counters.snapshot.attachmentAuthorityWrites == 1)
+        #expect(file.counters.snapshot.headWrites == 0)
+    }
+
+    @Test func saveOverwritesMalformedHeadWithoutReadingItAndAcceptsExistingNonemptyLock() throws {
+        // Break caught: applying planner-only tree/lock restrictions or load semantics to ordinary save.
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("attachment-versions.json")
+        try Data("malformed old head".utf8).write(to: url)
+        let lock = root.appendingPathComponent(".attachment-versions.json.lock")
+        try Data([1, 2, 3]).write(to: lock)
+        let reader = PublicationOutputRecordingReader()
+        try SyncAttachmentPublicationEvidenceFile(url: url, reader: reader).save(.init())
+        #expect(reader.paths.isEmpty)
+        #expect(try JSONDecoder().decode(SyncAttachmentPublicationEvidence.self, from: Data(contentsOf: url)).allVersions.isEmpty)
+        #expect(try Data(contentsOf: lock) == Data([1, 2, 3]))
+    }
+
     @Test func canonicalProjectorIsTheOnlyCompiledStructuralAndAttachmentAuthority() throws {
         let repository = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -793,6 +869,19 @@ import Testing
 }
 
 private struct InjectedEvidenceFailure: Error {}
+
+private final class PublicationOutputRecordingReader: SyncRegularFileReading, @unchecked Sendable {
+    private let mutex = NSLock()
+    private var recorded: [URL] = []
+    var paths: [URL] { mutex.withLock { recorded } }
+    func read(_ url: URL, maximumBytes: Int, expected: SyncRegularFileExpectation?) throws -> SyncRegularFileRead {
+        mutex.withLock { recorded.append(url) }
+        return try SyncRegularFileReader().read(url, maximumBytes: maximumBytes, expected: expected)
+    }
+    func observe(_ url: URL, declaredByteCount: Int64, maximumBytes: Int) throws -> SyncRegularFileObservation {
+        try SyncRegularFileReader().observe(url, declaredByteCount: declaredByteCount, maximumBytes: maximumBytes)
+    }
+}
 
 private struct PublicationTransactionCompatibilityWire: Codable {
     let version: Int

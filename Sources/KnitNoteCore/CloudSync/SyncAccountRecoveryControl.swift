@@ -36,7 +36,12 @@ struct SyncAccountRecoveryControlFile {
     private let sync: @Sendable (Int32) throws -> Void
     private static let main = "intent.json"
     private static let next = "intent-next.json"
-    init(synchronize: @escaping @Sendable (Int32) throws -> Void) { sync = synchronize }
+    enum Boundary { case beforeNextWrite, nextWritten, beforeRename, beforeReadback }
+    private let boundary: @Sendable (Boundary) throws -> Void
+    init(synchronize: @escaping @Sendable (Int32) throws -> Void,
+         boundary: @escaping @Sendable (Boundary) throws -> Void = { _ in }) {
+        sync = synchronize; self.boundary = boundary
+    }
 
     private struct PredecessorPayload: Codable {
         let predecessorSHA256: Data?
@@ -190,13 +195,16 @@ struct SyncAccountRecoveryControlFile {
         if observation.nextBytes != nil {
             guard unlinkat(control, Self.next, 0) == 0 else { throw Error.unavailable }
         }
+        try boundary(.beforeNextWrite)
         try write(bytes, name: Self.next, at: control)
         let prepared = SyncAccountControlObservation(mainBytes: main, nextBytes: bytes, state: observation.state)
         guard try observe(access: access) == prepared else { throw Error.changedInventory }
         try validateSource()
         guard try observe(access: access) == prepared else { throw Error.changedInventory }
+        try boundary(.beforeRename)
         guard renameat(control, Self.next, control, Self.main) == 0 else { throw Error.unavailable }
         try sync(control); try sync(access.accountDescriptor)
+        try boundary(.beforeReadback)
         let committed = try observe(access: access)
         guard committed.mainBytes == bytes, committed.nextBytes == nil, committed.state == state else { throw Error.changedInventory }
         return committed
@@ -264,6 +272,7 @@ struct SyncAccountRecoveryControlFile {
             }
         }
         try validateFile(fd, name: name, at: root)
+        if name == Self.next { try boundary(.nextWritten) }
         try sync(fd); try sync(root)
         try validateFile(fd, name: name, at: root)
     }

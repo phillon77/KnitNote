@@ -112,10 +112,11 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
     }
     init(storage: SyncAccountStorage, paths: SyncAccountStorage.Paths, account: SyncAccountIdentity,
          vault: SyncRecoveryVault, journal: FileSyncMutationJournal, maximumBytes: Int = 100_000_000,
-         synchronize: @escaping @Sendable (Int32) throws -> Void) {
+         synchronize: @escaping @Sendable (Int32) throws -> Void,
+         controlBoundary: @escaping @Sendable (SyncAccountRecoveryControlFile.Boundary) throws -> Void = { _ in }) {
         self.storage = storage; self.paths = paths; self.account = account; self.vault = vault
         self.journal = journal; self.maximumBytes = maximumBytes; self.synchronize = synchronize
-        controlFile = SyncAccountRecoveryControlFile(synchronize: synchronize)
+        controlFile = SyncAccountRecoveryControlFile(synchronize: synchronize, boundary: controlBoundary)
     }
 
     public func prepare(now: Date) throws -> Prepared {
@@ -252,9 +253,11 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
             let observation = try controlFile.observe(access: access)
             switch observation.state {
             case .absentSource:
-                return try validateSourceState(observation, access: access)
-            case .sourceSpent: throw Error.invalidAuthority
-            case nil, .legacySelection, .selectedRecovery: return nil
+                let source = try validateSourceState(observation, access: access)
+                try controlFile.synchronize(observation, access: access)
+                guard try validateSourceState(observation, access: access) == source else { throw Error.changedInventory }
+                return source
+            case nil, .legacySelection, .selectedRecovery, .sourceSpent: return nil
             }
         }
     }
@@ -280,18 +283,26 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
 
     private func synchronizeAbsence(_ access: SyncAccountStorage.RecoveryAccess) throws {
         let observation = try controlFile.observe(access: access)
-        if case .absentSource = observation.state {
-            _ = try validateSourceState(observation, access: access)
+        switch observation.state {
+        case .absentSource(let source), .sourceSpent(let source, _, _):
+            try validateSourceBinding(source, access: access)
             try controlFile.synchronize(observation, access: access)
-            _ = try validateSourceState(observation, access: access)
-            return
+            try validateSourceBinding(source, access: access)
+        case nil:
+            try controlFile.synchronize(observation, access: access)
+        case .legacySelection, .selectedRecovery: throw Error.invalidAuthority
         }
-        if let control = access.controlDescriptor {
-            guard try read(Self.main, at: control) == nil, try read(Self.next, at: control) == nil else { throw Error.invalidAuthority }
-            try synchronize(control)
-        }
-        try synchronize(access.accountDescriptor)
+    }
+
+    private func validateSourceBinding(_ source: SyncAccountSourceState,
+                                       access: SyncAccountStorage.RecoveryAccess) throws {
         try access.validate()
+        try SyncAccountRecoveryControlFile.validate(source)
+        let root = try identity(access.accountDescriptor)
+        guard source.accountIDHash == account.accountIDHash, source.accountRoot == paths.accountRoot,
+              source.accountDevice == root.0, source.accountInode == root.1,
+              source.archiveURL == paths.workingSet.appendingPathComponent("projects-v1.json"),
+              source.journalURL == journal.recoveryLocation, source.journalURL == paths.mutationJournalURL else { throw Error.invalidAuthority }
     }
 
     /// Restores only the current authenticated selection into its original owned
@@ -347,26 +358,84 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
 
     /// true means this exact completed selection was verified and consumed.
     /// false means there is durably no selection; it is NOT proof of replay or
-    /// acknowledgement. This also repairs an interrupted intent-unlink fsync.
+    /// acknowledgement. A matching published source is resynchronized on retry.
     /// Call under freeze before allowing new account data or a later capture.
     @discardableResult
     public func consumeRestoredSelection(vaultID: UUID, now: Date) throws -> Bool {
         mutex.lock(); defer { mutex.unlock() }
         try validateConfiguration(now: now)
         return try storage.withRecoveryOwnership(paths: paths, account: account, maximumBytes: maximumBytes) { access in
-            guard let value = try authorize(access: access, now: now) else {
+            let observation = try controlFile.observe(access: access)
+            switch observation.state {
+            case .absentSource(let source):
+                guard case .restoredSelection(let recordedVault, _, _, _, _) = source.origin,
+                      recordedVault == vaultID else { throw Error.invalidAuthority }
+                // Origin is immutable current-local provenance. The old vault
+                // may have expired or lost its key after the durable handoff.
+                guard try validateSourceState(observation, access: access) == source else { throw Error.changedInventory }
+                try controlFile.synchronize(observation, access: access)
+                guard try validateSourceState(observation, access: access) == source else { throw Error.changedInventory }
+                return true
+            case .sourceSpent: throw Error.invalidAuthority
+            case nil:
                 try synchronizeAbsence(access)
                 return false
+            case .legacySelection, .selectedRecovery: break
             }
-            guard value.receipt.vaultID == vaultID, value.intent.phase == .replayComplete,
-                  let control = access.controlDescriptor, try read(Self.next, at: control) == nil else { throw Error.invalidAuthority }
+            guard var value = try authorize(access: access, now: now),
+                  value.receipt.vaultID == vaultID, value.intent.phase == .replayComplete else { throw Error.invalidAuthority }
             try validateRestored(value, access: access, complete: true)
             try barrier(value, access: access)
-            guard unlinkat(control, Self.main, 0) == 0 else { throw Error.unavailable }
-            try synchronize(control); try synchronize(access.accountDescriptor)
-            try access.validate()
+            if case .legacySelection = value.observation.state, value.observation.nextBytes != nil {
+                value = try transition(value, to: .replayComplete, access: access)
+            }
+            let entries = try access.entries()
+            for entry in entries {
+                if entry.isDirectory {
+                    let fd = try openDirectory(entry.relativePath, root: access.accountDescriptor)
+                    defer { Darwin.close(fd) }; try synchronize(fd)
+                } else { try synchronizeRestoredFile(entry.relativePath, access: access) }
+            }
+            try synchronize(access.accountDescriptor)
+            try validateRestored(value, access: access, complete: true)
+            try barrier(value, access: access)
+            let root = try identity(access.accountDescriptor)
+            let baseline = try restoredSourceBaseline(value, entries: entries, access: access)
+            let source = SyncAccountSourceState(authorityID: UUID(), generation: UUID(),
+                accountIDHash: account.accountIDHash, accountRoot: paths.accountRoot,
+                accountDevice: root.0, accountInode: root.1, archiveURL: value.inventory.archiveURL,
+                journalURL: value.inventory.journalURL, baselineSHA256: baseline,
+                origin: .restoredSelection(vaultID: value.receipt.vaultID, captureID: value.receipt.captureID,
+                    envelopeSHA256: value.receipt.envelopeSHA256, packetSHA256: value.receipt.packetSHA256,
+                    deletionSHA256: value.inventory.deletionLedger.map { Data(SHA256.hash(data: $0)) }))
+            try validateSourceBinding(source, access: access)
+            let selected = value
+            _ = try controlFile.replace(value.observation, with: .absentSource(source), access: access) {
+                try self.validateSourceBinding(source, access: access)
+                try self.validateSelectedPayload(selected, access: access)
+                try self.validateRestored(selected, access: access, complete: true)
+                guard try self.restoredSourceBaseline(selected, entries: entries, access: access) == baseline else { throw Error.changedInventory }
+            }
             return true
         }
+    }
+
+    private func restoredSourceBaseline(_ value: Authorized, entries: [SyncAccountRecoveryInventory.Entry],
+                                         access: SyncAccountStorage.RecoveryAccess) throws -> Data {
+        guard try access.entries() == entries else { throw Error.changedInventory }
+        let snapshot = try journal.recoverySnapshot(accountRoot: paths.accountRoot, inventoryEntries: entries, maximumBytes: maximumBytes)
+        guard snapshot.url == value.inventory.journalURL, snapshot.mutations == value.inventory.packet.mutations else { throw Error.changedInventory }
+        let export: SyncDeletionLedger.RecoveryExport?
+        if entries.contains(where: { $0.relativePath == "working-set/.sync-deletions" && $0.isDirectory }) {
+            export = try SyncDeletionLedger.recoveryExport(archiveURL: value.inventory.archiveURL,
+                pending: snapshot.mutations, maximumBytes: maximumBytes)
+        } else { export = nil }
+        let baseline = try SyncAccountSourceBaseline.digest(entries: entries, accountRoot: paths.accountRoot,
+            journalURL: snapshot.url, mutations: snapshot.mutations,
+            selectedFiles: value.inventory.packet.files + value.inventory.deletionFiles,
+            deletionLedger: export?.manifest, pendingMarkerVersions: export?.pendingMarkerVersions ?? [])
+        guard try access.entries() == entries else { throw Error.changedInventory }
+        return baseline
     }
 
     private func restoredFiles(_ inventory: SyncAccountRecoveryInventory) throws -> [SyncPendingRecoveryPacket.File] {
@@ -607,8 +676,9 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
                 guard expected[entry.relativePath] == entry else { throw Error.changedInventory }
             }
         }
-        // Storage.open positively reclaims its owned prior session. Only the
-        // current empty UUID session can differ; no descendants are exempted.
+        // Legacy v1 permits its old session to have been reclaimed. Verified
+        // v2 opens retain captured sessions; only the new empty current session
+        // gets a directory-identity exception, never any descendants.
         guard !newSession || !current.contains(where: { $0.relativePath.hasPrefix(session + "/") }),
               retained.allSatisfy({ name in current.contains(where: { $0.relativePath == name && $0.isDirectory }) }) else { throw Error.changedInventory }
         if value.intent.phase == .sealed {

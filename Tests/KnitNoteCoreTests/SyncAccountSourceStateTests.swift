@@ -5,6 +5,29 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite struct SyncAccountSourceStateTests {
+    @Test(arguments: ["account", "root", "inode", "journal"], [false, true])
+    func absenceBarrierRejectsForeignStructuralBindings(change: String, spent: Bool) throws {
+        let f = try SourceInventoryFixture(); defer { f.remove() }
+        let tx = SyncAccountRecoveryTransaction(storage: f.storage, paths: f.paths, account: f.account,
+            vault: SyncRecoveryVault(directory: f.paths.vault, keychain: SourceStateKeys()), journal: f.journal)
+        let source = try #require(try tx.sourceState(now: .now))
+        let root = change == "root" ? f.base.appendingPathComponent("foreign") : source.accountRoot
+        let changed = SyncAccountSourceState(authorityID: source.authorityID, generation: source.generation,
+            accountIDHash: change == "account" ? String(repeating: "0", count: 64) : source.accountIDHash,
+            accountRoot: root, accountDevice: source.accountDevice,
+            accountInode: change == "inode" ? source.accountInode + 1 : source.accountInode,
+            archiveURL: root.appendingPathComponent("working-set/projects-v1.json"),
+            journalURL: change == "journal" ? root.appendingPathComponent("journal/foreign.json") : root.appendingPathComponent("working-set/SyncMetadata/pending.json"),
+            baselineSHA256: source.baselineSHA256, origin: source.origin)
+        let main = f.paths.accountRoot.appendingPathComponent(".sealed-recovery-v1/intent.json")
+        let predecessor = Data(SHA256.hash(data: try Data(contentsOf: main)))
+        let control: SyncAccountRecoveryControl = spent ? .sourceSpent(changed, transactionID: UUID(), preparedManifestSHA256: Data(repeating: 1, count: 32)) : .absentSource(changed)
+        try SyncAccountRecoveryControlFile.encode(control, predecessorSHA256: predecessor).write(to: main)
+        let before = try f.diskBytes()
+        #expect(throws: (any Error).self) { try tx.synchronizeSelectionAbsence(now: .now) }
+        #expect(try f.diskBytes() == before)
+    }
+
     @Test func sourceRoutingRevalidatesBaselineAndNeverReportsSelection() throws {
         let f = try SourceInventoryFixture(); defer { f.remove() }
         let tx = SyncAccountRecoveryTransaction(storage: f.storage, paths: f.paths, account: f.account,
@@ -16,7 +39,7 @@ import Testing
         try f.journal.enqueue(SyncMutation.delete(.init(kind: .project, uuid: UUID()), mutationID: UUID()))
         let before = try f.diskBytes()
         #expect(throws: (any Error).self) { try tx.sourceState(now: .now) }
-        #expect(throws: (any Error).self) { try tx.synchronizeSelectionAbsence(now: .now) }
+        try tx.synchronizeSelectionAbsence(now: .now)
         #expect(try f.diskBytes() == before)
     }
 
@@ -32,9 +55,10 @@ import Testing
         let before = try f.diskBytes()
         #expect(try tx.lifecycleSnapshot(now: .now) == nil)
         #expect(try tx.recoverInterruptedTransition(now: .now) == nil)
-        #expect(throws: (any Error).self) { try tx.sourceState(now: .now) }
+        #expect(try tx.sourceState(now: .now) == nil)
         #expect(throws: (any Error).self) { try tx.prepare(now: .now) }
-        #expect(throws: (any Error).self) { try tx.synchronizeSelectionAbsence(now: .now) }
+        #expect(throws: (any Error).self) { try tx.consumeRestoredSelection(vaultID: UUID(), now: .now) }
+        try tx.synchronizeSelectionAbsence(now: .now)
         #expect(try f.diskBytes() == before)
     }
 

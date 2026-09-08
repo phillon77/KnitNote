@@ -5,6 +5,39 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite struct SyncAccountSourceStateTests {
+    @Test func sourceRoutingRevalidatesBaselineAndNeverReportsSelection() throws {
+        let f = try SourceInventoryFixture(); defer { f.remove() }
+        let tx = SyncAccountRecoveryTransaction(storage: f.storage, paths: f.paths, account: f.account,
+            vault: SyncRecoveryVault(directory: f.paths.vault, keychain: SourceStateKeys()), journal: f.journal)
+        let source = try #require(try tx.sourceState(now: .now))
+        #expect(try tx.lifecycleSnapshot(now: .now) == nil)
+        try tx.synchronizeSelectionAbsence(now: .now)
+        #expect(try tx.sourceState(now: .now) == source)
+        try f.journal.enqueue(SyncMutation.delete(.init(kind: .project, uuid: UUID()), mutationID: UUID()))
+        let before = try f.diskBytes()
+        #expect(throws: (any Error).self) { try tx.sourceState(now: .now) }
+        #expect(throws: (any Error).self) { try tx.synchronizeSelectionAbsence(now: .now) }
+        #expect(try f.diskBytes() == before)
+    }
+
+    @Test func spentSourceIsNotASelectionOrReusableActiveSource() throws {
+        let f = try SourceInventoryFixture(); defer { f.remove() }
+        let tx = SyncAccountRecoveryTransaction(storage: f.storage, paths: f.paths, account: f.account,
+            vault: SyncRecoveryVault(directory: f.paths.vault, keychain: SourceStateKeys()), journal: f.journal)
+        let source = try #require(try tx.sourceState(now: .now))
+        let mainURL = f.paths.accountRoot.appendingPathComponent(".sealed-recovery-v1/intent.json")
+        let main = try Data(contentsOf: mainURL)
+        try SyncAccountRecoveryControlFile.encode(.sourceSpent(source, transactionID: UUID(),
+            preparedManifestSHA256: Data(repeating: 9, count: 32)), predecessorSHA256: Data(SHA256.hash(data: main))).write(to: mainURL)
+        let before = try f.diskBytes()
+        #expect(try tx.lifecycleSnapshot(now: .now) == nil)
+        #expect(try tx.recoverInterruptedTransition(now: .now) == nil)
+        #expect(throws: (any Error).self) { try tx.sourceState(now: .now) }
+        #expect(throws: (any Error).self) { try tx.prepare(now: .now) }
+        #expect(throws: (any Error).self) { try tx.synchronizeSelectionAbsence(now: .now) }
+        #expect(try f.diskBytes() == before)
+    }
+
     @Test func allSourceOriginsAndSpentControlRoundtripStrictly() throws {
         let f = sourceState()
         let hash = Data(repeating: 8, count: 32)

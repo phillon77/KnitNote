@@ -5,6 +5,388 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite struct SyncAccountRecoveryTransactionTests {
+    @Test(arguments: ["main", "next"])
+    func sourceControlOnlyMutationRejectsSeal(change: String) throws {
+        let f = try SourceInventoryFixture(); defer { f.remove() }
+        let vault = SyncRecoveryVault(directory: f.paths.vault, keychain: TransactionKeys())
+        let tx = SyncAccountRecoveryTransaction(storage: f.storage, paths: f.paths, account: f.account, vault: vault, journal: f.journal)
+        let prepared = try tx.prepare(now: .now)
+        let entries = try f.capture().entries
+        let mainURL = f.paths.accountRoot.appendingPathComponent(".sealed-recovery-v1/intent.json")
+        let main = try Data(contentsOf: mainURL)
+        guard case .absentSource(let state) = try SyncAccountRecoveryControlFile.decode(main) else { Issue.record("Missing source"); return }
+        let changed = try SyncAccountRecoveryControlFile.encode(.absentSource(state), predecessorSHA256: Data(SHA256.hash(data: main)))
+        try changed.write(to: change == "main" ? mainURL : mainURL.deletingLastPathComponent().appendingPathComponent("intent-next.json"))
+        #expect(try f.capture().entries == entries)
+        let before = try f.diskBytes()
+        #expect(throws: (any Error).self) { try tx.seal(prepared, now: .now) }
+        #expect(try f.diskBytes() == before)
+    }
+
+    @Test func freshSourceSealAuthenticatesV2Inventory() throws {
+        let f = try SourceInventoryFixture(); defer { f.remove() }
+        let keys = TransactionKeys()
+        let vault = SyncRecoveryVault(directory: f.paths.vault, keychain: keys)
+        let tx = SyncAccountRecoveryTransaction(storage: f.storage, paths: f.paths, account: f.account, vault: vault, journal: f.journal)
+        #expect(try tx.lifecycleSnapshot(now: .now) == nil)
+        let original = try Data(contentsOf: f.paths.accountRoot.appendingPathComponent(".sealed-recovery-v1/intent.json"))
+        let receipt = try tx.seal(tx.prepare(now: .now), now: .now)
+        let payload = try vault.restore(receipt.vaultID, account: f.account, now: .now)
+        let wire = try JSONSerialization.jsonObject(with: payload) as! [String: Any]
+        #expect(wire["formatVersion"] as? Int == 2)
+        let capture = try #require(wire["sourceControl"] as? [String: Any])
+        #expect(capture["mainBytes"] as? String == original.base64EncodedString())
+        #expect(capture["nextBytes"] is NSNull)
+        let selection = try #require(try tx.authenticatedSelection(now: .now))
+        guard case .absent(let evidence) = selection.inventory.sourceAuthority else { Issue.record("Missing source evidence"); return }
+        guard case .absentSource(let source) = try SyncAccountRecoveryControlFile.decode(original) else { Issue.record("Missing original"); return }
+        #expect(evidence.state == source)
+        keys.values.removeAll()
+        let before = try f.diskBytes()
+        #expect(throws: (any Error).self) { try tx.cleanup(receipt) }
+        #expect(try f.diskBytes() == before)
+    }
+
+    @Test func selectedV2TransitionsPreserveCaptureWhileEdgesChange() throws {
+        let f = try SourceInventoryFixture(); defer { f.remove() }
+        let vault = SyncRecoveryVault(directory: f.paths.vault, keychain: TransactionKeys())
+        let fault = TransactionSyncFault()
+        let tx = SyncAccountRecoveryTransaction(storage: f.storage, paths: f.paths, account: f.account,
+            vault: vault, journal: f.journal, synchronize: fault.sync)
+        let mainURL = f.paths.accountRoot.appendingPathComponent(".sealed-recovery-v1/intent.json")
+        var previous = try Data(contentsOf: mainURL)
+        var phases: [SyncAccountRecoveryTransaction.Phase] = []
+        fault.onSync = { _ in
+            let bytes = try Data(contentsOf: mainURL)
+            if bytes != previous {
+                guard case .selectedRecovery(let intent, let predecessor) = try SyncAccountRecoveryControlFile.decode(bytes) else { Issue.record("Expected selected v2"); return }
+                #expect(predecessor == Data(SHA256.hash(data: previous)))
+                phases.append(intent.phase); previous = bytes
+            }
+        }
+        let receipt = try tx.seal(tx.prepare(now: .now), now: .now)
+        let payload = try vault.restore(receipt.vaultID, account: f.account, now: .now)
+        try tx.cleanup(receipt)
+        try tx.restore(vaultID: receipt.vaultID, now: .now)
+        #expect(phases == [.sealed, .cleanupStarted, .cleanupComplete, .restoreStarted, .replayComplete])
+        #expect(try tx.authenticatedSelection(now: .now)?.receipt == receipt)
+        #expect(try vault.restore(receipt.vaultID, account: f.account, now: .now) == payload)
+    }
+
+    @Test(arguments: [false, true])
+    func legacyOpaqueDerivativeRequiresAuthenticatedOwner(expired: Bool) throws {
+        let f = try RecoveryInventoryFixture(); defer { f.remove() }
+        let keys = TransactionKeys()
+        let vault = SyncRecoveryVault(directory: f.paths.vault, keychain: keys)
+        let tx = SyncAccountRecoveryTransaction(storage: f.storage, paths: f.paths, account: f.account, vault: vault, journal: f.journal)
+        let now = Date.now
+        _ = try tx.seal(tx.prepare(now: now), now: now)
+        let next = f.paths.accountRoot.appendingPathComponent(".sealed-recovery-v1/intent-next.json")
+        try Data("{\"formatVersion\":1,".utf8).write(to: next)
+        if !expired { keys.values.removeAll() }
+        let before = try f.diskBytes()
+        #expect(throws: (any Error).self) {
+            try tx.recoverInterruptedTransition(now: expired ? now.addingTimeInterval(2_592_001) : now)
+        }
+        #expect(try f.diskBytes() == before)
+    }
+
+    @Test(arguments: [false, true], ["delete", "modify", "unchanged"])
+    func retainedOldSessionCannotDisappearBeforeCleanupStarted(existingOnly: Bool, change: String) throws {
+        let f = try SourceInventoryFixture(); defer { f.remove() }
+        // An abandoned session belongs to an earlier process. close() is
+        // intentionally allowed to remove only this fixture's current session.
+        let oldFile = f.paths.decryptedTemporary.deletingLastPathComponent()
+            .appendingPathComponent(UUID().uuidString.lowercased()).appendingPathComponent("retained")
+        try FileManager.default.createDirectory(at: oldFile.deletingLastPathComponent(), withIntermediateDirectories: false)
+        try Data([1, 2, 3]).write(to: oldFile)
+        try f.storage.close()
+        let paths = try existingOnly ? f.storage.openExistingAccount(identity: f.account, validateAccount: {})
+            : f.storage.openForVerifiedAccount(identity: f.account, validateAccount: {})
+        let vault = SyncRecoveryVault(directory: paths.vault, keychain: TransactionKeys())
+        let tx = SyncAccountRecoveryTransaction(storage: f.storage, paths: paths, account: f.account, vault: vault, journal: f.journal)
+        let receipt = try tx.seal(tx.prepare(now: .now), now: .now)
+        #expect(try tx.authenticatedSelection(now: .now)?.inventory.entries.contains { $0.relativePath.hasSuffix("/retained") } == true)
+        if change == "delete" { try FileManager.default.removeItem(at: oldFile) }
+        if change == "modify" { try Data([9, 8, 7]).write(to: oldFile) }
+        if change != "unchanged" {
+            let before = try f.diskBytes()
+            #expect(throws: (any Error).self) { try tx.cleanup(receipt) }
+            #expect(try f.diskBytes() == before)
+        } else {
+            try tx.cleanup(receipt)
+            #expect(!FileManager.default.fileExists(atPath: oldFile.deletingLastPathComponent().path))
+            try tx.restore(vaultID: receipt.vaultID, now: .now)
+            #expect(try tx.authenticatedSelection(now: .now)?.phase == .replayComplete)
+        }
+    }
+
+    @Test func sourceEnvelopeBudgetIncludesOuterBase64BeforeMediaRead() throws {
+        let f = try RecoveryInventoryFixture(); defer { f.remove() }
+        let journal = try f.makeMissingArchiveRollback(withMedia: true)
+        let vault = SyncRecoveryVault(directory: f.paths.vault, keychain: TransactionKeys())
+        let tx = SyncAccountRecoveryTransaction(storage: f.storage, paths: f.paths, account: f.account, vault: vault, journal: journal)
+        let receipt = try tx.seal(tx.prepare(now: .now), now: .now)
+        let payload = try vault.restore(receipt.vaultID, account: f.account, now: .now)
+        let selected = try #require(try tx.authenticatedSelection(now: .now)?.inventory.packet.files.first)
+        // Return this isolated fixture to its exact preselection no-main source.
+        try FileManager.default.removeItem(at: f.paths.accountRoot.appendingPathComponent(".sealed-recovery-v1/intent.json"))
+        let exact = SyncAccountRecoveryTransaction(storage: f.storage, paths: f.paths, account: f.account,
+            vault: vault, journal: journal, maximumBytes: payload.count)
+        _ = try exact.prepare(now: .now)
+        let source = f.paths.accountRoot.appendingPathComponent(selected.relativePath)
+        let before = try f.diskBytes()
+        let observed = FileSyncMutationJournal(url: f.paths.mutationJournalURL, reader: SyncRegularFileReader(beforeRead: {
+            try Data().write(to: source)
+        }))
+        let bounded = SyncAccountRecoveryTransaction(storage: f.storage, paths: f.paths, account: f.account,
+            vault: vault, journal: observed, maximumBytes: payload.count - 1)
+        #expect(throws: SyncPendingRecoveryPacketError.tooLarge) { try bounded.prepare(now: .now) }
+        #expect(try Data(contentsOf: source).isEmpty)
+        try selected.bytes.write(to: source)
+        #expect(try f.diskBytes() == before)
+    }
+
+    @Test func rollbackV2RestoresOnlySelectedMediaDeletionAndCurrentSession() throws {
+        let f = try RecoveryInventoryFixture(); defer { f.remove() }
+        let ledger = try SyncDeletionLedger(root: f.ledgerRoot)
+        let deleted = try f.addDeletion(ledger: ledger, name: "pending deletion", attachment: true)
+        let expired = try f.addDeletion(ledger: ledger, name: "expired")
+        try ledger.purge(now: Date(timeIntervalSince1970: 2_592_100),
+            references: .init(acknowledgedRemovalVersionIDs: Set(expired.versions.map(\.versionID))))
+        let native = FileSyncMutationJournal(url: f.paths.mutationJournalURL)
+        try native.enqueue(SyncMutation.save(recordVersion: deleted.versions[0], mutationID: UUID()))
+        let journal = try f.makeMissingArchiveRollback(withMedia: true)
+        let pending = try journal.pending()
+        let abandoned = f.paths.decryptedTemporary.deletingLastPathComponent().appendingPathComponent(UUID().uuidString.lowercased())
+        try FileManager.default.createDirectory(at: abandoned, withIntermediateDirectories: false)
+        try Data("old decoded copy".utf8).write(to: abandoned.appendingPathComponent("copy"))
+        try Data("unselected".utf8).write(to: f.paths.quarantine.appendingPathComponent("discard"))
+        // The original owner can select a no-control legacy rollback. Its
+        // existing generic open gate is outside this source-selector adapter.
+        let paths = f.paths
+        let vault = SyncRecoveryVault(directory: paths.vault, keychain: TransactionKeys())
+        let tx = SyncAccountRecoveryTransaction(storage: f.storage, paths: paths, account: f.account, vault: vault, journal: journal)
+        let receipt = try tx.seal(tx.prepare(now: .now), now: .now)
+        let captured = try #require(try tx.authenticatedSelection(now: .now)).inventory
+        #expect(!captured.packet.files.isEmpty && !captured.deletionFiles.isEmpty && !captured.pendingMarkerVersions.isEmpty)
+        #expect(captured.entries.contains { $0.relativePath.hasSuffix("/copy") })
+        try tx.cleanup(receipt)
+        #expect(!FileManager.default.fileExists(atPath: abandoned.path))
+        try tx.restore(vaultID: receipt.vaultID, now: .now)
+        #expect(try journal.pending() == pending)
+        for file in captured.packet.files + captured.deletionFiles {
+            #expect(try Data(contentsOf: paths.accountRoot.appendingPathComponent(file.relativePath)) == file.bytes)
+        }
+        try f.storage.withRecoveryOwnership(paths: paths, account: f.account, maximumBytes: 100_000_000) { access in
+            let entries = try access.entries()
+            let expected = Set((captured.packet.files + captured.deletionFiles).map(\.relativePath))
+                .union(["working-set/.sync-deletions/ledger.json", "working-set/SyncMetadata/pending.json.segment"])
+            #expect(Set(entries.filter { !$0.isDirectory }.map(\.relativePath)) == expected)
+            #expect(entries.filter { $0.relativePath.hasPrefix(".decrypted-temporary/") }.map(\.relativePath) ==
+                [".decrypted-temporary/" + paths.decryptedTemporary.lastPathComponent])
+        }
+        #expect(try tx.authenticatedSelection(now: .now)?.phase == .replayComplete)
+    }
+
+    @Test func legacyRollbackReplayCompleteNormalizesOpaqueDerivativeOnlyAfterAuthentication() throws {
+        let f = try RecoveryInventoryFixture(); defer { f.remove() }
+        let journal = try f.makeMissingArchiveRollback()
+        let keys = TransactionKeys()
+        let vault = SyncRecoveryVault(directory: f.paths.vault, keychain: keys)
+        let tx = SyncAccountRecoveryTransaction(storage: f.storage, paths: f.paths, account: f.account, vault: vault, journal: journal)
+        let receipt = try tx.seal(tx.prepare(now: .now), now: .now)
+        try tx.cleanup(receipt); try tx.restore(vaultID: receipt.vaultID, now: .now)
+        let main = f.paths.accountRoot.appendingPathComponent(".sealed-recovery-v1/intent.json")
+        let next = main.deletingLastPathComponent().appendingPathComponent("intent-next.json")
+        let original = try Data(contentsOf: main)
+        try Data("opaque legacy derivative".utf8).write(to: next)
+        let key = try #require(keys.values[receipt.vaultID])
+        keys.values.removeAll()
+        let before = try f.diskBytes()
+        #expect(throws: (any Error).self) { try tx.restore(vaultID: receipt.vaultID, now: .now) }
+        #expect(try f.diskBytes() == before)
+        keys.values[receipt.vaultID] = key
+        try tx.restore(vaultID: receipt.vaultID, now: .now)
+        #expect(try Data(contentsOf: main) == original)
+        #expect(!FileManager.default.fileExists(atPath: next.path))
+        #expect(try tx.authenticatedSelection(now: .now)?.receipt == receipt)
+    }
+
+    @Test(arguments: ["cleanupStarted", "cleanupComplete", "restoreStarted", "replayComplete"], ["beforeRename", "afterRename"])
+    func selectedV2PhaseCutsReauthenticateBeforeRetry(phase: String, cut: String) throws {
+        let f = try SourceInventoryFixture(); defer { f.remove() }
+        try Data([1, 2]).write(to: f.paths.engineState.appendingPathComponent("discard"))
+        let keys = TransactionKeys(), fault = TransactionSyncFault()
+        let vault = SyncRecoveryVault(directory: f.paths.vault, keychain: keys)
+        let tx = SyncAccountRecoveryTransaction(storage: f.storage, paths: f.paths, account: f.account,
+            vault: vault, journal: f.journal, synchronize: fault.sync)
+        let receipt = try tx.seal(tx.prepare(now: .now), now: .now)
+        let payload = try vault.restore(receipt.vaultID, account: f.account, now: .now)
+        let restoring = phase == "restoreStarted" || phase == "replayComplete"
+        if restoring { try tx.cleanup(receipt) }
+        let controlRoot = f.paths.accountRoot.appendingPathComponent(".sealed-recovery-v1")
+        let target = controlRoot.appendingPathComponent(cut == "beforeRename" ? "intent-next.json" : "intent.json")
+        fault.onSync = { _ in
+            if FileManager.default.fileExists(atPath: target.path),
+               case .selectedRecovery(let intent, _) = try SyncAccountRecoveryControlFile.decode(Data(contentsOf: target)),
+               intent.phase.rawValue == phase { throw TransactionFailure.injected }
+        }
+        #expect(throws: TransactionFailure.injected) {
+            if restoring { try tx.restore(vaultID: receipt.vaultID, now: .now) }
+            else { try tx.cleanup(receipt) }
+        }
+        fault.onSync = nil
+        let key = try #require(keys.values[receipt.vaultID])
+        keys.values.removeAll()
+        let before = try f.diskBytes()
+        #expect(throws: (any Error).self) {
+            if restoring { try tx.restore(vaultID: receipt.vaultID, now: .now) }
+            else { try tx.cleanup(receipt) }
+        }
+        #expect(try f.diskBytes() == before)
+        keys.values[receipt.vaultID] = key
+        if restoring { try tx.restore(vaultID: receipt.vaultID, now: .now) }
+        else { try tx.cleanup(receipt) }
+        #expect(try tx.authenticatedSelection(now: .now)?.phase == (restoring ? .replayComplete : .cleanupComplete))
+        #expect(try vault.restore(receipt.vaultID, account: f.account, now: .now) == payload)
+        #expect(!FileManager.default.fileExists(atPath: controlRoot.appendingPathComponent("intent-next.json").path))
+    }
+
+    @Test(arguments: ["tornV2", "wrongPredecessor", "mainless"])
+    func survivingSourceDerivativeNeverGrantsAuthority(change: String) throws {
+        let f = try SourceInventoryFixture(); defer { f.remove() }
+        let vault = SyncRecoveryVault(directory: f.paths.vault, keychain: TransactionKeys())
+        let fault = TransactionSyncFault()
+        let tx = SyncAccountRecoveryTransaction(storage: f.storage, paths: f.paths, account: f.account,
+            vault: vault, journal: f.journal, synchronize: fault.sync)
+        let mainURL = f.paths.accountRoot.appendingPathComponent(".sealed-recovery-v1/intent.json")
+        let nextURL = mainURL.deletingLastPathComponent().appendingPathComponent("intent-next.json")
+        let prepared = try tx.prepare(now: .now)
+        fault.onSync = { _ in
+            if FileManager.default.fileExists(atPath: nextURL.path) { throw TransactionFailure.injected }
+        }
+        #expect(throws: TransactionFailure.injected) { try tx.seal(prepared, now: .now) }
+        fault.onSync = nil
+        if change == "tornV2" { try Data("{\"formatVersion\":2}".utf8).write(to: nextURL) }
+        if change == "mainless" { try FileManager.default.removeItem(at: mainURL) }
+        if change == "wrongPredecessor" {
+            guard case .selectedRecovery(let intent, _) = try SyncAccountRecoveryControlFile.decode(Data(contentsOf: nextURL)) else { Issue.record("Missing selection"); return }
+            let wrong = Data(repeating: 5, count: 32)
+            try SyncAccountRecoveryControlFile.encode(.selectedRecovery(intent, predecessorSHA256: wrong), predecessorSHA256: wrong).write(to: nextURL)
+        }
+        let before = try f.diskBytes()
+        #expect(throws: (any Error).self) { try tx.prepare(now: .now) }
+        #expect(throws: (any Error).self) { try tx.seal(prepared, now: .now) }
+        #expect(throws: (any Error).self) { try tx.recoverInterruptedTransition(now: .now) }
+        #expect(try f.diskBytes() == before)
+    }
+
+    @Test(arguments: ["beforeRename", "afterRename"], [false, true])
+    func v2SealFailurePreservesExactSourceAndRequiresCurrentVault(cut: String, removeKey: Bool) throws {
+        let f = try SourceInventoryFixture(); defer { f.remove() }
+        try Data([1]).write(to: f.paths.engineState.appendingPathComponent("retained"))
+        let keys = TransactionKeys(), fault = TransactionSyncFault()
+        let vault = SyncRecoveryVault(directory: f.paths.vault, keychain: keys)
+        let tx = SyncAccountRecoveryTransaction(storage: f.storage, paths: f.paths, account: f.account,
+            vault: vault, journal: f.journal, synchronize: fault.sync)
+        let mainURL = f.paths.accountRoot.appendingPathComponent(".sealed-recovery-v1/intent.json")
+        let nextURL = mainURL.deletingLastPathComponent().appendingPathComponent("intent-next.json")
+        let original = try Data(contentsOf: mainURL)
+        let prepared = try tx.prepare(now: .now)
+        fault.onSync = { _ in
+            if cut == "beforeRename" && FileManager.default.fileExists(atPath: nextURL.path) { throw TransactionFailure.injected }
+            if cut == "afterRename", try Data(contentsOf: mainURL) != original { throw TransactionFailure.injected }
+        }
+        #expect(throws: TransactionFailure.injected) { try tx.seal(prepared, now: .now) }
+        fault.onSync = nil
+        let selectedBytes = try Data(contentsOf: cut == "beforeRename" ? nextURL : mainURL)
+        guard case .selectedRecovery(let intent, _) = try SyncAccountRecoveryControlFile.decode(selectedBytes) else { Issue.record("Missing actual selection"); return }
+        _ = try vault.restore(intent.vaultID, account: f.account, now: .now)
+        if cut == "beforeRename" {
+            #expect(try Data(contentsOf: mainURL) == original)
+            let before = try f.diskBytes()
+            #expect(throws: (any Error).self) { try tx.seal(prepared, now: .now) }
+            #expect(try f.diskBytes() == before)
+            // A fresh prepared captures the surviving derivative as immutable
+            // evidence; only the still-active source authorizes its replacement.
+            let receipt = try tx.seal(tx.prepare(now: .now), now: .now)
+            let wire = try JSONSerialization.jsonObject(with: vault.restore(receipt.vaultID, account: f.account, now: .now)) as! [String: Any]
+            let capture = try #require(wire["sourceControl"] as? [String: Any])
+            #expect(capture["nextBytes"] as? String == selectedBytes.base64EncodedString())
+        }
+        if removeKey {
+            keys.values.removeAll()
+            let before = try f.diskBytes()
+            #expect(throws: (any Error).self) { try tx.recoverInterruptedTransition(now: .now) }
+            #expect(try f.diskBytes() == before)
+        } else {
+            #expect(try tx.recoverInterruptedTransition(now: .now) != nil)
+            #expect(try tx.authenticatedSelection(now: .now)?.phase == .cleanupComplete)
+        }
+    }
+
+    @Test(arguments: ["valid", "tornMain", "mainlessNext"])
+    func rollbackInitialVisibleMainRequiresAuthenticatedDurability(cut: String) throws {
+        let f = try RecoveryInventoryFixture(); defer { f.remove() }
+        let journal = try f.makeMissingArchiveRollback()
+        let vault = SyncRecoveryVault(directory: f.paths.vault, keychain: TransactionKeys())
+        let fault = TransactionSyncFault()
+        let tx = SyncAccountRecoveryTransaction(storage: f.storage, paths: f.paths, account: f.account,
+            vault: vault, journal: journal, synchronize: fault.sync)
+        let mainURL = f.paths.accountRoot.appendingPathComponent(".sealed-recovery-v1/intent.json")
+        let prepared = try tx.prepare(now: .now)
+        fault.onSync = { _ in
+            if FileManager.default.fileExists(atPath: mainURL.path) { throw TransactionFailure.injected }
+        }
+        #expect(throws: TransactionFailure.injected) { try tx.seal(prepared, now: .now) }
+        fault.onSync = nil
+        let bytes = try Data(contentsOf: mainURL)
+        guard case .legacySelection(let intent) = try SyncAccountRecoveryControlFile.decode(bytes) else { Issue.record("Missing bridge"); return }
+        _ = try vault.restore(intent.vaultID, account: f.account, now: .now)
+        if cut == "tornMain" { try bytes.prefix(bytes.count / 2).write(to: mainURL) }
+        if cut == "mainlessNext" { try FileManager.default.moveItem(at: mainURL, to: mainURL.deletingLastPathComponent().appendingPathComponent("intent-next.json")) }
+        let before = try f.diskBytes()
+        if cut == "valid" {
+            fault.failAfter = 1
+            #expect(throws: (any Error).self) { try tx.recoverInterruptedTransition(now: .now) }
+            #expect(try f.diskBytes() == before)
+            fault.failAfter = nil
+            #expect(try tx.recoverInterruptedTransition(now: .now)?.vaultID == intent.vaultID)
+        } else {
+            #expect(throws: (any Error).self) { try tx.recoverInterruptedTransition(now: .now) }
+            #expect(try f.diskBytes() == before)
+        }
+    }
+
+    @Test(arguments: ["unknown", "missingNull", "sourceMismatch", "legacyDowngrade", "wrongInitialEdge"])
+    func authenticatedV2EnvelopeRequiresImmutableSourceWitness(tamper: String) throws {
+        let f = try SourceInventoryFixture(); defer { f.remove() }
+        let vault = SyncRecoveryVault(directory: f.paths.vault, keychain: TransactionKeys())
+        let tx = SyncAccountRecoveryTransaction(storage: f.storage, paths: f.paths, account: f.account, vault: vault, journal: f.journal)
+        let receipt = try tx.seal(tx.prepare(now: .now), now: .now)
+        let mainURL = f.paths.accountRoot.appendingPathComponent(".sealed-recovery-v1/intent.json")
+        guard case .selectedRecovery(let original, let predecessor) = try SyncAccountRecoveryControlFile.decode(Data(contentsOf: mainURL)) else { Issue.record("Missing v2"); return }
+        var wire = try JSONSerialization.jsonObject(with: vault.restore(receipt.vaultID, account: f.account, now: .now)) as! [String: Any]
+        var capture = try #require(wire["sourceControl"] as? [String: Any])
+        if tamper == "unknown" { capture["extra"] = NSNull() }
+        if tamper == "missingNull" { capture.removeValue(forKey: "nextBytes") }
+        if tamper == "sourceMismatch" { capture["mainBytes"] = NSNull() }
+        if tamper == "legacyDowngrade" { wire["formatVersion"] = 1; wire.removeValue(forKey: "sourceControl") }
+        else { wire["sourceControl"] = capture }
+        let payload = try JSONSerialization.data(withJSONObject: wire, options: [.sortedKeys, .withoutEscapingSlashes])
+        let id = try vault.seal(payload, account: f.account, now: .now)
+        let intent = SyncAccountRecoveryIntent(formatVersion: 1, accountIDHash: original.accountIDHash,
+            accountRoot: original.accountRoot, archiveURL: original.archiveURL, journalURL: original.journalURL,
+            vaultID: id, captureID: original.captureID, envelopeSHA256: Data(SHA256.hash(data: payload)),
+            packetSHA256: original.packetSHA256, inventoryFingerprint: original.inventoryFingerprint, phase: .sealed)
+        let edge = tamper == "wrongInitialEdge" ? Data(repeating: 3, count: 32) : predecessor
+        try SyncAccountRecoveryControlFile.encode(.selectedRecovery(intent, predecessorSHA256: edge), predecessorSHA256: edge).write(to: mainURL)
+        let before = try f.diskBytes()
+        #expect(throws: (any Error).self) { try tx.recoverInterruptedTransition(now: .now) }
+        #expect(try f.diskBytes() == before)
+    }
+
     @Test(arguments: [false, true], [false, true])
     func interruptedLegacyTransitionReopensForAuthenticatedRecovery(existingOnly: Bool, tornNext: Bool) throws {
         let f = try RecoveryInventoryFixture(); defer { f.remove() }
@@ -695,7 +1077,7 @@ import Testing
         #expect(!FileManager.default.fileExists(atPath: f.paths.accountRoot.appendingPathComponent(".KnitNote-SyncBootstrap").path))
     }
 
-    @Test func rolledBackReconstructionHasValidTerminalEvidenceButFullAccountSealingStillRequiresArchive() throws {
+    @Test func legacyRollbackFirstSelectionUsesAuthenticatedBridge() throws {
         let f = try RecoveryInventoryFixture(); defer { f.remove() }
         let archive = ProjectArchive(version: ProjectArchive.currentVersion, projects: [try StoredProject(name: "Pending reconstruction")])
         try JSONEncoder().encode(archive).write(to: f.archiveURL)
@@ -718,12 +1100,21 @@ import Testing
                 liveRoot: f.paths.workingSet, journalURL: f.paths.mutationJournalURL, entries: entries)
         }
         #expect(try f.diskBytes() == before)
-        // Explicit integration gate: inventory capture/decode still require a
-        // real source archive. Terminal validation is not account-switch proof.
+        // The approved bridge publishes the original selector wire but binds
+        // exact missing-archive rollback evidence inside the authenticated vault.
+        let vault = SyncRecoveryVault(directory: f.paths.vault, keychain: TransactionKeys())
         let recovery = SyncAccountRecoveryTransaction(storage: f.storage, paths: f.paths, account: f.account,
-            vault: SyncRecoveryVault(directory: f.paths.vault, keychain: TransactionKeys()), journal: journal)
-        #expect(throws: SyncAccountRecoveryInventory.Error.unsafeBinding) { try recovery.prepare(now: .now) }
-        #expect(try f.diskBytes() == before)
+            vault: vault, journal: journal)
+        let receipt = try recovery.seal(recovery.prepare(now: .now), now: .now)
+        let main = try Data(contentsOf: f.paths.accountRoot.appendingPathComponent(".sealed-recovery-v1/intent.json"))
+        guard case .legacySelection = try SyncAccountRecoveryControlFile.decode(main) else { Issue.record("Expected v1 bridge"); return }
+        let payload = try vault.restore(receipt.vaultID, account: f.account, now: .now)
+        let wire = try JSONSerialization.jsonObject(with: payload) as! [String: Any]
+        #expect(wire["formatVersion"] as? Int == 2)
+        let capture = try #require(wire["sourceControl"] as? [String: Any])
+        #expect(capture["mainBytes"] is NSNull && capture["nextBytes"] is NSNull)
+        try recovery.cleanup(receipt)
+        try recovery.restore(vaultID: receipt.vaultID, now: .now)
         #expect(try journal.pending() == pending)
     }
 

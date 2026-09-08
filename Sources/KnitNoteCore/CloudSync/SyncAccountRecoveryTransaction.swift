@@ -50,12 +50,48 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
         let packetSHA256: Data
         let inventory: Data
     }
+    private struct SourceControlSnapshot: Codable {
+        let mainBytes: Data?
+        let nextBytes: Data?
+        enum CodingKeys: String, CodingKey { case mainBytes, nextBytes }
+        init(_ observation: SyncAccountControlObservation) {
+            mainBytes = observation.mainBytes; nextBytes = observation.nextBytes
+        }
+        func encode(to encoder: any Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(mainBytes, forKey: .mainBytes)
+            try c.encode(nextBytes, forKey: .nextBytes)
+        }
+        func observation() throws -> SyncAccountControlObservation {
+            try SyncAccountRecoveryControlFile.observation(mainBytes: mainBytes, nextBytes: nextBytes)
+        }
+    }
+    /// Flatten the additional witness without changing the legacy envelope wire.
+    private struct EnvelopeV2: Codable {
+        let legacy: Envelope
+        let sourceControl: SourceControlSnapshot
+        enum CodingKeys: String, CodingKey { case sourceControl }
+        init(_ legacy: Envelope, sourceControl: SourceControlSnapshot) {
+            self.legacy = legacy; self.sourceControl = sourceControl
+        }
+        init(from decoder: any Decoder) throws {
+            legacy = try Envelope(from: decoder)
+            sourceControl = try decoder.container(keyedBy: CodingKeys.self).decode(SourceControlSnapshot.self, forKey: .sourceControl)
+        }
+        func encode(to encoder: any Encoder) throws {
+            try legacy.encode(to: encoder)
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(sourceControl, forKey: .sourceControl)
+        }
+    }
     private typealias Intent = SyncAccountRecoveryIntent
     private struct Authorized {
         let intent: Intent
         let envelope: Envelope
         let inventory: SyncAccountRecoveryInventory
         let receipt: Sealed
+        let observation: SyncAccountControlObservation
+        let now: Date
     }
     private let storage: SyncAccountStorage
     private let paths: SyncAccountStorage.Paths
@@ -64,6 +100,7 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
     private let journal: FileSyncMutationJournal
     private let maximumBytes: Int
     private let synchronize: @Sendable (Int32) throws -> Void
+    private let controlFile: SyncAccountRecoveryControlFile
     private let mutex = NSLock()
     private static let main = "intent.json"
     private static let next = "intent-next.json"
@@ -78,38 +115,65 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
          synchronize: @escaping @Sendable (Int32) throws -> Void) {
         self.storage = storage; self.paths = paths; self.account = account; self.vault = vault
         self.journal = journal; self.maximumBytes = maximumBytes; self.synchronize = synchronize
+        controlFile = SyncAccountRecoveryControlFile(synchronize: synchronize)
     }
 
     public func prepare(now: Date) throws -> Prepared {
         mutex.lock(); defer { mutex.unlock() }
         try validateConfiguration(now: now)
-        // No previous selected recovery can be superseded by another capture.
-        let root = try storage.withRecoveryOwnership(paths: paths, account: account, maximumBytes: maximumBytes,
-            createControl: true) { access -> (UInt64, UInt64) in
-            try synchronizeAbsence(access)
-            return try identity(access.accountDescriptor)
+        return try storage.withRecoveryOwnership(paths: paths, account: account, maximumBytes: maximumBytes,
+            createControl: true) { access in
+            let observation = try controlFile.observe(access: access)
+            switch observation.state {
+            case nil, .absentSource: break
+            default: throw Error.invalidAuthority
+            }
+            try controlFile.synchronize(observation, access: access)
+            let root = try identity(access.accountDescriptor)
+            let entries = try access.entries()
+            let legacy = observation.state == nil && entries.contains {
+                $0.relativePath == "working-set/projects-v1.json" && !$0.isDirectory
+            }
+            let captureID = UUID()
+            let session = ".decrypted-temporary/" + paths.decryptedTemporary.lastPathComponent
+            let empty = Envelope(formatVersion: legacy ? 1 : 2, captureID: captureID, accountDevice: root.0,
+                accountInode: root.1, temporarySession: session, packetSHA256: Data(repeating: 0, count: 32), inventory: Data())
+            let snapshot = SourceControlSnapshot(observation)
+            let budget: Int
+            if legacy { budget = maximumBytes }
+            else {
+                let overhead = try Self.encode(EnvelopeV2(empty, sourceControl: snapshot)).count
+                let remainder = maximumBytes.subtractingReportingOverflow(overhead)
+                guard !remainder.overflow, remainder.partialValue >= 0 else { throw Error.tooLarge }
+                let raw = (remainder.partialValue / 4).multipliedReportingOverflow(by: 3)
+                guard !raw.overflow else { throw Error.tooLarge }
+                budget = raw.partialValue
+            }
+            let inventory = try SyncAccountRecoveryInventory.capture(access: access, paths: paths, account: account,
+                journal: journal, archiveURL: paths.workingSet.appendingPathComponent("projects-v1.json"),
+                control: observation, maximumBytes: budget)
+            guard try controlFile.observe(access: access) == observation else { throw Error.changedInventory }
+            let envelope = Envelope(formatVersion: empty.formatVersion, captureID: captureID, accountDevice: root.0,
+                accountInode: root.1, temporarySession: session,
+                packetSHA256: Data(SHA256.hash(data: try inventory.packet.encoded(maximumBytes: maximumBytes))),
+                inventory: try inventory.encoded(maximumBytes: budget))
+            let bytes = try legacy ? Self.encode(envelope) : Self.encode(EnvelopeV2(envelope, sourceControl: snapshot))
+            _ = try decode(bytes)
+            try validateRoot(envelope, access: access)
+            guard try access.entries() == inventory.entries, try controlFile.observe(access: access) == observation else { throw Error.changedInventory }
+            return Prepared(bytes: bytes)
         }
-        let inventory = try SyncAccountRecoveryInventory.capture(storage: storage, paths: paths, account: account,
-            journal: journal, archiveURL: paths.workingSet.appendingPathComponent("projects-v1.json"), maximumBytes: maximumBytes)
-        let envelope = Envelope(formatVersion: 1, captureID: UUID(), accountDevice: root.0, accountInode: root.1,
-            temporarySession: ".decrypted-temporary/" + paths.decryptedTemporary.lastPathComponent,
-            packetSHA256: Data(SHA256.hash(data: try inventory.packet.encoded(maximumBytes: maximumBytes))),
-            inventory: try inventory.encoded(maximumBytes: maximumBytes))
-        let bytes = try Self.encode(envelope)
-        guard bytes.count <= maximumBytes else { throw Error.tooLarge }
-        _ = try decode(bytes)
-        return Prepared(bytes: bytes)
     }
 
     public func seal(_ prepared: Prepared, now: Date) throws -> Sealed {
         mutex.lock(); defer { mutex.unlock() }
         try validateConfiguration(now: now)
-        let (envelope, inventory) = try decode(prepared.bytes)
+        let (envelope, inventory, snapshot) = try decode(prepared.bytes)
+        let captured = try snapshot?.observation() ?? .init(mainBytes: nil, nextBytes: nil, state: nil)
         return try storage.withRecoveryOwnership(paths: paths, account: account, maximumBytes: maximumBytes) { access in
-            guard let control = access.controlDescriptor, try read(Self.main, at: control) == nil,
-                  try read(Self.next, at: control) == nil else { throw Error.invalidAuthority }
+            guard let control = access.controlDescriptor, try controlFile.observe(access: access) == captured else { throw Error.changedInventory }
             try validateRoot(envelope, access: access)
-            guard try access.entries() == inventory.entries else { throw Error.changedInventory }
+            guard try access.entries() == inventory.entries, try controlFile.observe(access: access) == captured else { throw Error.changedInventory }
             let id = try vault.seal(prepared.bytes, account: account, now: now)
             guard try vault.synchronizedRecoveryPayload(id, account: account, now: now) == prepared.bytes else { throw Error.invalidAuthority }
             try access.validate()
@@ -119,8 +183,22 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
                 archiveURL: inventory.archiveURL, journalURL: inventory.journalURL, vaultID: id,
                 captureID: receipt.captureID, envelopeSHA256: receipt.envelopeSHA256, packetSHA256: receipt.packetSHA256,
                 inventoryFingerprint: receipt.inventoryFingerprint, phase: .sealed)
-            try write(try Self.encode(intent), name: Self.main, at: control)
-            try barrier(intent, access: access)
+            let validateSource = {
+                try self.validateRoot(envelope, access: access)
+                guard try access.entries() == inventory.entries,
+                      try self.vault.synchronizedRecoveryPayload(id, account: self.account, now: now) == prepared.bytes else { throw Error.changedInventory }
+                guard try access.entries() == inventory.entries else { throw Error.changedInventory }
+            }
+            try validateSource()
+            guard try controlFile.observe(access: access) == captured else { throw Error.changedInventory }
+            if let main = captured.mainBytes {
+                let predecessor = Data(SHA256.hash(data: main))
+                _ = try controlFile.replace(captured, with: .selectedRecovery(intent, predecessorSHA256: predecessor),
+                    access: access, validateSource: validateSource)
+            } else {
+                try write(try Self.encode(intent), name: Self.main, at: control)
+                try legacyBarrier(intent, access: access)
+            }
             return receipt
         }
     }
@@ -167,6 +245,30 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
         try authenticatedSelection(now: now).map { LifecycleSnapshot(selection: $0, account: account, root: paths.accountRoot) }
     }
 
+    func sourceState(now: Date) throws -> SyncAccountSourceState? {
+        mutex.lock(); defer { mutex.unlock() }
+        try validateConfiguration(now: now)
+        return try storage.withRecoveryOwnership(paths: paths, account: account, maximumBytes: maximumBytes) { access in
+            let observation = try controlFile.observe(access: access)
+            switch observation.state {
+            case .absentSource:
+                return try validateSourceState(observation, access: access)
+            case .sourceSpent: throw Error.invalidAuthority
+            case nil, .legacySelection, .selectedRecovery: return nil
+            }
+        }
+    }
+
+    private func validateSourceState(_ observation: SyncAccountControlObservation,
+                                     access: SyncAccountStorage.RecoveryAccess) throws -> SyncAccountSourceState {
+        guard case .absentSource(let source) = observation.state else { throw Error.invalidAuthority }
+        let inventory = try SyncAccountRecoveryInventory.capture(access: access, paths: paths, account: account,
+            journal: journal, archiveURL: paths.workingSet.appendingPathComponent("projects-v1.json"),
+            control: observation, maximumBytes: maximumBytes)
+        guard case .absent(let evidence) = inventory.sourceAuthority, evidence.state == source else { throw Error.invalidAuthority }
+        return source
+    }
+
     /// Durable absence only. It proves neither replay nor journal acknowledgement.
     public func synchronizeSelectionAbsence(now: Date) throws {
         mutex.lock(); defer { mutex.unlock() }
@@ -177,6 +279,13 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
     }
 
     private func synchronizeAbsence(_ access: SyncAccountStorage.RecoveryAccess) throws {
+        let observation = try controlFile.observe(access: access)
+        if case .absentSource = observation.state {
+            _ = try validateSourceState(observation, access: access)
+            try controlFile.synchronize(observation, access: access)
+            _ = try validateSourceState(observation, access: access)
+            return
+        }
         if let control = access.controlDescriptor {
             guard try read(Self.main, at: control) == nil, try read(Self.next, at: control) == nil else { throw Error.invalidAuthority }
             try synchronize(control)
@@ -196,27 +305,29 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
             if value.intent.phase == .cleanupComplete {
                 guard try remainingEntries(value, access: access).isEmpty else { throw Error.changedInventory }
                 guard try vault.synchronizedRecoveryPayload(vaultID, account: account, now: now).sha256 == value.receipt.envelopeSHA256 else { throw Error.invalidAuthority }
-                let started = try transition(value.intent, to: .restoreStarted, access: access)
-                value = Authorized(intent: started, envelope: value.envelope, inventory: value.inventory, receipt: value.receipt)
+                value = try transition(value, to: .restoreStarted, access: access)
             }
             guard value.intent.phase == .restoreStarted || value.intent.phase == .replayComplete else { throw Error.invalidAuthority }
             try validateRestored(value, access: access, complete: value.intent.phase == .replayComplete)
-            try barrier(value.intent, access: access)
-            if value.intent.phase == .replayComplete { return }
+            try barrier(value, access: access)
+            if value.intent.phase == .replayComplete {
+                if value.observation.nextBytes != nil { _ = try transition(value, to: .replayComplete, access: access) }
+                return
+            }
             let files = try restoredFiles(value.inventory)
             // Dependencies are validated with the authenticated packet before
             // the first file is installed. The manifest is installed last.
             let manifest = "working-set/.sync-deletions/ledger.json"
             for file in files where file.relativePath != manifest {
-                try barrier(value.intent, access: access)
+                try barrier(value, access: access)
                 try install(file, access: access)
             }
             try validateRestored(value, access: access, complete: false)
-            try barrier(value.intent, access: access)
+            try barrier(value, access: access)
             _ = try journal.validateRecoveryReplay(value.inventory.packet.mutations, maximumBytes: maximumBytes)
             try journal.enqueue(value.inventory.packet.mutations)
             for file in files where file.relativePath == manifest {
-                try barrier(value.intent, access: access)
+                try barrier(value, access: access)
                 try install(file, access: access)
             }
             try validateRestored(value, access: access, complete: true)
@@ -230,7 +341,7 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
             }
             try synchronize(access.accountDescriptor)
             try validateRestored(value, access: access, complete: true)
-            _ = try transition(value.intent, to: .replayComplete, access: access)
+            _ = try transition(value, to: .replayComplete, access: access)
         }
     }
 
@@ -250,7 +361,7 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
             guard value.receipt.vaultID == vaultID, value.intent.phase == .replayComplete,
                   let control = access.controlDescriptor, try read(Self.next, at: control) == nil else { throw Error.invalidAuthority }
             try validateRestored(value, access: access, complete: true)
-            try barrier(value.intent, access: access)
+            try barrier(value, access: access)
             guard unlinkat(control, Self.main, 0) == 0 else { throw Error.unavailable }
             try synchronize(control); try synchronize(access.accountDescriptor)
             try access.validate()
@@ -368,17 +479,15 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
             guard try vault.synchronizedRecoveryPayload(expected.vaultID, account: account, now: now).sha256 == expected.envelopeSHA256 else {
                 throw Error.invalidAuthority
             }
-            try barrier(authorized.intent, access: access)
+            try barrier(authorized, access: access)
             if authorized.intent.phase == .sealed {
-                let started = try transition(authorized.intent, to: .cleanupStarted, access: access)
-                authorized = Authorized(intent: started, envelope: authorized.envelope,
-                    inventory: authorized.inventory, receipt: authorized.receipt)
+                authorized = try transition(authorized, to: .cleanupStarted, access: access)
             }
             for entry in remaining.sorted(by: { $0.relativePath.split(separator: "/").count > $1.relativePath.split(separator: "/").count
                 || ($0.relativePath.split(separator: "/").count == $1.relativePath.split(separator: "/").count && $0.relativePath < $1.relativePath) }) {
                 // No stale receipt may replace a newer durable intent. A readable
                 // prior write is reestablished before each destructive boundary.
-                try barrier(authorized.intent, access: access)
+                try barrier(authorized, access: access)
                 let parent = try openParent(entry.relativePath, root: access.accountDescriptor)
                 defer { Darwin.close(parent) }
                 let name = String(entry.relativePath.split(separator: "/").last!)
@@ -400,17 +509,45 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
             }
             try synchronize(access.accountDescriptor)
             if authorized.intent.phase == .cleanupStarted {
-                _ = try transition(authorized.intent, to: .cleanupComplete, access: access)
+                _ = try transition(authorized, to: .cleanupComplete, access: access)
             } else {
                 guard try read(Self.next, at: control) == nil else { throw Error.invalidAuthority }
-                try barrier(authorized.intent, access: access)
+                try barrier(authorized, access: access)
             }
         }
     }
 
-    private func transition(_ intent: Intent, to phase: Phase, access: SyncAccountStorage.RecoveryAccess) throws -> Intent {
+    private func transition(_ value: Authorized, to phase: Phase, access: SyncAccountStorage.RecoveryAccess) throws -> Authorized {
+        try barrier(value, access: access)
+        let validateSource = {
+            try self.validateSelectedPayload(value, access: access)
+            if value.intent.phase == .restoreStarted || value.intent.phase == .replayComplete {
+                try self.validateRestored(value, access: access, complete: phase == .replayComplete)
+            } else {
+                let remaining = try self.remainingEntries(value, access: access)
+                guard (phase != .cleanupComplete && phase != .restoreStarted) || remaining.isEmpty else { throw Error.changedInventory }
+            }
+        }
+        try validateSource()
+        switch value.observation.state {
+        case .legacySelection:
+            _ = try legacyTransition(value.intent, to: phase, access: access)
+        case .selectedRecovery:
+            guard let main = value.observation.mainBytes else { throw Error.invalidAuthority }
+            var next = value.intent; next.phase = phase
+            let predecessor = Data(SHA256.hash(data: main))
+            _ = try controlFile.replace(value.observation, with: .selectedRecovery(next, predecessorSHA256: predecessor),
+                access: access, validateSource: validateSource)
+        default: throw Error.invalidAuthority
+        }
+        guard let refreshed = try authorize(access: access, now: value.now), refreshed.receipt == value.receipt,
+              refreshed.intent.phase == phase else { throw Error.invalidAuthority }
+        return refreshed
+    }
+
+    private func legacyTransition(_ intent: Intent, to phase: Phase, access: SyncAccountStorage.RecoveryAccess) throws -> Intent {
         guard let control = access.controlDescriptor else { throw Error.invalidAuthority }
-        try barrier(intent, access: access)
+        try legacyBarrier(intent, access: access)
         if try read(Self.next, at: control) != nil {
             // A bounded derivative has no authority of its own. Only the
             // authenticated, synchronized main selection permits rebuilding it.
@@ -419,30 +556,41 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
         }
         var next = intent; next.phase = phase
         try write(try Self.encode(next), name: Self.next, at: control)
-        try barrier(intent, access: access)
+        try legacyBarrier(intent, access: access)
         guard renameat(control, Self.next, control, Self.main) == 0 else { throw Error.unavailable }
         try synchronize(control)
-        try barrier(next, access: access)
+        try legacyBarrier(next, access: access)
         return next
     }
 
     private func authorize(access: SyncAccountStorage.RecoveryAccess, now: Date) throws -> Authorized? {
-        guard let control = access.controlDescriptor else { return nil }
-        guard let bytes = try read(Self.main, at: control) else {
-            guard try read(Self.next, at: control) == nil else { throw Error.invalidAuthority }
-            return nil
+        let observation = try controlFile.observe(access: access)
+        let intent: Intent
+        switch observation.state {
+        case .legacySelection(let selected), .selectedRecovery(let selected, _): intent = selected
+        case nil, .absentSource, .sourceSpent: return nil
         }
-        let intent = try JSONDecoder().decode(Intent.self, from: bytes)
         guard intent.formatVersion == 1, intent.accountIDHash == account.accountIDHash, intent.accountRoot == paths.accountRoot,
               intent.archiveURL == paths.workingSet.appendingPathComponent("projects-v1.json"),
               intent.journalURL == journal.recoveryLocation else { throw Error.invalidAuthority }
         let payload = try vault.restore(intent.vaultID, account: account, now: now)
-        let (envelope, inventory) = try decode(payload)
+        let (envelope, inventory, snapshot) = try decode(payload)
+        switch observation.state {
+        case .selectedRecovery(_, let predecessor):
+            guard envelope.formatVersion == 2, case .absentSource = try snapshot?.observation().state else { throw Error.invalidAuthority }
+            if intent.phase == .sealed {
+                guard let sourceMain = snapshot?.mainBytes, predecessor == Data(SHA256.hash(data: sourceMain)) else { throw Error.invalidAuthority }
+            }
+        case .legacySelection:
+            guard snapshot?.mainBytes == nil, snapshot?.nextBytes == nil else { throw Error.invalidAuthority }
+        default: throw Error.invalidAuthority
+        }
         let receipt = try Sealed(vaultID: intent.vaultID, envelope: envelope, inventory: inventory, bytes: payload)
         guard receipt.captureID == intent.captureID, receipt.packetSHA256 == intent.packetSHA256,
               receipt.envelopeSHA256 == intent.envelopeSHA256, receipt.inventoryFingerprint == intent.inventoryFingerprint else { throw Error.invalidAuthority }
         try validateRoot(envelope, access: access)
-        return Authorized(intent: intent, envelope: envelope, inventory: inventory, receipt: receipt)
+        guard try controlFile.observe(access: access) == observation else { throw Error.changedInventory }
+        return Authorized(intent: intent, envelope: envelope, inventory: inventory, receipt: receipt, observation: observation, now: now)
     }
 
     private func remainingEntries(_ value: Authorized, access: SyncAccountStorage.RecoveryAccess) throws -> [SyncAccountRecoveryInventory.Entry] {
@@ -466,31 +614,55 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
         if value.intent.phase == .sealed {
             let actualNames = Set(current.map(\.relativePath))
             guard expected.keys.allSatisfy({ name in
-                actualNames.contains(name) || (newSession && (name == value.envelope.temporarySession
+                actualNames.contains(name) || (value.envelope.formatVersion == 1 && newSession && (name == value.envelope.temporarySession
                     || name.hasPrefix(value.envelope.temporarySession + "/")))
             }) else { throw Error.changedInventory }
         }
         return current.filter { !retained.contains($0.relativePath) }
     }
 
-    private func decode(_ bytes: Data) throws -> (Envelope, SyncAccountRecoveryInventory) {
+    private func decode(_ bytes: Data) throws -> (Envelope, SyncAccountRecoveryInventory, SourceControlSnapshot?) {
         guard bytes.count <= maximumBytes else { throw Error.tooLarge }
         let value = try JSONDecoder().decode(Envelope.self, from: bytes)
-        guard value.formatVersion == 1, value.accountDevice > 0, value.accountInode > 0,
+        guard value.formatVersion == 1 || value.formatVersion == 2, value.accountDevice > 0, value.accountInode > 0,
               value.temporarySession.hasPrefix(".decrypted-temporary/"),
               let id = UUID(uuidString: String(value.temporarySession.dropFirst(".decrypted-temporary/".count))),
               value.temporarySession == ".decrypted-temporary/" + id.uuidString.lowercased() else { throw Error.invalidAuthority }
+        let object = try JSONSerialization.jsonObject(with: bytes) as? [String: Any]
+        let snapshot: SourceControlSnapshot?
+        if value.formatVersion == 2 {
+            let v2 = try JSONDecoder().decode(EnvelopeV2.self, from: bytes)
+            // Normalized full topology enforces required nullable witness keys
+            // and rejects unknown fields at both envelope and snapshot levels.
+            guard try JSONSerialization.data(withJSONObject: object as Any, options: [.sortedKeys]) ==
+                JSONSerialization.data(withJSONObject: JSONSerialization.jsonObject(with: Self.encode(v2)), options: [.sortedKeys]) else { throw Error.invalidAuthority }
+            snapshot = v2.sourceControl
+        } else {
+            guard object?["sourceControl"] == nil else { throw Error.invalidAuthority }
+            snapshot = nil
+        }
         let inventory = try SyncAccountRecoveryInventory.decodeRecovery(value.inventory, account: account,
             paths: paths, journalURL: journal.recoveryLocation, maximumBytes: maximumBytes)
+        if let snapshot {
+            guard case .absent(let evidence) = inventory.sourceAuthority,
+                  evidence.state.accountDevice == value.accountDevice, evidence.state.accountInode == value.accountInode else { throw Error.invalidAuthority }
+            let observation = try snapshot.observation()
+            if case .absentSource(let source) = observation.state {
+                guard source == evidence.state else { throw Error.invalidAuthority }
+            } else {
+                guard observation.mainBytes == nil, observation.nextBytes == nil,
+                      case .bootstrapRollback = evidence.state.origin else { throw Error.invalidAuthority }
+            }
+        } else if inventory.sourceAuthority != nil { throw Error.invalidAuthority }
         // All prepare/seal/cleanup/restore authorization decodes pass the same
         // native enqueue gate before cleanup can destroy original plaintext.
         try journal.preflightRecoveryReplay(inventory.packet.mutations, maximumBytes: maximumBytes)
         guard value.packetSHA256 == Data(SHA256.hash(data: try inventory.packet.encoded(maximumBytes: maximumBytes))),
               inventory.entries.contains(where: { $0.relativePath == value.temporarySession && $0.isDirectory }),
-              inventory.entries.filter({ $0.relativePath.hasPrefix(".decrypted-temporary/") }).allSatisfy({
+              (value.formatVersion == 2 || inventory.entries.filter({ $0.relativePath.hasPrefix(".decrypted-temporary/") }).allSatisfy({
                   $0.relativePath == value.temporarySession || $0.relativePath.hasPrefix(value.temporarySession + "/")
-              }) else { throw Error.invalidAuthority }
-        return (value, inventory)
+              })) else { throw Error.invalidAuthority }
+        return (value, inventory, snapshot)
     }
 
     private func validateConfiguration(now: Date) throws {
@@ -507,7 +679,21 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
         guard fstat(fd, &status) == 0, status.st_mode & S_IFMT == S_IFDIR else { throw Error.invalidAuthority }
         return (UInt64(status.st_dev), UInt64(status.st_ino))
     }
-    private func barrier(_ intent: Intent, access: SyncAccountStorage.RecoveryAccess) throws {
+    private func validateSelectedPayload(_ value: Authorized, access: SyncAccountStorage.RecoveryAccess) throws {
+        try validateRoot(value.envelope, access: access)
+        guard try vault.synchronizedRecoveryPayload(value.receipt.vaultID, account: account, now: value.now).sha256 == value.receipt.envelopeSHA256 else { throw Error.invalidAuthority }
+    }
+    private func barrier(_ value: Authorized, access: SyncAccountStorage.RecoveryAccess) throws {
+        guard try controlFile.observe(access: access) == value.observation else { throw Error.changedInventory }
+        try validateSelectedPayload(value, access: access)
+        switch value.observation.state {
+        case .legacySelection: try legacyBarrier(value.intent, access: access)
+        case .selectedRecovery: try controlFile.synchronize(value.observation, access: access)
+        default: throw Error.invalidAuthority
+        }
+        guard try controlFile.observe(access: access) == value.observation else { throw Error.changedInventory }
+    }
+    private func legacyBarrier(_ intent: Intent, access: SyncAccountStorage.RecoveryAccess) throws {
         guard let control = access.controlDescriptor, let bytes = try read(Self.main, at: control),
               try JSONDecoder().decode(Intent.self, from: bytes) == intent else { throw Error.invalidAuthority }
         let fd = openat(control, Self.main, O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)

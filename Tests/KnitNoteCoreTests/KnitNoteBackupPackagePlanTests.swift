@@ -95,6 +95,63 @@ import Testing
 }
 
 extension KnitNoteBackupPackagePlanTests {
+    @Test func packageLimitIncludesManifestBeforeTemporaryCallbacks() throws {
+        let f = try BackupFixture.completePackage(); defer { try? FileManager.default.removeItem(at: f.cleanupRoot) }
+        var projects: [StoredProject] = []
+        var files: [String: SyncBootstrapOutputProof] = [:]
+        var lastPath = ""
+        for index in 0..<40 {
+            var project = try StoredProject(name: "Photo")
+            let name = project.id.uuidString + "-" + UUID().uuidString + ".jpg"
+            project.setPhotoFilename(name)
+            projects.append(project)
+            lastPath = "ProjectPhotos/" + name
+            files[lastPath] = .init(byteCount: index == 39 ? 90_000_000 : 100_000_000,
+                sha256: Data(repeating: 1, count: 32))
+        }
+        let bytes = try JSONEncoder().encode(ProjectArchive(version: ProjectArchive.currentVersion, projects: projects, yarns: []))
+        files["projects-v1.json"] = .init(byteCount: Int64(bytes.count), sha256: Data(SHA256.hash(data: bytes)))
+        let initial = try plan(f, .init(archiveData: bytes, directories: ["ProjectPhotos"], files: files))
+        // Both last-file counts have eight digits, so the manifest's encoded length stays fixed.
+        let lastBytes = 100_000_000 - Int64(bytes.count) - Int64(initial.manifestData.count)
+        files[lastPath] = .init(byteCount: lastBytes, sha256: Data(repeating: 1, count: 32))
+        let exact = try plan(f, .init(archiveData: bytes, directories: ["ProjectPhotos"], files: files))
+        #expect(exact.sourceFiles.values.reduce(Int64(exact.manifestData.count)) { $0 + $1.byteCount } == 4_000_000_000)
+        files[lastPath] = .init(byteCount: lastBytes + 1, sha256: Data(repeating: 1, count: 32))
+        var callbackCount = 0
+        #expect(throws: KnitNoteBackupError.packageTooLarge) {
+            try f.service.planOwnedPackage(source: .init(archiveData: bytes, directories: ["ProjectPhotos"], files: files),
+                role: .validationMerged, packageID: id, accountIDHash: String(repeating: "a", count: 64),
+                livePathSHA256: String(repeating: "b", count: 64), transactionID: id,
+                appVersion: "1.2.0", now: Date(timeIntervalSince1970: 20),
+                temporaryID: { _ in callbackCount += 1; return id })
+        }
+        #expect(callbackCount == 0)
+    }
+
+    @Test(arguments: [1, 2]) func expectedMarkupOwnerAndAncestorAliasesReject(component: Int) throws {
+        let f = try BackupFixture.patternLibraryPackage(); defer { try? FileManager.default.removeItem(at: f.cleanupRoot) }
+        let tree = try frozen(f)
+        let owner = f.markupRelativePath.split(separator: "/").dropLast().map(String.init)
+        let markupRoot = "Patterns/UsageMarkup"
+        let directories = tree.directories.filter { $0 != markupRoot && !$0.hasPrefix(markupRoot + "/") }
+        let files = tree.files.filter { !$0.key.hasPrefix(markupRoot + "/") }
+        let absent = KnitNoteBackupFrozenTree(archiveData: tree.archiveData, directories: directories, files: files)
+        let p = try plan(f, absent)
+        var aliasedOwner = owner
+        aliasedOwner[component] = aliasedOwner[component].lowercased()
+        // A UUID could contain only digits; a diacritic still gives a deterministic owner alias.
+        if component == 2 { aliasedOwner[component] += "\u{0301}" }
+        #expect(!aliasedOwner[component].utf8.elementsEqual(owner[component].utf8))
+        var aliasedDirectories = directories
+        for count in 1...aliasedOwner.count { aliasedDirectories.insert(aliasedOwner.prefix(count).joined(separator: "/")) }
+        var aliasedFiles = files
+        aliasedFiles[aliasedOwner.joined(separator: "/") + "/0.json"] = tree.files[f.markupRelativePath]
+        let aliased = KnitNoteBackupFrozenTree(archiveData: tree.archiveData, directories: aliasedDirectories, files: aliasedFiles)
+        #expect(throws: KnitNoteBackupError.unsafePackageEntry) { try plan(f, aliased) }
+        #expect(throws: KnitNoteBackupError.unsafePackageEntry) { try f.service.validateFrozenPackageSource(p, source: aliased) }
+    }
+
     @Test func manifestAndAggregatePackageCapsReject() throws {
         let f = try BackupFixture.completePackage(); defer { try? FileManager.default.removeItem(at: f.cleanupRoot) }
         let tree = try frozen(f)

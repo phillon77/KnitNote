@@ -1744,10 +1744,13 @@ public struct KnitNoteBackupService: Sendable {
         catch { throw KnitNoteBackupError.invalidArchive }
         try validateArchive(archive)
         guard source.directories.isDisjoint(with: source.files.keys) else { throw KnitNoteBackupError.unsafePackageEntry }
+        func foldedAlias(_ path: String) -> String {
+            path.precomposedStringWithCanonicalMapping.folding(
+                options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
+        }
         var aliases: [String: String] = [:]
         for path in Array(source.directories) + Array(source.files.keys) {
-            let alias = path.precomposedStringWithCanonicalMapping.folding(
-                options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
+            let alias = foldedAlias(path)
             if let old = aliases[alias], !old.utf8.elementsEqual(path.utf8) { throw KnitNoteBackupError.unsafePackageEntry }
             aliases[alias] = path
         }
@@ -1774,6 +1777,13 @@ public struct KnitNoteBackupService: Sendable {
             }
         }
         let references = try referencedRelativePaths(in: archive) { owner in
+            let ownerComponents = owner.split(separator: "/")
+            for count in 1...ownerComponents.count {
+                let expected = ownerComponents.prefix(count).joined(separator: "/")
+                if let declared = aliases[foldedAlias(expected)], !declared.utf8.elementsEqual(expected.utf8) {
+                    throw KnitNoteBackupError.unsafePackageEntry
+                }
+            }
             let prefix = owner + "/"
             let files = source.files.keys.filter { $0.hasPrefix(prefix) }
             let directories = source.directories.filter { $0.hasPrefix(prefix) }
@@ -1829,6 +1839,14 @@ public struct KnitNoteBackupService: Sendable {
         }
         let manifestData = try encodePackageManifest(archive: archive, appVersion: appVersion, now: now, files: files)
         guard Int64(manifestData.count) <= KnitNoteBackupLimits.maximumManifestBytes else { throw KnitNoteBackupError.fileTooLarge }
+        var packageBytes = Int64(manifestData.count)
+        for proof in selected.values {
+            let total = packageBytes.addingReportingOverflow(proof.byteCount)
+            guard !total.overflow, total.partialValue <= KnitNoteBackupLimits.maximumPackageBytes else {
+                throw KnitNoteBackupError.packageTooLarge
+            }
+            packageBytes = total.partialValue
+        }
         let package = packageID.uuidString + ".knitnote-backup"
         var actions: [SyncBootstrapOutputAction] = [.directory(role: role, path: ""),
             .directory(role: role, path: package), .directory(role: role, path: package + "/Data")]

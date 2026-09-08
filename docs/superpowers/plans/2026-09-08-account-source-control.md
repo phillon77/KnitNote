@@ -1,6 +1,6 @@
 # Account Source Control Foundation Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Add the backward-compatible source control codec, portable baseline and verified fresh/existing storage open APIs needed by account-source recovery.
 
@@ -115,7 +115,7 @@ Legacy crash-compatibility exception: when the decoded authoritative main is v1,
 
 **Produces:** Every Task 1 shared interface above; add `SyncAccountStorage.openForVerifiedAccount(identity: SyncAccountIdentity, validateAccount: () throws -> Void) throws -> Paths` and `SyncAccountStorage.openExistingAccount(identity: SyncAccountIdentity, validateAccount: () throws -> Void) throws -> Paths`. The latter requires the account directory already exist using descriptor-relative `create:false`, never allocates/mints freshness, and rejects ambiguous missing source. Keep generic `open(identity:)` unchanged. All three share one private open implementation with an internal mode enum, not duplicated directory logic.
 
-- [ ] Add codec RED tests named `v1IntentBytesStayUnchanged`, `v2ControlRejectsUnknownMixedAndNullFields`, `derivativeNeedsExactMainPredecessor`, and `portableBaselineBindsFIFOAndSelectedSources`. Copy a real encoded v1 intent from the existing test fixture, assert decode/encode exact bytes, and mutate JSON dictionaries for unknown/mixed/null cases.
+- [x] Add codec RED tests named `v1IntentBytesStayUnchanged`, `v2ControlRejectsUnknownMixedAndNullFields`, `derivativeNeedsExactMainPredecessor`, and `portableBaselineBindsFIFOAndSelectedSources`. Copy a real encoded v1 intent from the existing test fixture, assert decode/encode exact bytes, and mutate JSON dictionaries for unknown/mixed/null cases.
 
 ```swift
 @Test func freshAllocationOnlyComesFromActualDirectoryCreation() throws {
@@ -138,8 +138,8 @@ Legacy crash-compatibility exception: when the decoded authoritative main is v1,
 }
 ```
 
-- [ ] Run RED: `env -u KNITNOTE_RUN_CLOUDKIT_INTEGRATION python3 /tmp/task4-run-bounded.py 900 arch -arm64 swift test --no-parallel --filter 'SyncAccountSourceStateTests|SyncAccountStorageTests|SyncAccountRecoveryTransactionTests'`. Record a missing-symbol or new behavioral failure, not merely an environment error.
-- [ ] Implement custom codecs, canonical baseline projection, and no-follow <=8192-byte descriptor reads/writes by moving/reusing the existing transaction helper logic. `replace` compares exact main/next observation, resynchronizes old main, validates source, writes/syncs next, repeats predecessor/source checks, renames, fsyncs control/account, rereads exact committed bytes. Existing authenticated transaction checks remain outside this low-level helper.
+- [x] Run RED: `env -u KNITNOTE_RUN_CLOUDKIT_INTEGRATION python3 /tmp/task4-run-bounded.py 900 arch -arm64 swift test --no-parallel --filter 'SyncAccountSourceStateTests|SyncAccountStorageTests|SyncAccountRecoveryTransactionTests'`. Record a missing-symbol or new behavioral failure, not merely an environment error.
+- [x] Implement custom codecs, canonical baseline projection, and no-follow <=8192-byte descriptor reads/writes by moving/reusing the existing transaction helper logic. `replace` compares exact main/next observation, resynchronizes old main, validates source, writes/syncs next, repeats predecessor/source checks, renames, fsyncs control/account, rereads exact committed bytes. Existing authenticated transaction checks remain outside this low-level helper.
 
 ```swift
 // Replacement skeleton inside the helper; all named methods are in its contract.
@@ -153,18 +153,18 @@ try validateSource()
 // Preserve existing transaction Error and regular-file/link/identity checks.
 ```
 
-- [ ] Add storage injection `init(baseURL: URL, synchronize: @escaping @Sendable (Int32) throws -> Void)` internally; existing public init supplies fsync. Use it for fresh main/file/control/account fsync fault tests. The new open route captures successful mkdir internally, validates current account callback outside its mutex before and after, acquires account lock, verifies the exact empty scaffold, writes fresh main with the original physical root and empty portable baseline, synchronizes and validates before returning Paths. Existing namespace with no record returns Paths only if an archive or pre-existing recovery/bootstrap evidence remains for downstream exact validation; ambiguous missing state is rejected before producer exposure. Never issue fresh state for existing directories.
-- [ ] Add actual-existing-empty, corrupted archive, interrupted creation before main durability, validator generation change, invalid owner/root replacement and symlink tests. Preserve existing directory bytes on rejection; a successfully durable fresh main after a reported sync fault may be resynchronized on reopen, but a mainless derivative or no durable provenance stays blocked.
-- [ ] Run the focused command again. Record GREEN. Independently inspect legacy transaction tests to ensure Intent extraction did not change v1 output or delete semantics yet. Task 1 does not activate the new App route.
-- [ ] Self-review, run git diff --check, and commit only exact task production/test/PBX files with subject `feat(sync): add owned account source control state`. Local task commit authorized, no push. Main independently reviews after complete report. Preserve all RED/GREEN logs and report hashes.
+- [x] Add storage injection `init(baseURL: URL, synchronize: @escaping @Sendable (Int32) throws -> Void)` internally; existing public init supplies fsync. Use it for fresh main/file/control/account fsync fault tests. The new open route captures successful mkdir internally, validates current account callback outside its mutex before and after, acquires account lock, verifies the exact empty scaffold, writes fresh main with the original physical root and empty portable baseline, synchronizes and validates before returning Paths. Existing namespace with no record returns Paths only if an archive or pre-existing recovery/bootstrap evidence remains for downstream exact validation; ambiguous missing state is rejected before producer exposure. Never issue fresh state for existing directories.
+- [x] Add actual-existing-empty, corrupted archive, interrupted creation before main durability, validator generation change, invalid owner/root replacement and symlink tests. Preserve existing directory bytes on rejection; a successfully durable fresh main after a reported sync fault may be resynchronized on reopen, but a mainless derivative or no durable provenance stays blocked.
+- [x] Run the focused command again. Record GREEN. Independently inspect legacy transaction tests to ensure Intent extraction did not change v1 output or delete semantics yet. Task 1 does not activate the new App route.
+- [x] Self-review, run git diff --check, and commit only exact task production/test/PBX files with subject `feat(sync): add owned account source control state`. Local task commit authorized, no push. Main independently reviews after complete report. Preserve all RED/GREEN logs and report hashes.
 
 
 ## Task 2: Main review and validation
 
-- [ ] Read Task1 report and exact final log/exit/hash; dispatch independent spec+quality review and resolve load-bearing findings through original implementer.
-- [ ] Verify new Core files compile in actual-source App and PBX targets without activating verified-open in shipping. Record exact source tree/harness changes; source symlinks must point to current worktree.
-- [ ] Run one final review then frozen Core/App/root/unsigned macOS/iOS chain using established commands in docs/superpowers/reports/2026-09-08-missing-archive-bootstrap-verification.md, fresh `/tmp/account-source-control-frozen-01-*` logs/derived paths. Core unsets KNITNOTE integration override, App/root explicit0, next only previousexit0. No source edits while frozen.
-- [ ] Record source/log hashes, outcomes, all rulings/costs and retained source inventory/bootstrap lineage gates in docs/superpowers/reports/2026-09-08-account-source-control-verification.md; commit docs and continue source-inventory integration.
+- [x] Read Task1 report and exact final log/exit/hash; dispatch independent spec+quality review and resolve load-bearing findings through original implementer.
+- [x] Verify new Core files compile in actual-source App and PBX targets without activating verified-open in shipping. Record exact source tree/harness changes; source symlinks must point to current worktree.
+- [x] Run one final review then frozen Core/App/root/unsigned macOS/iOS chain using established commands in docs/superpowers/reports/2026-09-08-missing-archive-bootstrap-verification.md, fresh `/tmp/account-source-control-frozen-01-*` logs/derived paths. Core unsets KNITNOTE integration override, App/root explicit0, next only previousexit0. No source edits while frozen.
+- [x] Record source/log hashes, outcomes, all rulings/costs and retained source inventory/bootstrap lineage gates in docs/superpowers/reports/2026-09-08-account-source-control-verification.md; commit docs and continue source-inventory integration.
 
 ## Deferred integration, not a foundation success claim
 

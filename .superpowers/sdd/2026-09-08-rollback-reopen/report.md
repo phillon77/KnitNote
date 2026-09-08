@@ -1,5 +1,13 @@
 # Nil-control rollback reopen report
 
+## Controller acceptance — 2026-09-08
+
+Independent reviewer `/root/rollback_reopen_review` read the complete implementation diff, report and hash-verified evidence; no Critical, Important or Minor findings. Both admission gates, unchanged physical proof checks, actual reopened roundtrips and negative tests support scoped acceptance. Extra bounded inventory I/O and historical top-level-only fail-closed behavior are intentional costs, not unnoticed regressions.
+
+Controller additionally ran actual-source App and root harnesses serially on unchanged source33c1e14 / docsbee27a6. App `/tmp/rollback-reopen-app-01.log`: 241 tests /12 suites passed, exit0, 55.527s tests /65.302s command; SHA256 `7a224cecc39d824bd105c3706d06d14da4f1fe4cc38f8d3c92e90f1d851a52dd`. Live Development CloudKit remains opted out. Root first attempt `/tmp/rollback-reopen-root-01.log` failed before tests due sandbox Clang cache access, not code. Exact root command retried with authorized cache access: `/tmp/rollback-reopen-root-02.log`, 73 tests /7 suites passed, exit0, 0.778s tests /8.143s command; SHA256 `2e2c10028240cb55b0cda41ec83daff272229fad7307499c1f85b16e01a9ed31`. Sessions45185/92401 finished; source unchanged, controller scratch retained. No full Core or Xcode rebuild repeated for this bounded fix. This is scoped regression evidence, not new full-platform release acceptance.
+
+Next investigation corrected the broad orphan label: fresh/restored source baselines and nil-control rollback already tolerate unselected temporary siblings. The remaining selected-recovery route can fail when a post-selection reopen session survives abrupt process death and becomes an unexpected sibling on the following open. Empty inert sibling admission is a possible bounded follow-up, not implemented here; nonempty orphan recovery and reclamation need separate evidence. No push, submission or release claim.
+
 Baseline d92c7c19aabfc98e495b67a15d77ba4795acf653. Scoped implementation commit: **33c1e14bcd895b72a00656c6562ac6dbd4c2dd8c** (`fix: admit exact missing-archive rollback on account reopen`). Parent compatibility ruling resolved as recorded below. Final post-ruling focused verification passed; independent parent review required. All six compiler sessions reaped and compiler stopped before reporting/committing.
 
 Design approved by explicit bounded delegation: preserve archive/control routes; require exact absent main/next plus nonnil strict terminal missingArchive + rolledBack evidence. Reuse the Bootstrap bounded physical reader and parser; validate before ownership mutations and again under the held account lock. Arbitrary existing archive bytes remain compatible. Normal close is not abrupt process crash acceptance.

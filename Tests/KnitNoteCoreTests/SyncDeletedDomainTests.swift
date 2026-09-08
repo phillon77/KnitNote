@@ -4,6 +4,107 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite(.serialized) @MainActor struct SyncDeletedDomainTests {
+    @Test func deterministicRestorationRejectsIncompleteAndCollidingChildMaps() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let request = try SyncDeletionCaptureProgramTests.request(root: root, media: true)
+        let ids = try SyncDeletionCaptureProgramTests.allocation(request).restoredAttachmentIDs
+        let a = try request.domain.restoring(into: request.currentRecords, now: request.deletedAt, deviceID: "validation", attachmentVersionIDs: ids)
+        let b = try request.domain.restoring(into: request.currentRecords.reversed(), now: request.deletedAt, deviceID: "validation", attachmentVersionIDs: Dictionary(uniqueKeysWithValues: ids.reversed()))
+        #expect(a.records.sorted { $0.id.uuid.uuidString < $1.id.uuid.uuidString } == b.records.sorted { $0.id.uuid.uuidString < $1.id.uuid.uuidString })
+        #expect(a.restoredAttachmentPredecessors == b.restoredAttachmentPredecessors)
+        var missing = ids
+        missing.removeValue(forKey: try #require(ids.keys.first))
+        var extra = ids; extra[UUID()] = UUID()
+        let duplicate = ids.mapValues { _ in UUID(uuidString: "00000000-0000-0000-0000-000000000001")! }
+        var collision = ids; collision[try #require(ids.keys.first)] = request.currentRecords[0].id.uuid
+        for invalid in [missing, extra, duplicate, collision] {
+            #expect(throws: (any Error).self) { try request.domain.restoring(into: request.currentRecords, now: request.deletedAt, deviceID: "validation", attachmentVersionIDs: invalid) }
+        }
+    }
+
+    @Test func deterministicRestorationPreservesLaterStampWinnerAgainstUUIDOrder() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let request = try SyncDeletionCaptureProgramTests.request(root: root, media: true)
+        let original = try #require(request.domain.ownedRecords.first { $0.payload.attachment?.slot.role == "project-photo" })
+        let old = try #require(original.payload.attachment)
+        let competingID = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
+        let competing = try SyncAttachmentVersion.issuing(slot: old.slot, contentSHA256: Data(repeating: 77, count: 32),
+            byteCount: old.byteCount, mediaType: old.mediaType, displayFilename: old.displayFilename, versionID: competingID)
+        let later = SyncMutationStamp(logicalRevision: 21, modifiedAt: request.deletedAt.addingTimeInterval(1), deviceID: "sender")
+        let record = SyncRecord(schemaVersion: original.schemaVersion, id: .init(kind: .attachment, uuid: competingID),
+            createdAt: original.createdAt, entityRevision: 21,
+            payload: .init(fields: original.payload.fields, attachment: competing), relationships: original.relationships,
+            deletedAt: .init(value: later.modifiedAt, stamp: later))
+        var deleted = request.currentRecords.map { source -> SyncRecord in
+            var value = source
+            if let cascade = value.payload.deletionCascade, cascade.value.contains(original.id) {
+                value.payload.deletionCascade = .init(value: cascade.value + [record.id], stamp: later)
+                value.deletedAt = .init(value: later.modifiedAt, stamp: later)
+            }
+            return value
+        }
+        deleted.append(record)
+        let domain = SyncDeletedDomain(rootIDs: request.domain.rootIDs, ownedRecords: deleted,
+            supportingParentIDs: [], removedReminders: [:], restorableRecordIDs: Set(deleted.map(\.id)))
+        try SyncDeletionLedger.validateDomain(domain)
+        let lineage = try SyncAttachmentLineage(records: domain.ownedRecords)
+        #expect(lineage.headsBySlot.count > 1)
+        #expect(competingID.uuidString < original.id.uuid.uuidString)
+        #expect(lineage.headsBySlot[old.slot]?.last?.id.uuid == competingID)
+        let selected = lineage.headsBySlot.values.flatMap { $0 }.filter { domain.selectedLiveIDs.contains($0.id) }
+        let ids = Dictionary(uniqueKeysWithValues: selected.map { ($0.id.uuid, UUID()) })
+        let a = try domain.restoring(into: deleted, now: later.modifiedAt, deviceID: "validation", attachmentVersionIDs: ids)
+        let b = try domain.restoring(into: deleted.reversed(), now: later.modifiedAt, deviceID: "validation",
+            attachmentVersionIDs: Dictionary(uniqueKeysWithValues: ids.reversed()))
+        #expect(a.records.sorted { $0.id.uuid.uuidString < $1.id.uuid.uuidString } == b.records.sorted { $0.id.uuid.uuidString < $1.id.uuid.uuidString })
+        let restoredLineage = try SyncAttachmentLineage(records: a.records)
+        let winners = restoredLineage.resolvedLiveVersionIDs()
+        for (slot, heads) in lineage.headsBySlot {
+            let oldWinner = try #require(heads.last)
+            let child = try #require(winners[slot])
+            #expect(child == ids[oldWinner.id.uuid])
+            #expect(restoredLineage.recordsByVersionID[child]?.payload.attachment?.contentSHA256 == oldWinner.payload.attachment?.contentSHA256)
+        }
+    }
+
+    @Test func deterministicRestorationKeepsUnselectedHeadRevisionGaps() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let request = try SyncDeletionCaptureProgramTests.request(root: root, media: true)
+        let lineage = try SyncAttachmentLineage(records: request.currentRecords)
+        // This fixture's slots all have one head. Remove the first slot's
+        // selection while retaining its history in the complete domain.
+        let slots = lineage.headsBySlot.keys.sorted {
+            [$0.owner.kind.rawValue, $0.owner.uuid.uuidString, $0.role, $0.slotID].lexicographicallyPrecedes(
+                [$1.owner.kind.rawValue, $1.owner.uuid.uuidString, $1.role, $1.slotID])
+        }
+        #expect(slots.count > 1)
+        let firstSlot = try #require(slots.first)
+        let excluded = try #require(lineage.headsBySlot[firstSlot]?.first)
+        let next = try #require(lineage.headsBySlot[slots[1]]?.first)
+        let records = request.currentRecords.map { original -> SyncRecord in
+            var record = original
+            if let cascade = record.payload.deletionCascade {
+                record.payload.deletionCascade = .init(value: cascade.value.filter { $0 != excluded.id }, stamp: cascade.stamp)
+            }
+            return record
+        }
+        let selected = request.domain.selectedLiveIDs.subtracting([excluded.id])
+        let domain = SyncDeletedDomain(rootIDs: request.domain.rootIDs, ownedRecords: records,
+            supportingParentIDs: [], removedReminders: [:], restorableRecordIDs: selected)
+        try SyncDeletionLedger.validateDomain(domain)
+        let ids = Dictionary(uniqueKeysWithValues: lineage.headsBySlot.values.flatMap { $0 }.filter { selected.contains($0.id) }.map { ($0.id.uuid, UUID()) })
+        let restoration = try domain.restoring(into: records, now: request.deletedAt, deviceID: "validation", attachmentVersionIDs: ids)
+        #expect(!restoration.restoredAttachmentPredecessors.values.contains(excluded.id.uuid))
+        let child = try #require(restoration.records.first { $0.id.uuid == ids[next.id.uuid] })
+        let maximum = records.map { max($0.entityRevision, $0.deletedAt.stamp.logicalRevision) }.max()!
+        #expect(child.entityRevision == maximum + 2)
+    }
     @Test func incomingLiveContextMustMatchCurrentArchiveBeforeRetentionChanges() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("incoming-context-\(UUID())")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)

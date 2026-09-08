@@ -445,6 +445,7 @@
 		93C1EFB0EC085F18781FDE9C /* SyncBootstrapTransaction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A1C9DEB3233F650BC892208 /* SyncBootstrapTransaction.swift */; };
 		53CC78796FF3718331631302 /* SyncDeletedDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00B4AB0A226DAE794887AB6 /* SyncDeletedDomain.swift */; };
 		901AB770697033394E528E05 /* SyncDeletionLedger.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFE794422F90678717B2A27D /* SyncDeletionLedger.swift */; };
+		8D50E47A59D644A3BB6C0D01 /* SyncDeletionCaptureProgram.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D50E47A59D644A3BB6C0D03 /* SyncDeletionCaptureProgram.swift */; };
 		37617BAD6FE017B213578A68 /* SyncDeletionPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 297F4F4B4BE51A487ADB7BCD /* SyncDeletionPolicy.swift */; };
 		C5371931566A044284DD732C /* SyncPendingRecoveryPacket.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EB2059792EFF2B3512159E2 /* SyncPendingRecoveryPacket.swift */; };
 		251026E9A3A8DA0C5B5FEC58 /* SyncRecoveryVault.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2AE4650A0E41BB041372DBA /* SyncRecoveryVault.swift */; };
@@ -460,6 +461,7 @@
 		58ED7EABB995F052A5D10E4D /* SyncBootstrapTransaction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A1C9DEB3233F650BC892208 /* SyncBootstrapTransaction.swift */; };
 		EB51A862DE7A8E37A7938B61 /* SyncDeletedDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00B4AB0A226DAE794887AB6 /* SyncDeletedDomain.swift */; };
 		86B98132E2BD590EEDB0D822 /* SyncDeletionLedger.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFE794422F90678717B2A27D /* SyncDeletionLedger.swift */; };
+		8D50E47A59D644A3BB6C0D02 /* SyncDeletionCaptureProgram.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D50E47A59D644A3BB6C0D03 /* SyncDeletionCaptureProgram.swift */; };
 		3AE51DF46F0FE6E58FDF7BA5 /* SyncDeletionPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 297F4F4B4BE51A487ADB7BCD /* SyncDeletionPolicy.swift */; };
 		5EBDAB5EE8B7C8B12D14BDC8 /* SyncPendingRecoveryPacket.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EB2059792EFF2B3512159E2 /* SyncPendingRecoveryPacket.swift */; };
 		6466CE9C8C5E1DFE0BFCC062 /* SyncRecoveryVault.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2AE4650A0E41BB041372DBA /* SyncRecoveryVault.swift */; };
@@ -862,6 +864,7 @@
 		BCC85F429224211A43728EF9 /* SyncAccountRecoveryInventory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncAccountRecoveryInventory.swift; sourceTree = "<group>"; };
 		D2AE4650A0E41BB041372DBA /* SyncRecoveryVault.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncRecoveryVault.swift; sourceTree = "<group>"; };
 		FFE794422F90678717B2A27D /* SyncDeletionLedger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncDeletionLedger.swift; sourceTree = "<group>"; };
+		8D50E47A59D644A3BB6C0D03 /* SyncDeletionCaptureProgram.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncDeletionCaptureProgram.swift; sourceTree = "<group>"; };
 		D70100000000000000000002 /* AppSessionProducerLifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSessionProducerLifecycle.swift; sourceTree = "<group>"; };
 		D70100000000000000000004 /* PatternBackupReminderPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternBackupReminderPresenter.swift; sourceTree = "<group>"; };
 		D70100000000000000000006 /* AppSessionProducerFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSessionProducerFixtures.swift; sourceTree = "<group>"; };
@@ -1466,6 +1469,7 @@
 			isa = PBXGroup;
 			children = (
 				FFE794422F90678717B2A27D /* SyncDeletionLedger.swift */,
+				8D50E47A59D644A3BB6C0D03 /* SyncDeletionCaptureProgram.swift */,
 				D2AE4650A0E41BB041372DBA /* SyncRecoveryVault.swift */,
 				BCC85F429224211A43728EF9 /* SyncAccountRecoveryInventory.swift */,
 				B00B4AB0A226DAE794887AB6 /* SyncDeletedDomain.swift */,
@@ -1787,6 +1791,7 @@
 				C5371931566A044284DD732C /* SyncPendingRecoveryPacket.swift in Sources */,
 				37617BAD6FE017B213578A68 /* SyncDeletionPolicy.swift in Sources */,
 				901AB770697033394E528E05 /* SyncDeletionLedger.swift in Sources */,
+				8D50E47A59D644A3BB6C0D01 /* SyncDeletionCaptureProgram.swift in Sources */,
 				53CC78796FF3718331631302 /* SyncDeletedDomain.swift in Sources */,
 				93C1EFB0EC085F18781FDE9C /* SyncBootstrapTransaction.swift in Sources */,
 				DC0400000000000000000001 /* SyncCanonicalCheckpoint.swift in Sources */,
@@ -2053,6 +2058,7 @@
 				5EBDAB5EE8B7C8B12D14BDC8 /* SyncPendingRecoveryPacket.swift in Sources */,
 				3AE51DF46F0FE6E58FDF7BA5 /* SyncDeletionPolicy.swift in Sources */,
 				86B98132E2BD590EEDB0D822 /* SyncDeletionLedger.swift in Sources */,
+				8D50E47A59D644A3BB6C0D02 /* SyncDeletionCaptureProgram.swift in Sources */,
 				EB51A862DE7A8E37A7938B61 /* SyncDeletedDomain.swift in Sources */,
 				58ED7EABB995F052A5D10E4D /* SyncBootstrapTransaction.swift in Sources */,
 				DC0400000000000000000003 /* SyncCanonicalCheckpoint.swift in Sources */,

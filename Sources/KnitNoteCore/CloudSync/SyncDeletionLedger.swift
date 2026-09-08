@@ -183,7 +183,7 @@ struct SyncDeletionLedger {
             guard deletedAt.timeIntervalSinceReferenceDate.isFinite else {
                 throw SyncDeletionLedgerError.corrupt
             }
-            let required = try requiredAttachments(domain)
+            let required = try Self.requiredAttachments(domain)
             guard Set(attachments.keys) == Set(required.keys),
                   Set(restoreRelativePaths.keys) == Set(required.keys) else {
                 throw SyncDeletionLedgerError.corrupt
@@ -214,8 +214,8 @@ struct SyncDeletionLedger {
                     restoreRelativePath: restoreRelativePaths[versionID]!, retainedRelativePath: path,
                     byteCount: version.byteCount, sha256: version.contentSHA256))
             }
-            manifest.groups.append(.init(entry: .init(id: id, deletedAt: deletedAt,
-                domain: domain, exactRemovalVersions: [], files: proofs), binding: nil, active: false))
+            manifest = Self.appendStaged(manifest, entry: .init(id: id, deletedAt: deletedAt,
+                domain: domain, exactRemovalVersions: [], files: proofs))
             try persist(manifest)
             return id
         }
@@ -323,7 +323,7 @@ struct SyncDeletionLedger {
         try Self.validateRemovalVersions(exactRemovalVersions, domain: domain)
         _ = try SyncRecordValidator().validate(currentRecords)
         let supplied = Dictionary(uniqueKeysWithValues: currentRecords.map { ($0.id, $0) })
-        let selectedAttachments = try requiredAttachments(domain)
+        let selectedAttachments = try Self.requiredAttachments(domain)
         guard domain.ownedRecords.allSatisfy({ supplied[$0.id] == $0 }),
               exactRemovalVersions.allSatisfy({ supplied[$0.record.id] == $0.record }),
               Set(attachments.keys) == Set(selectedAttachments.keys),
@@ -343,32 +343,12 @@ struct SyncDeletionLedger {
         try validateIncomingLiveContext(records: currentRecords, archive: currentArchive,
             attachments: supportingAttachments, counterReminderContext: counterReminderContext)
         let prior = try recentlyDeleted().first { $0.domain.rootIDs == domain.rootIDs }
-        var selected = domain
-        var versions = exactRemovalVersions
+        let selection = try Self.mergeIncoming(domain: domain, versions: exactRemovalVersions, prior: prior)
+        let selected = selection.domain
+        let versions = selection.versions
         var retainedSources = attachments
         var paths = restoreRelativePaths
         if let prior {
-            // Exact removal records, rather than the old pre-delete payload,
-            // are the input to the normal field/counter merge policy.
-            let oldVersions = Dictionary(uniqueKeysWithValues: prior.exactRemovalVersions.map { ($0.record.id, $0.record) })
-            let old = prior.domain.ownedRecords.map { oldVersions[$0.id] ?? $0 }
-            let merged = try SyncMergeEngine().merge(local: old, remote: domain.ownedRecords, pendingLocal: [])
-            let selectedIDs = prior.domain.selectedLiveIDs.union(domain.selectedLiveIDs)
-            guard prior.domain.removedReminders == domain.removedReminders,
-                  prior.domain.photoAssociations == domain.photoAssociations,
-                  prior.domain.removedLegacyPatterns == domain.removedLegacyPatterns else {
-                // Embedded values have no standalone merge authority. Their
-                // caller must supply an identical selected removal set.
-                throw SyncDeletionLedgerError.witnessMismatch
-            }
-            selected = .init(rootIDs: domain.rootIDs, ownedRecords: merged.records,
-                supportingParentIDs: prior.domain.supportingParentIDs.union(domain.supportingParentIDs),
-                removedReminders: domain.removedReminders, removedLegacyPatterns: domain.removedLegacyPatterns,
-                removedPhotoAssociations: domain.removedPhotoAssociations,
-                restorableRecordIDs: selectedIDs)
-            let mergedProofs = try SyncMergeEngine().merge(local: prior.exactRemovalVersions.map(\.record),
-                remote: exactRemovalVersions.map(\.record), pendingLocal: [])
-            versions = try mergedProofs.records.map { try .init(record: $0) }
             for proof in prior.files where retainedSources[proof.attachmentVersionID] == nil {
                 retainedSources[proof.attachmentVersionID] = try .init(fileURL: root.appendingPathComponent(proof.retainedRelativePath),
                     contentSHA256: proof.sha256, byteCount: proof.byteCount)
@@ -377,7 +357,7 @@ struct SyncDeletionLedger {
         }
         try Self.validateDomain(selected)
         try Self.validateRemovalVersions(versions, domain: selected)
-        let required = try requiredAttachments(selected)
+        let required = try Self.requiredAttachments(selected)
         retainedSources = retainedSources.filter { required[$0.key] != nil }
         paths = paths.filter { required[$0.key] != nil }
         let stagedID = try stage(domain: selected, attachments: retainedSources,
@@ -415,13 +395,7 @@ struct SyncDeletionLedger {
         }
         return try locked {
             var manifest = try load()
-            let current = manifest.groups.first { $0.active && $0.entry.domain.rootIDs == domain.rootIDs }
-            guard current?.entry == prior,
-                  current?.restoration == nil,
-                  let stagedIndex = manifest.groups.firstIndex(where: { $0.entry.id == stagedID }) else {
-                throw SyncDeletionLedgerError.pendingRepair
-            }
-            let staged = manifest.groups[stagedIndex].entry
+            let staged = try Self.incomingStage(manifest, stagedID: stagedID, expectedPrior: prior, rootIDs: domain.rootIDs)
             let id = prior?.id ?? stagedID
             var proofs = staged.files
             if prior != nil {
@@ -437,9 +411,8 @@ struct SyncDeletionLedger {
                         byteCount: proof.byteCount, sha256: proof.sha256)
                 }
             }
-            manifest.groups.removeAll { $0.entry.id == stagedID || $0.entry.id == id }
-            manifest.groups.append(.init(entry: .init(id: id, deletedAt: staged.deletedAt,
-                domain: selected, exactRemovalVersions: versions, files: proofs), binding: nil, active: true, incoming: true))
+            manifest = try Self.activateIncoming(manifest, stagedID: stagedID, expectedPrior: prior,
+                selection: selection, finalFiles: proofs)
             try persist(manifest)
             return id
         }
@@ -487,7 +460,7 @@ struct SyncDeletionLedger {
                   manifest.groups[index].active, manifest.groups[index].restoration == nil else {
                 throw SyncDeletionLedgerError.witnessMismatch
             }
-            try validateRestoration(publication, entry: manifest.groups[index].entry)
+            try Self.validateRestoration(publication, entry: manifest.groups[index].entry)
             manifest.groups[index].restoration = .init(publication: publication, phase: "prepared")
             try persist(manifest)
         }
@@ -552,7 +525,7 @@ struct SyncDeletionLedger {
         }
     }
 
-    private func validateRestoration(_ publication: SyncPublicationTransaction, entry: SyncDeletionEntry) throws {
+    private static func validateRestoration(_ publication: SyncPublicationTransaction, entry: SyncDeletionEntry) throws {
         _ = try publication.validated()
         let saved = publication.mutations.compactMap(\.savedRecordVersion?.record)
         guard !saved.isEmpty, saved.count == publication.mutations.count,
@@ -785,7 +758,226 @@ struct SyncDeletionLedger {
         }
     }
 
-    private func requiredAttachments(_ domain: SyncDeletedDomain) throws -> [UUID: SyncAttachmentVersion] {
+    /// Produces only frozen content and unfulfilled mapper-validation obligations.
+    static func planIncomingCaptures(initial: SyncDeletionFrozenLedger,
+        requests: [SyncDeletionCaptureRequest], allocations: [SyncDeletionCaptureAllocation],
+        temporaryID: () -> UUID = UUID.init) throws -> SyncDeletionCaptureProgram {
+        typealias Builder = SyncDeletionCaptureProgramBuilder
+        typealias Program = SyncDeletionCaptureProgram
+        guard allocations.count == requests.count else { throw SyncDeletionLedgerError.corrupt }
+        if requests.isEmpty {
+            let dirs: Set<String>, files: [String: SyncBootstrapOutputProof]
+            switch initial {
+            case .absent: dirs = []; files = [:]
+            case let .present(_, directories, supplied): dirs = directories; files = supplied
+            }
+            return .init(expectedInitialLedger: initial, initialManifestBytes: nil, steps: [], captures: [],
+                finalManifestBytes: nil, finalDirectories: dirs, finalFiles: files)
+        }
+        var builder = try Builder(initial: initial)
+        var manifest: Manifest
+        var initialBytes: Data?
+        switch initial {
+        case .absent:
+            manifest = .init(version: 1, groups: [])
+            try builder.directory(.staged, ".sync-deletions")
+            initialBytes = try encodeManifest(manifest)
+        case let .present(bytes, _, files):
+            manifest = try decodeManifest(bytes) { proof in
+                guard let index = files.index(forKey: proof.retainedRelativePath),
+                      files[index].key.utf8.elementsEqual(proof.retainedRelativePath.utf8),
+                      files[index].value == .init(byteCount: proof.byteCount, sha256: proof.sha256) else {
+                    throw SyncDeletionLedgerError.witnessMismatch
+                }
+            }
+            guard (manifest.purgeIntents ?? []).isEmpty else { throw SyncDeletionLedgerError.pendingRepair }
+        }
+        var occupied = Set(requests.flatMap { ($0.currentRecords + $0.domain.ownedRecords).map { $0.id.uuid } })
+        occupied.formUnion(manifest.groups.flatMap { [$0.entry.id] + $0.entry.domain.ownedRecords.map { $0.id.uuid } })
+        for allocation in allocations {
+            for id in [allocation.stagedEntryID, allocation.liveValidationID, allocation.restoredValidationID] + Array(allocation.restoredAttachmentIDs.values) {
+                guard occupied.insert(id).inserted else { throw SyncDeletionLedgerError.witnessMismatch }
+            }
+        }
+        try builder.lock()
+        if let initialBytes {
+            try builder.write(.staged, ".sync-deletions/ledger.json", proof: Builder.proof(initialBytes), content: .bytes(initialBytes))
+        }
+        var captures: [Program.Capture] = []
+        for (requestIndex, request) in requests.enumerated() {
+            let allocation = allocations[requestIndex]
+            try validateDomain(request.domain)
+            guard request.domain.restorableRecordIDs != nil else { throw SyncDeletionLedgerError.corrupt }
+            try validateRemovalVersions(request.exactRemovalVersions, domain: request.domain)
+            _ = try SyncRecordValidator().validate(request.currentRecords)
+            let supplied = Dictionary(uniqueKeysWithValues: request.currentRecords.map { ($0.id, $0) })
+            let originalRequired = try requiredAttachments(request.domain)
+            guard request.domain.ownedRecords.allSatisfy({ supplied[$0.id] == $0 }),
+                  request.exactRemovalVersions.allSatisfy({ supplied[$0.record.id] == $0.record }),
+                  Set(request.attachments.keys) == Set(originalRequired.keys),
+                  Set(request.restoreRelativePaths.keys) == Set(originalRequired.keys),
+                  request.supportingAttachments.allSatisfy({ id, proof in
+                      let version = supplied[.init(kind: .attachment, uuid: id)]?.payload.attachment
+                      return version?.contentSHA256 == proof.sha256 && version?.byteCount == proof.byteCount
+                  }) else { throw SyncDeletionLedgerError.witnessMismatch }
+            var incoming = request.attachments
+            for (id, proof) in request.supportingAttachments {
+                if let prior = incoming[id], prior != proof { throw SyncDeletionLedgerError.witnessMismatch }
+                incoming[id] = proof
+            }
+            for proof in incoming.values { try Builder.validate(proof) }
+            let supporting = request.supportingAttachments.mapValues { $0 }
+            var supportingSources: [UUID: (Program.Source, SyncBootstrapOutputProof)] = [:]
+            for (id, proof) in supporting { supportingSources[id] = (.incoming(requestIndex: requestIndex, attachmentID: id), proof) }
+            let liveSources = try builder.scratch(id: allocation.liveValidationID, sources: supportingSources)
+            builder.validation(.init(records: request.currentRecords, baseArchive: request.currentArchive,
+                sources: liveSources, counterReminderContext: request.counterReminderContext, comparison: .liveArchive(request.currentArchive)))
+            let prior = manifest.groups.first { $0.active && $0.entry.domain.rootIDs == request.domain.rootIDs }?.entry
+            let selection = try mergeIncoming(domain: request.domain, versions: request.exactRemovalVersions, prior: prior)
+            var retainedSources: [UUID: (Program.Source, SyncBootstrapOutputProof)] = [:]
+            for (id, proof) in request.attachments { retainedSources[id] = (.incoming(requestIndex: requestIndex, attachmentID: id), proof) }
+            var paths = request.restoreRelativePaths
+            if let prior {
+                for proof in prior.files where retainedSources[proof.attachmentVersionID] == nil {
+                    guard let source = builder.origins[proof.retainedRelativePath],
+                          builder.files[proof.retainedRelativePath] == .init(byteCount: proof.byteCount, sha256: proof.sha256) else {
+                        throw SyncDeletionLedgerError.witnessMismatch
+                    }
+                    retainedSources[proof.attachmentVersionID] = (source, .init(byteCount: proof.byteCount, sha256: proof.sha256))
+                    paths[proof.attachmentVersionID] = proof.restoreRelativePath
+                }
+            }
+            try validateDomain(selection.domain)
+            try validateRemovalVersions(selection.versions, domain: selection.domain)
+            let required = try requiredAttachments(selection.domain)
+            retainedSources = retainedSources.filter { required[$0.key] != nil }
+            paths = paths.filter { required[$0.key] != nil }
+            try DeletionMarker.gate(records: selection.domain.ownedRecords, markers: manifest.markers ?? [])
+            let embedded = Set(selection.domain.removedReminders.values.flatMap { $0 }.map { SyncEntityID(kind: .knittingReminder, uuid: $0.id) })
+                .union(selection.domain.removedLegacyPatterns.values.flatMap { $0 }.map { .init(kind: .pattern, uuid: $0.id) })
+            guard embedded.isDisjoint(with: (manifest.markers ?? []).map(\.targetID)),
+                  request.deletedAt.timeIntervalSinceReferenceDate.isFinite,
+                  Set(retainedSources.keys) == Set(required.keys), Set(paths.keys) == Set(required.keys) else {
+                throw SyncDeletionLedgerError.witnessMismatch
+            }
+            let stagedID = allocation.stagedEntryID
+            guard !manifest.groups.contains(where: { $0.entry.id == stagedID }) else { throw SyncDeletionLedgerError.witnessMismatch }
+            try builder.directory(.staged, ".sync-deletions/" + stagedID.uuidString)
+            var proofs: [SyncDeletionFileProof] = []
+            var stageWrites: [UUID: Int] = [:]
+            for id in required.keys.sorted(by: { $0.uuidString < $1.uuidString }) {
+                let version = required[id]!, (source, proof) = retainedSources[id]!
+                guard let path = paths[id], safePath(path), proof.byteCount == version.byteCount,
+                      proof.sha256 == version.contentSHA256 else { throw SyncDeletionLedgerError.missingAttachment(id) }
+                let retained = stagedID.uuidString + "/" + id.uuidString + ".retained"
+                stageWrites[id] = try builder.write(.staged, ".sync-deletions/" + retained,
+                    proof: proof, content: .copy(source: source, proof: proof))
+                proofs.append(.init(attachmentVersionID: id, restoreRelativePath: path, retainedRelativePath: retained,
+                    byteCount: proof.byteCount, sha256: proof.sha256))
+            }
+            manifest = appendStaged(manifest, entry: .init(id: stagedID,
+                deletedAt: min(request.deletedAt, prior?.deletedAt ?? request.deletedAt), domain: selection.domain, exactRemovalVersions: [], files: proofs))
+            let stagedBytes = try encodeManifest(manifest)
+            try builder.write(.staged, ".sync-deletions/ledger.json", proof: Builder.proof(stagedBytes), content: .bytes(stagedBytes), replace: true)
+            var authority = supplied
+            for record in selection.domain.ownedRecords { authority[record.id] = record }
+            for version in selection.versions { authority[version.record.id] = version.record }
+            let revived = try selection.domain.restoring(into: Array(authority.values), now: request.deletedAt,
+                deviceID: "incoming-validation", attachmentVersionIDs: allocation.restoredAttachmentIDs)
+            var restoredSources = supportingSources
+            for (child, predecessor) in revived.restoredAttachmentPredecessors {
+                guard let source = retainedSources[predecessor] else { throw SyncDeletionLedgerError.missingAttachment(predecessor) }
+                restoredSources[child] = source
+            }
+            let scratch = try builder.scratch(id: allocation.restoredValidationID, sources: restoredSources)
+            var comparison: [SyncAttachmentSlot: String] = [:]
+            for (id, version) in required {
+                guard let path = paths[id] else { throw SyncDeletionLedgerError.missingAttachment(id) }
+                if let old = comparison[version.slot], !old.utf8.elementsEqual(path.utf8) { throw SyncDeletionLedgerError.witnessMismatch }
+                comparison[version.slot] = path
+            }
+            builder.validation(.init(records: revived.records, baseArchive: request.currentArchive, sources: scratch,
+                counterReminderContext: nil, comparison: .restorationPaths(comparison)))
+            _ = try incomingStage(manifest, stagedID: stagedID, expectedPrior: prior, rootIDs: request.domain.rootIDs)
+            if let prior {
+                proofs = try proofs.map { proof in
+                    let path = prior.id.uuidString + "/" + proof.attachmentVersionID.uuidString + ".retained"
+                    let expected = SyncBootstrapOutputProof(byteCount: proof.byteCount, sha256: proof.sha256)
+                    if builder.files[path] != nil { try builder.reuse(path, proof: expected) }
+                    else {
+                        try builder.write(.staged, ".sync-deletions/" + path, proof: expected,
+                            content: .copy(source: .earlierOutput(stepIndex: stageWrites[proof.attachmentVersionID]!), proof: expected))
+                    }
+                    return .init(attachmentVersionID: proof.attachmentVersionID, restoreRelativePath: proof.restoreRelativePath,
+                        retainedRelativePath: path, byteCount: proof.byteCount, sha256: proof.sha256)
+                }
+            }
+            manifest = try activateIncoming(manifest, stagedID: stagedID, expectedPrior: prior, selection: selection, finalFiles: proofs)
+            let finalBytes = try encodeManifest(manifest)
+            try builder.write(.staged, ".sync-deletions/ledger.json", proof: Builder.proof(finalBytes), content: .bytes(finalBytes), replace: true)
+            captures.append(.init(stagedManifestBytes: stagedBytes, finalManifestBytes: finalBytes, retainedEntry: manifest.groups.last!.entry))
+        }
+        let steps = try builder.finish(temporaryID: temporaryID)
+        return .init(expectedInitialLedger: initial, initialManifestBytes: initialBytes, steps: steps, captures: captures,
+            finalManifestBytes: captures.last?.finalManifestBytes, finalDirectories: builder.directories, finalFiles: builder.files)
+    }
+
+    private struct IncomingSelection {
+        let domain: SyncDeletedDomain
+        let versions: [SyncRecordVersion]
+    }
+
+    private static func mergeIncoming(domain: SyncDeletedDomain, versions: [SyncRecordVersion],
+                                      prior: SyncDeletionEntry?) throws -> IncomingSelection {
+        guard let prior else { return .init(domain: domain, versions: versions) }
+        // Merge exact removal records, never the old pre-delete payload.
+        let oldVersions = Dictionary(uniqueKeysWithValues: prior.exactRemovalVersions.map { ($0.record.id, $0.record) })
+        let old = prior.domain.ownedRecords.map { oldVersions[$0.id] ?? $0 }
+        let merged = try SyncMergeEngine().merge(local: old, remote: domain.ownedRecords, pendingLocal: [])
+        let selectedIDs = prior.domain.selectedLiveIDs.union(domain.selectedLiveIDs)
+        guard prior.domain.removedReminders == domain.removedReminders,
+              prior.domain.photoAssociations == domain.photoAssociations,
+              prior.domain.removedLegacyPatterns == domain.removedLegacyPatterns else {
+            throw SyncDeletionLedgerError.witnessMismatch
+        }
+        let selected = SyncDeletedDomain(rootIDs: domain.rootIDs, ownedRecords: merged.records,
+            supportingParentIDs: prior.domain.supportingParentIDs.union(domain.supportingParentIDs),
+            removedReminders: domain.removedReminders, removedLegacyPatterns: domain.removedLegacyPatterns,
+            removedPhotoAssociations: domain.removedPhotoAssociations, restorableRecordIDs: selectedIDs)
+        let mergedProofs = try SyncMergeEngine().merge(local: prior.exactRemovalVersions.map(\.record),
+            remote: versions.map(\.record), pendingLocal: [])
+        return .init(domain: selected, versions: try mergedProofs.records.map { try .init(record: $0) })
+    }
+
+    private static func appendStaged(_ manifest: Manifest, entry: SyncDeletionEntry) -> Manifest {
+        var result = manifest
+        result.groups.append(.init(entry: entry, binding: nil, active: false))
+        return result
+    }
+
+    private static func incomingStage(_ manifest: Manifest, stagedID: UUID,
+        expectedPrior: SyncDeletionEntry?, rootIDs: Set<SyncEntityID>) throws -> SyncDeletionEntry {
+        let current = manifest.groups.first { $0.active && $0.entry.domain.rootIDs == rootIDs }
+        guard current?.entry == expectedPrior, current?.restoration == nil,
+              let stagedIndex = manifest.groups.firstIndex(where: { $0.entry.id == stagedID }) else {
+            throw SyncDeletionLedgerError.pendingRepair
+        }
+        return manifest.groups[stagedIndex].entry
+    }
+
+    private static func activateIncoming(_ manifest: Manifest, stagedID: UUID,
+        expectedPrior: SyncDeletionEntry?, selection: IncomingSelection,
+        finalFiles: [SyncDeletionFileProof]) throws -> Manifest {
+        let staged = try incomingStage(manifest, stagedID: stagedID, expectedPrior: expectedPrior, rootIDs: selection.domain.rootIDs)
+        let id = expectedPrior?.id ?? stagedID
+        var result = manifest
+        result.groups.removeAll { $0.entry.id == stagedID || $0.entry.id == id }
+        result.groups.append(.init(entry: .init(id: id, deletedAt: staged.deletedAt,
+            domain: selection.domain, exactRemovalVersions: selection.versions, files: finalFiles), binding: nil, active: true, incoming: true))
+        return result
+    }
+
+    private static func requiredAttachments(_ domain: SyncDeletedDomain) throws -> [UUID: SyncAttachmentVersion] {
         let lineage = try SyncAttachmentLineage(records: domain.ownedRecords)
         return Dictionary(uniqueKeysWithValues: lineage.headsBySlot.values.flatMap { $0 }
             .filter { domain.selectedLiveIDs.contains($0.id) }.map { ($0.id.uuid, $0.payload.attachment!) })
@@ -1014,7 +1206,17 @@ struct SyncDeletionLedger {
     }
 
     private func decodeManifest(_ data: Data, validateRetainedFiles: Bool) throws -> Manifest {
-        guard data.count <= maximumBytes else { throw SyncDeletionLedgerError.corrupt }
+        try Self.decodeManifest(data) { proof in
+            let file = root.appendingPathComponent(proof.retainedRelativePath)
+            if validateRetainedFiles {
+                _ = try read(file, expected: .init(byteCount: proof.byteCount, sha256: proof.sha256))
+            }
+        }
+    }
+
+    private static func decodeManifest(_ data: Data,
+        validateRetainedFile: (SyncDeletionFileProof) throws -> Void) throws -> Manifest {
+        guard data.count <= 100_000_000 else { throw SyncDeletionLedgerError.corrupt }
         let envelope = try JSONDecoder().decode(Envelope.self, from: data)
         guard Self.hash(envelope.payload) == envelope.sha256 else { throw SyncDeletionLedgerError.corrupt }
         let manifest = try JSONDecoder().decode(Manifest.self, from: envelope.payload)
@@ -1046,7 +1248,7 @@ struct SyncDeletionLedger {
             for proof in intent.files {
                 guard proof.retainedRelativePath == "\(intent.entryID.uuidString)/\(proof.attachmentVersionID.uuidString).retained",
                       Self.safePath(proof.restoreRelativePath), proof.byteCount >= 0,
-                      proof.byteCount <= maximumBytes, proof.sha256.count == 32,
+                      proof.byteCount <= 100_000_000, proof.sha256.count == 32,
                       intent.markers.contains(where: { $0.targetID == .init(kind: .attachment, uuid: proof.attachmentVersionID) }) else {
                     throw SyncDeletionLedgerError.corrupt
                 }
@@ -1091,23 +1293,23 @@ struct SyncDeletionLedger {
                       proof.retainedRelativePath == "\(group.entry.id.uuidString)/\(proof.attachmentVersionID.uuidString).retained" else {
                     throw SyncDeletionLedgerError.corrupt
                 }
-                let file = root.appendingPathComponent(proof.retainedRelativePath)
-                if validateRetainedFiles {
-                    _ = try read(file,
-                        expected: .init(byteCount: proof.byteCount, sha256: proof.sha256))
-                }
+                try validateRetainedFile(proof)
             }
         }
         return manifest
     }
 
     private func persist(_ manifest: Manifest) throws {
+        try SyncDurableFile.write(Self.encodeManifest(manifest), to: manifestURL)
+    }
+
+    private static func encodeManifest(_ manifest: Manifest) throws -> Data {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         let payload = try encoder.encode(manifest)
         let data = try encoder.encode(Envelope(payload: payload, sha256: Self.hash(payload)))
-        guard data.count <= maximumBytes else { throw SyncDeletionLedgerError.corrupt }
-        try SyncDurableFile.write(data, to: manifestURL)
+        guard data.count <= 100_000_000 else { throw SyncDeletionLedgerError.corrupt }
+        return data
     }
 
     private func createDirectory(_ url: URL) throws {

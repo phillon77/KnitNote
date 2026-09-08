@@ -30,6 +30,33 @@ struct SyncDeletedDomain: Codable, Equatable, Sendable {
     /// This view is validated by the mapper before publication. Only selected
     /// records receive new overlays; supporting aggregates retain current state.
     func restoring(into current: [SyncRecord], now: Date, deviceID: String) throws -> Restoration {
+        try restoring(into: current, now: now, deviceID: deviceID, orderedHeads: nil, childID: { _ in UUID() })
+    }
+
+    func restoring(into current: [SyncRecord], now: Date, deviceID: String,
+                   attachmentVersionIDs: [UUID: UUID]) throws -> Restoration {
+        let lineage = try SyncAttachmentLineage(records: ownedRecords)
+        let heads = lineage.headsBySlot.keys.sorted(by: Self.slotLess).flatMap { lineage.headsBySlot[$0]! }
+        let selected = Set(heads.filter { selectedLiveIDs.contains($0.id) }.map { $0.id.uuid })
+        let occupied = Set((current + ownedRecords).map { $0.id.uuid })
+        guard Set(attachmentVersionIDs.keys) == selected,
+              Set(attachmentVersionIDs.values).count == attachmentVersionIDs.count,
+              occupied.isDisjoint(with: attachmentVersionIDs.values) else { throw SyncDeletionLedgerError.witnessMismatch }
+        return try restoring(into: current, now: now, deviceID: deviceID, orderedHeads: heads,
+            childID: { attachmentVersionIDs[$0]! })
+    }
+
+    private static func slotLess(_ a: SyncAttachmentSlot, _ b: SyncAttachmentSlot) -> Bool {
+        let left = [a.owner.kind.rawValue, a.owner.uuid.uuidString, a.role, a.slotID]
+        let right = [b.owner.kind.rawValue, b.owner.uuid.uuidString, b.role, b.slotID]
+        for (x, y) in zip(left, right) {
+            if !x.utf8.elementsEqual(y.utf8) { return x.utf8.lexicographicallyPrecedes(y.utf8) }
+        }
+        return false
+    }
+
+    private func restoring(into current: [SyncRecord], now: Date, deviceID: String,
+                           orderedHeads: [SyncRecord]?, childID: (UUID) -> UUID) throws -> Restoration {
         _ = try SyncRecordValidator().validate(current)
         var records = Dictionary(uniqueKeysWithValues: current.map { ($0.id, $0) })
         for parent in supportingParentIDs {
@@ -67,7 +94,7 @@ struct SyncDeletedDomain: Codable, Equatable, Sendable {
             changed.insert(record.id)
         }
         var predecessors: [UUID: UUID] = [:]
-        let heads = try SyncAttachmentLineage(records: ownedRecords).headsBySlot.values.flatMap { $0 }
+        let heads = try orderedHeads ?? SyncAttachmentLineage(records: ownedRecords).headsBySlot.values.flatMap { $0 }
         guard UInt64(heads.count) < UInt64.max - maximum else { throw SyncDeletionLedgerError.corrupt }
         for (index, retained) in heads.enumerated() where selectedLiveIDs.contains(retained.id) {
             guard let predecessor = records[retained.id], predecessor.deletedAt.value != nil,
@@ -77,7 +104,7 @@ struct SyncDeletedDomain: Codable, Equatable, Sendable {
             let child = try SyncAttachmentVersion.issuing(slot: old.slot,
                 contentSHA256: old.contentSHA256, byteCount: old.byteCount,
                 mediaType: old.mediaType, displayFilename: old.displayFilename,
-                replacesVersionID: old.versionID)
+                replacesVersionID: old.versionID, versionID: childID(old.versionID))
             // Each slot's heads already have the canonical lineage ordering.
             // Distinct observed revisions preserve its winner after issuance;
             // fresh UUID lexical order must not choose restored user bytes.

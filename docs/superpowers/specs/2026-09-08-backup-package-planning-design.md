@@ -1,0 +1,11 @@
+# Backup package planning prerequisite
+
+Approved under autonomous technical delegation, baseline800c7b6, 2026-09-08. Share actual backup reference selection and manifest encoding with a new pure package-content planner accepting frozen archive bytes and complete projected source-tree proofs. It must work before Staged physically exists, so cannot read disk or issue an output capability.
+
+Ordinary createPackage retains all existing descriptor reads, source preflight, copying, localized manifest sorting, explicit now/appVersion, encoder formatting, Foundation atomic writes, inspection, cleanup and public signature. Extract only the two shared semantic functions. New internal plan maps actual selected media and legacy/library markup, archive and manifest to accepted finite output actions under ValidationOriginal or ValidationMerged; no sink/issuer/owned writer/helper activation.
+
+Frozen input has exact raw UTF-8 parent/file spellings, no role/path/type/Unicode alias ambiguity, selected proof integrity and complete markup-owner declaration. New/changed selected proof or markup invalidates revalidation; unrelated files do not become backup dependencies. Full working-set ownership/source validation remains the future bootstrap owner's job, not this pure API. Planning cannot certify image or markup contents from hashes; real backup inspection remains required before future prepared publication.
+
+Preserve ordinary archive20,000,000, manifest1,000,000, markup2,000,000 bytes/512 entries, media200,000,000, package4,000,000,000 limits. Only new owned planned files intersect per-file100,000,000; never reduce ordinary limits. Complete recovery/history/Base64 affordability is still separate. No source reads before output planning beyond supplied archive decode; validate supplied archive size before decode. Temporary actions describe future owned contract, not Foundation's current hidden temporary names.
+
+Verify exact actual-package manifest/file correspondence at fixed metadata for legacy and pattern-library fixtures; selected proof/markup/parent changes; raw Unicode aliases; role, empty package, metadata and specific file/entry caps. Run existing backup service regressions and finite planner tests. Keep1.7.0(13), platform floors, schema and all unrelated runtime behavior. No live account, signing, push or submission.

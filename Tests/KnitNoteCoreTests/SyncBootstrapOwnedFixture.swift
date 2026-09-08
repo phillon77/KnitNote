@@ -2,6 +2,8 @@ import CryptoKit
 import Foundation
 @testable import KnitNoteCore
 
+enum OwnedFixtureFailure: Error { case injected }
+
 /// Real isolated account storage; its source provenance is issued by storage.
 struct OwnedBootstrapFixture {
     let source: SourceInventoryFixture
@@ -19,12 +21,14 @@ struct OwnedBootstrapFixture {
     }
 
     func transaction(maximumBytes: Int = 100_000_000, transactionID: UUID = UUID(),
-                     now: Date = Date()) throws -> SyncBootstrapOwnedTransaction {
+                     now: Date = Date(),
+                     boundary: @escaping (SyncBootstrapOwnedBoundary) throws -> Void = { _ in },
+                     io: SyncBootstrapOwnedIO = .init()) throws -> SyncBootstrapOwnedTransaction {
         try .init(storage: source.storage, paths: source.paths, account: source.account,
             context: context, maximumBytes: maximumBytes, transactionID: transactionID, now: now,
             validateContext: { candidate in
                 guard candidate == context else { throw SyncBootstrapError.contextChanged }
-            })
+            }, boundary: boundary, io: io)
     }
 
     var namespace: URL {
@@ -35,6 +39,10 @@ struct OwnedBootstrapFixture {
     }
 
     func remove() { source.remove() }
+
+    func manifest() throws -> BootstrapManifestV3 {
+        try BootstrapManifestV3.decodeEnvelope(Data(contentsOf: namespace.appendingPathComponent("active.json")))
+    }
 }
 
 /// Isolated test vault storage, never the system Keychain.

@@ -466,14 +466,22 @@ struct SyncDeletionLedger {
         // Validate the unrevived live projection, not the restoration candidate.
         // This precedes all deletion-group staging and manifest changes.
         let projected = try ProjectArchiveSyncMapper.materialize(records: records,
-            attachments: staged, baseArchive: archive).archive
-        func same<T: Identifiable & Equatable>(_ lhs: [T], _ rhs: [T]) -> Bool where T.ID == UUID {
-            lhs.sorted { $0.id.uuidString < $1.id.uuidString } == rhs.sorted { $0.id.uuidString < $1.id.uuidString }
-        }
-        guard same(projected.projects, archive.projects), same(projected.yarns, archive.yarns),
-              same(projected.patternFolders, archive.patternFolders), same(projected.patternAssets, archive.patternAssets),
-              same(projected.patterns, archive.patterns), same(projected.patternUsages, archive.patternUsages) else {
-            throw SyncDeletionLedgerError.witnessMismatch
+            attachments: staged, baseArchive: archive)
+        try Self.validateOwnedMaterialization(projected, comparison: .liveArchive(archive))
+    }
+
+    /// Read-only comparison after the actual mapper. This performs no staging,
+    /// cleanup or ownership issuance; empty source sets still reach comparison.
+    static func validateOwnedMaterialization(_ actual: ProjectArchiveSyncMaterialization,
+        comparison: SyncDeletionCaptureProgram.Validation.Comparison) throws {
+        switch comparison {
+        case let .liveArchive(expected):
+            guard SyncBootstrapTransaction.sameArchive(actual.archive, expected, checkingVersion: false) else {
+                throw SyncDeletionLedgerError.witnessMismatch
+            }
+        case let .restorationPaths(expected):
+            let paths = Dictionary(uniqueKeysWithValues: actual.files.map { ($0.version.slot, $0.relativePath) })
+            guard expected.allSatisfy({ paths[$0.key] == $0.value }) else { throw SyncDeletionLedgerError.witnessMismatch }
         }
     }
 

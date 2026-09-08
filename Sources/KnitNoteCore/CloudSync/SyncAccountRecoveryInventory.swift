@@ -95,49 +95,10 @@ public struct SyncAccountRecoveryInventory: Sendable {
               archiveURL.lastPathComponent == "projects-v1.json",
               !reserved(journalPath), !reserved(archivePath) else { throw Error.unsafeBinding }
         try compatibilityGate(entries)
-        let snapshot = try journal.recoverySnapshot(accountRoot: paths.accountRoot, inventoryEntries: entries, maximumBytes: maximumBytes)
-        let ledgerRoot = SyncDeletionLedger.root(archiveURL: archiveURL)
-        let ledgerPath = try relative(ledgerRoot, root: paths.accountRoot)
-        let export: SyncDeletionLedger.RecoveryExport?
-        if entries.contains(where: { $0.relativePath == ledgerPath }) {
-            export = try SyncDeletionLedger.recoveryExport(archiveURL: archiveURL, pending: snapshot.mutations, maximumBytes: maximumBytes)
-        } else { export = nil }
-
-        let pendingSourcePaths = try Set(snapshot.mutations.compactMap(\.attachmentSource).map {
-            try relative($0.fileURL, root: paths.accountRoot)
-        })
-        guard !pendingSourcePaths.contains(where: reserved) else { throw Error.unsafeBinding }
-        let pendingFiles = try snapshot.mutations.compactMap(\.attachmentSource).map { source in
-            let path = try relative(source.fileURL, root: paths.accountRoot)
-            guard let observed = entries.first(where: { $0.relativePath == path }), !observed.isDirectory,
-                  observed.byteCount == source.byteCount, observed.sha256 == source.contentSHA256 else { throw Error.unsafeBinding }
-            return SyncPendingRecoveryPacket.File(relativePath: path, byteCount: source.byteCount, sha256: source.contentSHA256, bytes: Data())
-        }
-        if let export {
-            let known = Set(export.knownRetainedPaths.map { ledgerPath + "/" + $0 })
-                .union([ledgerPath + "/ledger.json", ledgerPath + "/.ledger.json.lock"])
-                .union(export.terminalSources.keys.map { ledgerPath + "/" + $0 })
-                .union(pendingSourcePaths)
-            guard entries.filter({ !$0.isDirectory && $0.relativePath.hasPrefix(ledgerPath + "/") })
-                .allSatisfy({ known.contains($0.relativePath) }) else { throw Error.unresolvedRecovery }
-            for (path, source) in export.terminalSources {
-                if let existing = entries.first(where: { $0.relativePath == ledgerPath + "/" + path }) {
-                    guard !existing.isDirectory, existing.byteCount == source.byteCount,
-                          existing.sha256 == source.contentSHA256 else { throw Error.unresolvedRecovery }
-                }
-            }
-        }
-        let placeholders = (export?.files ?? []).map { proof in
-            SyncPendingRecoveryPacket.File(relativePath: ledgerPath + "/" + proof.retainedRelativePath,
-                byteCount: proof.byteCount, sha256: proof.sha256, bytes: Data())
-        }
-        for file in placeholders {
-            guard let observed = entries.first(where: { $0.relativePath == file.relativePath }), !observed.isDirectory,
-                  observed.byteCount == file.byteCount, observed.sha256 == file.sha256 else { throw Error.unresolvedRecovery }
-        }
-        let baseline = try SyncAccountSourceBaseline.digest(entries: entries, accountRoot: paths.accountRoot,
-            journalURL: snapshot.url, mutations: snapshot.mutations, selectedFiles: pendingFiles + placeholders,
-            deletionLedger: export?.manifest, pendingMarkerVersions: export?.pendingMarkerVersions ?? [])
+        let dependencies = try captureSourceDependencies(paths: paths, journal: journal, archiveURL: archiveURL,
+            entries: entries, maximumBytes: maximumBytes)
+        let snapshot = dependencies.snapshot, export = dependencies.export
+        let placeholders = dependencies.placeholders, baseline = dependencies.baseline
         let authority: SyncAccountRecoverySourceAuthority?
         let archivePresent = entries.contains { $0.relativePath == archivePath && !$0.isDirectory }
         if control.mainBytes == nil, control.nextBytes == nil, archivePresent {
@@ -430,7 +391,64 @@ public struct SyncAccountRecoveryInventory: Sendable {
             || path == ".decrypted-temporary/.owner-v1" || path.hasPrefix(".KnitNote-SyncBootstrap/")
             || path == SyncAccountStorage.recoveryControlName || path.hasPrefix(SyncAccountStorage.recoveryControlName + "/")
     }
-    private static func compatibilityGate(_ entries: [Entry]) throws {
+    struct SourceDependencies {
+        let snapshot: (url: URL, mutations: [SyncMutation])
+        let export: SyncDeletionLedger.RecoveryExport?
+        let placeholders: [SyncPendingRecoveryPacket.File]
+        let baseline: Data
+    }
+
+    /// Shared read-only dependencies. Callers retain their own source/terminal admission.
+    static func captureSourceDependencies(paths: SyncAccountStorage.Paths,
+        journal: FileSyncMutationJournal, archiveURL: URL, entries: [Entry], maximumBytes: Int) throws -> SourceDependencies {
+        let snapshot = try journal.recoverySnapshot(accountRoot: paths.accountRoot, inventoryEntries: entries, maximumBytes: maximumBytes)
+        let ledgerRoot = SyncDeletionLedger.root(archiveURL: archiveURL)
+        let ledgerPath = try relative(ledgerRoot, root: paths.accountRoot)
+        let export: SyncDeletionLedger.RecoveryExport?
+        if entries.contains(where: { $0.relativePath == ledgerPath }) {
+            export = try SyncDeletionLedger.recoveryExport(archiveURL: archiveURL, pending: snapshot.mutations, maximumBytes: maximumBytes)
+        } else { export = nil }
+
+        let pendingSourcePaths = try Set(snapshot.mutations.compactMap(\.attachmentSource).map {
+            try relative($0.fileURL, root: paths.accountRoot)
+        })
+        guard !pendingSourcePaths.contains(where: reserved) else { throw Error.unsafeBinding }
+        let pendingFiles = try snapshot.mutations.compactMap(\.attachmentSource).map { source in
+            let path = try relative(source.fileURL, root: paths.accountRoot)
+            guard let observed = entries.first(where: { $0.relativePath == path }), !observed.isDirectory,
+                  observed.byteCount == source.byteCount, observed.sha256 == source.contentSHA256 else { throw Error.unsafeBinding }
+            return SyncPendingRecoveryPacket.File(relativePath: path, byteCount: source.byteCount, sha256: source.contentSHA256, bytes: Data())
+        }
+        if let export {
+            let known = Set(export.knownRetainedPaths.map { ledgerPath + "/" + $0 })
+                .union([ledgerPath + "/ledger.json", ledgerPath + "/.ledger.json.lock"])
+                .union(export.terminalSources.keys.map { ledgerPath + "/" + $0 })
+                .union(pendingSourcePaths)
+            guard entries.filter({ !$0.isDirectory && $0.relativePath.hasPrefix(ledgerPath + "/") })
+                .allSatisfy({ known.contains($0.relativePath) }) else { throw Error.unresolvedRecovery }
+            for (path, source) in export.terminalSources {
+                if let existing = entries.first(where: { $0.relativePath == ledgerPath + "/" + path }) {
+                    guard !existing.isDirectory, existing.byteCount == source.byteCount,
+                          existing.sha256 == source.contentSHA256 else { throw Error.unresolvedRecovery }
+                }
+            }
+        }
+        let placeholders = (export?.files ?? []).map { proof in
+            SyncPendingRecoveryPacket.File(relativePath: ledgerPath + "/" + proof.retainedRelativePath,
+                byteCount: proof.byteCount, sha256: proof.sha256, bytes: Data())
+        }
+        for file in placeholders {
+            guard let observed = entries.first(where: { $0.relativePath == file.relativePath }), !observed.isDirectory,
+                  observed.byteCount == file.byteCount, observed.sha256 == file.sha256 else { throw Error.unresolvedRecovery }
+        }
+        let baseline = try SyncAccountSourceBaseline.digest(entries: entries, accountRoot: paths.accountRoot,
+            journalURL: snapshot.url, mutations: snapshot.mutations, selectedFiles: pendingFiles + placeholders,
+            deletionLedger: export?.manifest, pendingMarkerVersions: export?.pendingMarkerVersions ?? [])
+        return .init(snapshot: snapshot, export: export, placeholders: placeholders, baseline: baseline)
+    }
+
+
+    static func compatibilityGate(_ entries: [Entry]) throws {
         for entry in entries {
             let path = entry.relativePath
             // This fixed canonical candidate slot is unresolved even when its

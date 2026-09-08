@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		B39090900000000000000002 /* SyncBootstrapOwnedOutput.swift in Sources */ = {isa = PBXBuildFile; fileRef = B39090900000000000000001 /* SyncBootstrapOwnedOutput.swift */; };
+		B39090900000000000000003 /* SyncBootstrapOwnedOutput.swift in Sources */ = {isa = PBXBuildFile; fileRef = B39090900000000000000001 /* SyncBootstrapOwnedOutput.swift */; };
 		B39090800000000000000052 /* SyncBootstrapOwnedProgram.swift in Sources */ = {isa = PBXBuildFile; fileRef = B39090800000000000000051 /* SyncBootstrapOwnedProgram.swift */; };
 		B39090800000000000000053 /* SyncBootstrapOwnedProgram.swift in Sources */ = {isa = PBXBuildFile; fileRef = B39090800000000000000051 /* SyncBootstrapOwnedProgram.swift */; };
 		B39090800000000000000055 /* SyncBootstrapOwnedTransaction.swift in Sources */ = {isa = PBXBuildFile; fileRef = B39090800000000000000054 /* SyncBootstrapOwnedTransaction.swift */; };
@@ -555,6 +557,7 @@
 /* Begin PBXFileReference section */
 		B39090800000000000000051 /* SyncBootstrapOwnedProgram.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncBootstrapOwnedProgram.swift; sourceTree = "<group>"; };
 		B39090800000000000000054 /* SyncBootstrapOwnedTransaction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncBootstrapOwnedTransaction.swift; sourceTree = "<group>"; };
+		B39090900000000000000001 /* SyncBootstrapOwnedOutput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncBootstrapOwnedOutput.swift; sourceTree = "<group>"; };
 		B39090800000000000000041 /* SyncBootstrapOwnedManifest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncBootstrapOwnedManifest.swift; sourceTree = "<group>"; };
 		B39090800000000000000044 /* SyncBootstrapHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncBootstrapHistory.swift; sourceTree = "<group>"; };
 		B39090800000000000000031 /* SyncBootstrapRecoveryBudget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncBootstrapRecoveryBudget.swift; sourceTree = "<group>"; };
@@ -1503,6 +1506,7 @@
 				B39090800000000000000044 /* SyncBootstrapHistory.swift */,
 				B39090800000000000000051 /* SyncBootstrapOwnedProgram.swift */,
 				B39090800000000000000054 /* SyncBootstrapOwnedTransaction.swift */,
+				B39090900000000000000001 /* SyncBootstrapOwnedOutput.swift */,
 				B39090800000000000000023 /* SyncPublicationEvidenceOutputProgram.swift */,
 				B3F1A9019920000000000006 /* SyncAccountRecoveryControl.swift */,
 				84AB424D39E0AD34EB88CF6F /* ProjectArchiveSyncMapper.swift */,
@@ -1829,6 +1833,7 @@
 				B39090800000000000000045 /* SyncBootstrapHistory.swift in Sources */,
 				B39090800000000000000052 /* SyncBootstrapOwnedProgram.swift in Sources */,
 				B39090800000000000000055 /* SyncBootstrapOwnedTransaction.swift in Sources */,
+				B39090900000000000000002 /* SyncBootstrapOwnedOutput.swift in Sources */,
 				B39090800000000000000005 /* KnitNoteBackupPackagePlan.swift in Sources */,
 				B3F1A9019920000000000002 /* SyncAccountRecoveryControl.swift in Sources */,
 				2C4DD434A981FC95CF91D11C /* SyncAccountRecoveryTransaction.swift in Sources */,
@@ -2102,6 +2107,7 @@
 				B39090800000000000000046 /* SyncBootstrapHistory.swift in Sources */,
 				B39090800000000000000053 /* SyncBootstrapOwnedProgram.swift in Sources */,
 				B39090800000000000000056 /* SyncBootstrapOwnedTransaction.swift in Sources */,
+				B39090900000000000000003 /* SyncBootstrapOwnedOutput.swift in Sources */,
 				B39090800000000000000006 /* KnitNoteBackupPackagePlan.swift in Sources */,
 				B3F1A9019920000000000004 /* SyncAccountRecoveryControl.swift in Sources */,
 				9E1D5F3656D7A5FA167E2B01 /* SyncAccountRecoveryTransaction.swift in Sources */,

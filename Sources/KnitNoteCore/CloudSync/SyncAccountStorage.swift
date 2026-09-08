@@ -38,6 +38,7 @@ public final class SyncAccountStorage: @unchecked Sendable {
     }
 
     private let baseURL: URL
+    private let synchronize: @Sendable (Int32) throws -> Void
     private let mutex = NSLock()
     private var session: Session?
     private static let temporaryName = ".decrypted-temporary"
@@ -45,7 +46,13 @@ public final class SyncAccountStorage: @unchecked Sendable {
     private static let lockName = ".storage-lock"
     static let recoveryControlName = ".sealed-recovery-v1"
 
-    public init(baseURL: URL) { self.baseURL = baseURL }
+    public convenience init(baseURL: URL) {
+        self.init(baseURL: baseURL, synchronize: { guard fsync($0) == 0 else { throw SyncAccountStorageError.unavailable } })
+    }
+
+    init(baseURL: URL, synchronize: @escaping @Sendable (Int32) throws -> Void) {
+        self.baseURL = baseURL; self.synchronize = synchronize
+    }
 
     /// Compatibility gate only: never relocate a journal or reinterpret its
     /// absolute attachment URLs. Bootstrap terminal proofs are checked after
@@ -75,30 +82,132 @@ public final class SyncAccountStorage: @unchecked Sendable {
     /// Existing legacy global storage is not migrated by this API.
     @discardableResult
     public func open(identity: SyncAccountIdentity) throws -> Paths {
+        try open(identity: identity, mode: .legacy)
+    }
+
+    /// The callback validates a freshly queried account generation, outside our
+    /// mutex. Directory creation, provenance and account ownership are internal.
+    public func openForVerifiedAccount(identity: SyncAccountIdentity, validateAccount: () throws -> Void) throws -> Paths {
+        try verifiedOpen(identity: identity, mode: .verified, validateAccount: validateAccount)
+    }
+
+    /// Never creates the account namespace or infers freshness from its contents.
+    public func openExistingAccount(identity: SyncAccountIdentity, validateAccount: () throws -> Void) throws -> Paths {
+        try verifiedOpen(identity: identity, mode: .existing, validateAccount: validateAccount)
+    }
+
+    private enum OpenMode { case legacy, verified, existing }
+
+    private func verifiedOpen(identity: SyncAccountIdentity, mode: OpenMode, validateAccount: () throws -> Void) throws -> Paths {
+        try validateAccount()
+        let paths = try open(identity: identity, mode: mode)
+        do {
+            try withRecoveryOwnership(paths: paths, account: identity, maximumBytes: 100_000_000) { access in
+                try validateSourceOpen(paths: paths, identity: identity, access: access)
+            }
+            try validateAccount()
+            return paths
+        } catch {
+            mutex.lock()
+            if session?.paths == paths { session = nil }
+            mutex.unlock()
+            throw error
+        }
+    }
+
+    private func open(identity: SyncAccountIdentity, mode: OpenMode) throws -> Paths {
         mutex.lock(); defer { mutex.unlock() }
         guard session == nil else { throw SyncAccountStorageError.alreadyOpen }
         let normalized = try Self.normalized(baseURL)
-        let base = try Self.openPath(normalized, create: true)
-        let account = try Self.directory(identity.accountIDHash, in: base, create: true).handle
+        let base = try Self.openPath(normalized, create: mode != .existing)
+        let allocation = try Self.directory(identity.accountIDHash, in: base, create: mode != .existing)
+        let account = allocation.handle
+        if mode != .legacy && !allocation.created {
+            // Read-only preflight precedes even creation of a lock or scaffold.
+            try Self.requireExistingEvidence(account)
+        }
         let lock = try Self.accountLock(in: account)
         let root = normalized.appendingPathComponent(identity.accountIDHash, isDirectory: true)
         let names = ["working-set", "journal", "engine-state", "staging", "quarantine", "vault"]
         for name in names {
-            _ = try Self.directory(name, in: account, create: true)
+            _ = try Self.directory(name, in: account, create: mode == .legacy || allocation.created)
         }
-        let temporary = try Self.directory(Self.temporaryName, in: account, create: true)
+        let temporary = try Self.directory(Self.temporaryName, in: account, create: mode == .legacy || allocation.created)
         let marker = Data("KnitNote.SyncAccountStorage.decrypted-temporary.v1\n\(identity.accountIDHash)\n".utf8)
         if temporary.created { try Self.writeOwner(marker, in: temporary.handle) }
         try Self.validateOwner(marker, in: temporary.handle)
         // Metadata-only scan includes bootstrap siblings and other existing
         // account descendants. It does not read persistent file contents.
         try Self.validateTree(account)
+        let control: Handle?
+        if mode != .legacy {
+            var status = stat()
+            let exists = fstatat(account.fd, Self.recoveryControlName, &status, AT_SYMLINK_NOFOLLOW) == 0
+            guard exists || errno == ENOENT else { throw SyncAccountStorageError.unsafePath }
+            control = exists || allocation.created
+                ? try Self.directory(Self.recoveryControlName, in: account, create: allocation.created).handle : nil
+        } else { control = nil }
+        func validateBindings() throws {
+            try Self.sameDirectory(Self.openPath(normalized, create: false), base)
+            try Self.validateEntry(account, named: identity.accountIDHash, in: base)
+            try Self.validateEntry(lock, named: Self.lockName, in: account, regular: true)
+            try Self.validateEntry(temporary.handle, named: Self.temporaryName, in: account)
+            try Self.validateOwner(marker, in: temporary.handle)
+            if let control {
+                try Self.validateEntry(control, named: Self.recoveryControlName, in: account)
+                try Self.validateRecoveryControl(control)
+            }
+        }
+        let access = RecoveryAccess(accountDescriptor: account.fd, controlDescriptor: control?.fd, entries: {
+            var remaining = 100_000_000
+            return try Self.recoveryEntries(account, prefix: "", remaining: &remaining)
+        }, validate: validateBindings)
+        let urls = names.map { root.appendingPathComponent($0, isDirectory: true) }
+        // Validate before abandoned temporary copies can be removed.
+        let provisional = Paths(accountRoot: root, workingSet: urls[0], journal: urls[1], engineState: urls[2],
+            staging: urls[3], quarantine: urls[4], vault: urls[5], decryptedTemporary: root.appendingPathComponent(Self.temporaryName))
+        if mode != .legacy {
+            try validateBindings()
+            if allocation.created {
+                let expected = Set(names + [Self.lockName, Self.temporaryName, Self.recoveryControlName])
+                func validateScaffold() throws {
+                    try validateBindings()
+                    guard Set(try Self.names(in: account)) == expected,
+                          try Self.names(in: temporary.handle) == [Self.ownerName] else { throw SyncAccountStorageError.unsafePath }
+                    for name in names {
+                        guard try Self.names(in: Self.directory(name, in: account, create: false).handle).isEmpty else { throw SyncAccountStorageError.unsafePath }
+                    }
+                }
+                try validateScaffold()
+                guard let control, try Self.names(in: control).isEmpty else { throw SyncAccountStorageError.unsafePath }
+                let originalEntries = try access.entries()
+                var status = stat()
+                guard fstat(account.fd, &status) == 0 else { throw SyncAccountStorageError.unsafePath }
+                let source = SyncAccountSourceState(authorityID: UUID(), generation: UUID(), accountIDHash: identity.accountIDHash,
+                    accountRoot: root, accountDevice: UInt64(status.st_dev), accountInode: UInt64(status.st_ino),
+                    archiveURL: urls[0].appendingPathComponent("projects-v1.json"), journalURL: provisional.mutationJournalURL,
+                    baselineSHA256: try SyncAccountSourceBaseline.digest(entries: [], accountRoot: root,
+                        journalURL: provisional.mutationJournalURL, mutations: [], selectedFiles: [], deletionLedger: nil,
+                        pendingMarkerVersions: []), origin: .freshAllocation(allocationID: UUID()))
+                // An account sync fault before main exists leaves an ambiguous
+                // existing namespace, which every subsequent verified open blocks.
+                try synchronize(account.fd)
+                try validateScaffold()
+                guard try access.entries() == originalEntries else { throw SyncAccountStorageError.unsafePath }
+                try SyncAccountRecoveryControlFile(synchronize: synchronize).initializeFresh(source, access: access)
+                try synchronize(base.fd)
+                try validateScaffold()
+                guard try access.entries() == originalEntries else { throw SyncAccountStorageError.unsafePath }
+            }
+            try validateSourceOpen(paths: provisional, identity: identity, access: access)
+        }
         // Exclusive account ownership and the format/hash marker authorize only
         // this dedicated temporary namespace, never persistentRoots.
-        try Self.removeContents(temporary.handle, excluding: Self.ownerName)
+        // Verified opens preserve abandoned sessions until authenticated account
+        // cleanup. A later generation-validation failure cannot authorize deletion.
+        if mode == .legacy { try Self.removeContents(temporary.handle, excluding: Self.ownerName) }
         let name = UUID().uuidString.lowercased()
         let decrypted = try Self.directory(name, in: temporary.handle, create: true).handle
-        let urls = names.map { root.appendingPathComponent($0, isDirectory: true) }
         let paths = Paths(accountRoot: root, workingSet: urls[0], journal: urls[1], engineState: urls[2],
             staging: urls[3], quarantine: urls[4], vault: urls[5],
             decryptedTemporary: root.appendingPathComponent(Self.temporaryName, isDirectory: true)
@@ -106,6 +215,69 @@ public final class SyncAccountStorage: @unchecked Sendable {
         session = Session(base: base, account: account, lock: lock, temporary: temporary.handle,
             decrypted: decrypted, name: name, identity: identity, marker: marker, paths: paths)
         return paths
+    }
+
+    private static func requireExistingEvidence(_ account: Handle) throws {
+        func regular(_ path: String, parent: Handle) throws -> Bool {
+            var status = stat()
+            if fstatat(parent.fd, path, &status, AT_SYMLINK_NOFOLLOW) != 0 {
+                guard errno == ENOENT else { throw SyncAccountStorageError.unsafePath }; return false
+            }
+            guard status.st_mode & S_IFMT == S_IFREG, status.st_nlink == 1 else { throw SyncAccountStorageError.unsafePath }
+            return true
+        }
+        // Each path component is opened separately with O_NOFOLLOW.
+        for (directory, file) in [("working-set", "projects-v1.json"), (recoveryControlName, "intent.json"),
+                                  (".KnitNote-SyncBootstrap", "active.json")] {
+            var status = stat()
+            if fstatat(account.fd, directory, &status, AT_SYMLINK_NOFOLLOW) != 0 {
+                guard errno == ENOENT else { throw SyncAccountStorageError.unsafePath }; continue
+            }
+            let parent = try Self.directory(directory, in: account, create: false).handle
+            if try regular(file, parent: parent) { return }
+        }
+        throw SyncAccountStorageError.unsafePath
+    }
+
+    private func validateSourceOpen(paths: Paths, identity: SyncAccountIdentity, access: RecoveryAccess) throws {
+        let control = SyncAccountRecoveryControlFile(synchronize: synchronize)
+        let observation = try control.observe(access: access)
+        let originalEntries = try access.entries()
+        switch observation.state {
+        case .absentSource(let source), .sourceSpent(let source, _, _):
+            var status = stat()
+            guard fstat(access.accountDescriptor, &status) == 0,
+                  source.accountIDHash == identity.accountIDHash, source.accountRoot == paths.accountRoot,
+                  source.accountDevice == UInt64(status.st_dev), source.accountInode == UInt64(status.st_ino),
+                  source.archiveURL == paths.workingSet.appendingPathComponent("projects-v1.json"),
+                  source.journalURL == paths.mutationJournalURL else { throw SyncAccountStorageError.unsafePath }
+            if case .absentSource = observation.state {
+                // Only fresh origin can be validated completely without the
+                // later authenticated inventory/dependency integration.
+                if case .freshAllocation = source.origin {
+                    let entries = try access.entries()
+                    let snapshot = try FileSyncMutationJournal(url: paths.mutationJournalURL).recoverySnapshot()
+                    guard snapshot.mutations.isEmpty,
+                          try access.entries() == entries,
+                          try SyncAccountSourceBaseline.digest(entries: entries, accountRoot: paths.accountRoot,
+                            journalURL: paths.mutationJournalURL, mutations: [], selectedFiles: [], deletionLedger: nil,
+                            pendingMarkerVersions: []) == source.baselineSHA256 else { throw SyncAccountStorageError.unsafePath }
+                }
+            }
+        case .legacySelection(let intent), .selectedRecovery(let intent, _):
+            guard intent.accountIDHash == identity.accountIDHash, intent.accountRoot == paths.accountRoot,
+                  intent.archiveURL == paths.workingSet.appendingPathComponent("projects-v1.json"),
+                  intent.journalURL == paths.mutationJournalURL else { throw SyncAccountStorageError.unsafePath }
+        case nil:
+            try Self.requireExistingEvidence(Handle(try Self.duplicate(access.accountDescriptor)))
+        }
+        try control.synchronize(observation, access: access)
+        guard try access.entries() == originalEntries else { throw SyncAccountStorageError.unsafePath }
+    }
+
+    private static func duplicate(_ descriptor: Int32) throws -> Int32 {
+        let result = fcntl(descriptor, F_DUPFD_CLOEXEC, 0)
+        guard result >= 0 else { throw SyncAccountStorageError.unavailable }; return result
     }
 
     /// The coordinator must stop/freeze consumers and durably seal unsent data

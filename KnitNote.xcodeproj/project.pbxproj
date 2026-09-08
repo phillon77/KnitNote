@@ -435,6 +435,8 @@
 		900A1153B0BD4CF7E21FBFBB /* SyncAccountRecoveryInventory.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCC85F429224211A43728EF9 /* SyncAccountRecoveryInventory.swift */; };
 		2C4DD434A981FC95CF91D11C /* SyncAccountRecoveryTransaction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 755FD88F5ED9D3992C620EDE /* SyncAccountRecoveryTransaction.swift */; };
 		1E85B79E884DC499B8F7E072 /* SyncAccountStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 942AFD72DC7EF6175855E69D /* SyncAccountStorage.swift */; };
+		B3F1A9019920000000000001 /* SyncAccountSourceState.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3F1A9019920000000000005 /* SyncAccountSourceState.swift */; };
+		B3F1A9019920000000000002 /* SyncAccountRecoveryControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3F1A9019920000000000006 /* SyncAccountRecoveryControl.swift */; };
 		01D5AB0082A40D41FCD28DFD /* SyncArchiveAttachmentReferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = A511F471E41FA120C8226E22 /* SyncArchiveAttachmentReferences.swift */; };
 		93C1EFB0EC085F18781FDE9C /* SyncBootstrapTransaction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A1C9DEB3233F650BC892208 /* SyncBootstrapTransaction.swift */; };
 		53CC78796FF3718331631302 /* SyncDeletedDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00B4AB0A226DAE794887AB6 /* SyncDeletedDomain.swift */; };
@@ -448,6 +450,8 @@
 		26826884EB1921DBAFBBDAF4 /* SyncAccountRecoveryInventory.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCC85F429224211A43728EF9 /* SyncAccountRecoveryInventory.swift */; };
 		9E1D5F3656D7A5FA167E2B01 /* SyncAccountRecoveryTransaction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 755FD88F5ED9D3992C620EDE /* SyncAccountRecoveryTransaction.swift */; };
 		A36A8A3875D4CB670FB285F2 /* SyncAccountStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 942AFD72DC7EF6175855E69D /* SyncAccountStorage.swift */; };
+		B3F1A9019920000000000003 /* SyncAccountSourceState.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3F1A9019920000000000005 /* SyncAccountSourceState.swift */; };
+		B3F1A9019920000000000004 /* SyncAccountRecoveryControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3F1A9019920000000000006 /* SyncAccountRecoveryControl.swift */; };
 		57C6FA575A3A003BAFC84DB5 /* SyncArchiveAttachmentReferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = A511F471E41FA120C8226E22 /* SyncArchiveAttachmentReferences.swift */; };
 		58ED7EABB995F052A5D10E4D /* SyncBootstrapTransaction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A1C9DEB3233F650BC892208 /* SyncBootstrapTransaction.swift */; };
 		EB51A862DE7A8E37A7938B61 /* SyncDeletedDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00B4AB0A226DAE794887AB6 /* SyncDeletedDomain.swift */; };
@@ -844,6 +848,8 @@
 		81D47F320138BFED01143139 /* PossibleDuplicateDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PossibleDuplicateDetector.swift; sourceTree = "<group>"; };
 		84AB424D39E0AD34EB88CF6F /* ProjectArchiveSyncMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectArchiveSyncMapper.swift; sourceTree = "<group>"; };
 		942AFD72DC7EF6175855E69D /* SyncAccountStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncAccountStorage.swift; sourceTree = "<group>"; };
+		B3F1A9019920000000000005 /* SyncAccountSourceState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncAccountSourceState.swift; sourceTree = "<group>"; };
+		B3F1A9019920000000000006 /* SyncAccountRecoveryControl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncAccountRecoveryControl.swift; sourceTree = "<group>"; };
 		9A1C9DEB3233F650BC892208 /* SyncBootstrapTransaction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncBootstrapTransaction.swift; sourceTree = "<group>"; };
 		A511F471E41FA120C8226E22 /* SyncArchiveAttachmentReferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncArchiveAttachmentReferences.swift; sourceTree = "<group>"; };
 		B00B4AB0A226DAE794887AB6 /* SyncDeletedDomain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncDeletedDomain.swift; sourceTree = "<group>"; };
@@ -1461,6 +1467,8 @@
 				DC0400000000000000000005 /* SyncCanonicalCheckpoint.swift */,
 				DC0400000000000000000006 /* SyncCanonicalCheckpointStore.swift */,
 				942AFD72DC7EF6175855E69D /* SyncAccountStorage.swift */,
+				B3F1A9019920000000000005 /* SyncAccountSourceState.swift */,
+				B3F1A9019920000000000006 /* SyncAccountRecoveryControl.swift */,
 				84AB424D39E0AD34EB88CF6F /* ProjectArchiveSyncMapper.swift */,
 				81D47F320138BFED01143139 /* PossibleDuplicateDetector.swift */,
 				755FD88F5ED9D3992C620EDE /* SyncAccountRecoveryTransaction.swift */,
@@ -1777,6 +1785,8 @@
 				DC0400000000000000000002 /* SyncCanonicalCheckpointStore.swift in Sources */,
 				01D5AB0082A40D41FCD28DFD /* SyncArchiveAttachmentReferences.swift in Sources */,
 				1E85B79E884DC499B8F7E072 /* SyncAccountStorage.swift in Sources */,
+				B3F1A9019920000000000001 /* SyncAccountSourceState.swift in Sources */,
+				B3F1A9019920000000000002 /* SyncAccountRecoveryControl.swift in Sources */,
 				2C4DD434A981FC95CF91D11C /* SyncAccountRecoveryTransaction.swift in Sources */,
 				900A1153B0BD4CF7E21FBFBB /* SyncAccountRecoveryInventory.swift in Sources */,
 				97BD0F222A3EE351E759D141 /* SyncAccountIdentity.swift in Sources */,
@@ -2039,6 +2049,8 @@
 				DC0400000000000000000004 /* SyncCanonicalCheckpointStore.swift in Sources */,
 				57C6FA575A3A003BAFC84DB5 /* SyncArchiveAttachmentReferences.swift in Sources */,
 				A36A8A3875D4CB670FB285F2 /* SyncAccountStorage.swift in Sources */,
+				B3F1A9019920000000000003 /* SyncAccountSourceState.swift in Sources */,
+				B3F1A9019920000000000004 /* SyncAccountRecoveryControl.swift in Sources */,
 				9E1D5F3656D7A5FA167E2B01 /* SyncAccountRecoveryTransaction.swift in Sources */,
 				26826884EB1921DBAFBBDAF4 /* SyncAccountRecoveryInventory.swift in Sources */,
 				079C1719375AA00D3704FD79 /* SyncAccountIdentity.swift in Sources */,

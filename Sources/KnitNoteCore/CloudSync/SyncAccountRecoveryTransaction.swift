@@ -50,19 +50,7 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
         let packetSHA256: Data
         let inventory: Data
     }
-    private struct Intent: Codable, Equatable {
-        let formatVersion: Int
-        let accountIDHash: String
-        let accountRoot: URL
-        let archiveURL: URL
-        let journalURL: URL
-        let vaultID: UUID
-        let captureID: UUID
-        let envelopeSHA256: Data
-        let packetSHA256: Data
-        let inventoryFingerprint: Data
-        var phase: Phase
-    }
+    private typealias Intent = SyncAccountRecoveryIntent
     private struct Authorized {
         let intent: Intent
         let envelope: Envelope

@@ -5,6 +5,180 @@ import Testing
 @testable import KnitNoteCore
 
 struct SyncAccountStorageTests {
+    @Test func existingEmptyNamespaceCannotMintFreshnessOrChangeFiles() throws {
+        let fixture = try Fixture(); defer { fixture.remove() }
+        let account = try fixture.identity("existing-empty")
+        let storage = SyncAccountStorage(baseURL: fixture.root)
+        let paths = try storage.open(identity: account)
+        try storage.close()
+        let markerURL = paths.accountRoot.appendingPathComponent(".decrypted-temporary/.owner-v1")
+        let marker = try Data(contentsOf: markerURL)
+        #expect(throws: (any Error).self) { try storage.openForVerifiedAccount(identity: account, validateAccount: {}) }
+        #expect(throws: (any Error).self) { try storage.openExistingAccount(identity: account, validateAccount: {}) }
+        #expect(try Data(contentsOf: markerURL) == marker)
+        #expect(!FileManager.default.fileExists(atPath: paths.accountRoot.appendingPathComponent(".sealed-recovery-v1").path))
+        let missing = try fixture.identity("never-created")
+        #expect(throws: (any Error).self) { try storage.openExistingAccount(identity: missing, validateAccount: {}) }
+        #expect(!FileManager.default.fileExists(atPath: fixture.root.appendingPathComponent(missing.accountIDHash).path))
+    }
+
+    @Test func corruptedExistingArchiveNeverReceivesFreshState() throws {
+        let fixture = try Fixture(); defer { fixture.remove() }
+        let account = try fixture.identity("corrupt-archive")
+        let storage = SyncAccountStorage(baseURL: fixture.root)
+        let paths = try storage.open(identity: account)
+        let archive = paths.workingSet.appendingPathComponent("projects-v1.json")
+        let bytes = Data("corrupt archive".utf8)
+        try bytes.write(to: archive); try storage.close()
+        let reopened = try storage.openExistingAccount(identity: account, validateAccount: {})
+        defer { try? storage.close() }
+        #expect(try Data(contentsOf: archive) == bytes)
+        try storage.withRecoveryOwnership(paths: reopened, account: account, maximumBytes: 100_000_000) { access in
+            let observation = try SyncAccountRecoveryControlFile(synchronize: { _ in }).observe(access: access)
+            #expect(observation.state == nil)
+        }
+    }
+
+    @Test func accountValidatorRunsOutsideMutexAndRejectsGenerationChange() throws {
+        let fixture = try Fixture(); defer { fixture.remove() }
+        let account = try fixture.identity("generation")
+        let storage = SyncAccountStorage(baseURL: fixture.root)
+        var calls = 0
+        #expect(throws: SourceOpenFailure.changed) {
+            try storage.openForVerifiedAccount(identity: account, validateAccount: {
+                calls += 1
+                // Reentrant close proves the validation callback does not hold storage's mutex.
+                try storage.close()
+                if calls == 2 { throw SourceOpenFailure.changed }
+            })
+        }
+        #expect(calls == 2)
+        _ = try storage.openExistingAccount(identity: account, validateAccount: {})
+        try storage.close()
+    }
+
+    @Test func rejectedVerifiedGenerationPreservesAbandonedTemporaryBytes() throws {
+        let fixture = try Fixture(); defer { fixture.remove() }
+        let account = try fixture.identity("preserve-temporary")
+        var old: SyncAccountStorage? = SyncAccountStorage(baseURL: fixture.root)
+        let paths = try old!.open(identity: account)
+        let bytes = Data("owned but still inventoried".utf8)
+        try Data("archive".utf8).write(to: paths.workingSet.appendingPathComponent("projects-v1.json"))
+        let temporaryFile = paths.decryptedTemporary.appendingPathComponent("copy")
+        try bytes.write(to: temporaryFile)
+        old = nil
+        let storage = SyncAccountStorage(baseURL: fixture.root)
+        var validations = 0
+        #expect(throws: SourceOpenFailure.changed) {
+            try storage.openExistingAccount(identity: account, validateAccount: {
+                validations += 1
+                if validations == 2 { throw SourceOpenFailure.changed }
+            })
+        }
+        #expect(FileManager.default.fileExists(atPath: temporaryFile.path))
+        if FileManager.default.fileExists(atPath: temporaryFile.path) {
+            #expect(try Data(contentsOf: temporaryFile) == bytes)
+        }
+    }
+
+    @Test(arguments: Array(1...10)) func freshDurabilityFaultNeverCreatesNewAuthorityOnReopen(failAt: Int) throws {
+        let fixture = try Fixture(); defer { fixture.remove() }
+        let account = try fixture.identity("fault")
+        let fault = SourceOpenSyncFault(failAt: failAt)
+        let failing = SyncAccountStorage(baseURL: fixture.root, synchronize: { try fault.sync($0) })
+        #expect(throws: (any Error).self) { try failing.openForVerifiedAccount(identity: account, validateAccount: {}) }
+        let root = fixture.root.appendingPathComponent(account.accountIDHash)
+        let main = root.appendingPathComponent(".sealed-recovery-v1/intent.json")
+        let original = try? Data(contentsOf: main)
+        let storage = SyncAccountStorage(baseURL: fixture.root)
+        if let original {
+            _ = try storage.openExistingAccount(identity: account, validateAccount: {})
+            #expect(try Data(contentsOf: main) == original)
+            try storage.close()
+        } else {
+            #expect(throws: (any Error).self) { try storage.openForVerifiedAccount(identity: account, validateAccount: {}) }
+        }
+    }
+
+    @Test func freshScaffoldCannotChangeDuringInitialDurabilityBarrier() throws {
+        let fixture = try Fixture(); defer { fixture.remove() }
+        let account = try fixture.identity("changed-scaffold")
+        let injected = fixture.root.appendingPathComponent(account.accountIDHash).appendingPathComponent("staging/injected")
+        let storage = SyncAccountStorage(baseURL: fixture.root, synchronize: { fd in
+            if !FileManager.default.fileExists(atPath: injected.path) { try Data("unexpected source".utf8).write(to: injected) }
+            guard fsync(fd) == 0 else { throw SourceOpenFailure.changed }
+        })
+        #expect(throws: (any Error).self) { try storage.openForVerifiedAccount(identity: account, validateAccount: {}) }
+        #expect(try Data(contentsOf: injected) == Data("unexpected source".utf8))
+    }
+
+    @Test func finalSourceBarrierRejectsChangesBeforePathsAreExposed() throws {
+        let fixture = try Fixture(); defer { fixture.remove() }
+        let account = try fixture.identity("final-barrier")
+        let root = fixture.root.appendingPathComponent(account.accountIDHash)
+        let injected = root.appendingPathComponent("working-set/injected")
+        let storage = SyncAccountStorage(baseURL: fixture.root, synchronize: { fd in
+            let sessions = try FileManager.default.contentsOfDirectory(atPath: root.appendingPathComponent(".decrypted-temporary").path)
+            if sessions.contains(where: { UUID(uuidString: $0) != nil }) {
+                try Data("late source".utf8).write(to: injected)
+            }
+            guard fsync(fd) == 0 else { throw SourceOpenFailure.changed }
+        })
+        #expect(throws: (any Error).self) { try storage.openForVerifiedAccount(identity: account, validateAccount: {}) }
+        #expect(try Data(contentsOf: injected) == Data("late source".utf8))
+    }
+
+    @Test(arguments: ["owner", "root", "symlink", "interrupted"])
+    func verifiedReopenRejectsInvalidOwnershipWithoutRepair(kind: String) throws {
+        let fixture = try Fixture(); defer { fixture.remove() }
+        let account = try fixture.identity("invalid")
+        let storage = SyncAccountStorage(baseURL: fixture.root)
+        let paths = try storage.openForVerifiedAccount(identity: account, validateAccount: {})
+        try storage.close()
+        let main = paths.accountRoot.appendingPathComponent(".sealed-recovery-v1/intent.json")
+        let bytes = try Data(contentsOf: main)
+        if kind == "owner" {
+            try Data("bad owner".utf8).write(to: paths.accountRoot.appendingPathComponent(".decrypted-temporary/.owner-v1"))
+        } else if kind == "root" {
+            let moved = fixture.root.appendingPathComponent("old-root")
+            try FileManager.default.moveItem(at: paths.accountRoot, to: moved)
+            try FileManager.default.copyItem(at: moved, to: paths.accountRoot)
+        } else if kind == "symlink" {
+            try FileManager.default.createSymbolicLink(at: paths.workingSet.appendingPathComponent("projects-v1.json"), withDestinationURL: main)
+        } else {
+            try FileManager.default.moveItem(at: main, to: main.deletingLastPathComponent().appendingPathComponent("intent-next.json"))
+        }
+        #expect(throws: (any Error).self) { try storage.openExistingAccount(identity: account, validateAccount: {}) }
+        let remaining = kind == "interrupted" ? main.deletingLastPathComponent().appendingPathComponent("intent-next.json") : main
+        #expect(try Data(contentsOf: remaining) == bytes)
+    }
+
+    @Test func freshAllocationOnlyComesFromActualDirectoryCreation() throws {
+        let base = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
+            .appendingPathComponent("source-state-" + UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: base) }
+        let account = try SyncAccountIdentity(containerIdentifier: "test", userRecordName: "fresh")
+        let storage = SyncAccountStorage(baseURL: base)
+        let paths = try storage.openForVerifiedAccount(identity: account, validateAccount: {})
+        defer { try? storage.close() }
+        try storage.withRecoveryOwnership(paths: paths, account: account, maximumBytes: 100_000_000) { access in
+            let control = SyncAccountRecoveryControlFile(synchronize: { _ in })
+            guard case .absentSource(let state)? = try control.observe(access: access).state else {
+                Issue.record("Actual fresh allocation did not persist absence provenance"); return
+            }
+            #expect(state.accountIDHash == account.accountIDHash)
+            #expect(state.archiveURL == paths.workingSet.appendingPathComponent("projects-v1.json"))
+            #expect(state.journalURL == paths.mutationJournalURL)
+            let before = try access.entries()
+            let snapshot = try FileSyncMutationJournal(url: paths.mutationJournalURL).recoverySnapshot()
+            #expect(snapshot.mutations.isEmpty)
+            #expect(try access.entries() == before)
+            #expect(try SyncAccountSourceBaseline.digest(entries: before, accountRoot: paths.accountRoot,
+                journalURL: paths.mutationJournalURL, mutations: [], selectedFiles: [], deletionLedger: nil,
+                pendingMarkerVersions: []) == state.baselineSHA256)
+        }
+    }
+
     @Test func identitySeparatesFieldBoundariesContainersAndExactRecordNames() throws {
         let pairs = [("ab", "c"), ("a", "bc"), ("a|b", "c"), ("a", "b|c"),
                      ("a", "é"), ("a", "e\u{301}"), ("a", "C"), ("a", "c")]
@@ -202,5 +376,16 @@ struct SyncAccountStorageTests {
             try .init(containerIdentifier: "iCloud.test", userRecordName: account)
         }
         func remove() { try? FileManager.default.removeItem(at: container) }
+    }
+}
+
+private enum SourceOpenFailure: Error { case changed }
+private final class SourceOpenSyncFault: @unchecked Sendable {
+    var remaining: Int
+    init(failAt: Int) { remaining = failAt }
+    func sync(_ fd: Int32) throws {
+        remaining -= 1
+        if remaining == 0 { throw SourceOpenFailure.changed }
+        guard fsync(fd) == 0 else { throw SourceOpenFailure.changed }
     }
 }

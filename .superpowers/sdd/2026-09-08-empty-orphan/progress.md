@@ -1,5 +1,7 @@
 # Inert empty temporary residue progress
 
+CURRENT REVIEW FIX COMPLETE: commit `19dc1b033fa65f4de07eff9d165400b12ec379e4`, baseline a9c8337. RED /tmp/empty-orphan-fix-red.log:170 tests/5 suites,EXIT1,70 issues across20 failing fresh/rollback cleanup/restore/legacy-normalization cases;8 ordinary consume cases already passed via full entries baseline. GREEN /tmp/empty-orphan-fix-green.log:170 tests/5 suites passed,EXIT0,84.425s tests/107.625s elapsed, SHA256 `1b78df9a1f2295d0502f56f40d447b28c34219a13a7e48b8b46c1424694227de`. Sessions24228/59836 reaped, compiler stopped. Transaction-only fixed snapshot/source callback, including legacy transitions. Parent ruling preserves ControlFile scope and records beforeRename test-hook limit. Bulk consume fixed full-entry guards inspected and documented. Same reviewer re-review next; report/progress evidence commit follows. No further edits/tests.
+
 CURRENT: implementation commit `8562380ccaf3b3c364ddaaef97300442e6003351`; final `/tmp/empty-orphan-final-green-2.log` has 169 tests / 5 suites passed, EXIT 0, tests 68.336s / elapsed 89.689s, SHA-256 `f8b3c18b3f427e9a2696dd1de935cf55849b2d64caf6cb118d199e9db648b312`. All four sessions reaped; compiler stopped. Parent independent review next. Only Transaction/tests changed; report/progress evidence commit follows. Scratch untouched.
 
 Baseline ff559299184e0f3e18e87c497e9a37534ca39e23. Owner source_inventory_task3; single focused compiler lane. No compiler active yet.

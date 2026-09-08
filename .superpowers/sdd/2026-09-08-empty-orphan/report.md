@@ -1,5 +1,7 @@
 # Inert empty temporary residue report
 
+CURRENT REVIEW FIX COMPLETE: implementation **19dc1b033fa65f4de07eff9d165400b12ec379e4** (`fix: bind inert snapshot through recovery phase publication`), baseline a9c8337e3f197d35848930d38df5bbb389bf5edf. Final /tmp/empty-orphan-fix-green.log passed **170 tests / 5 suites, EXIT 0**, 84.425s tests / 107.625s elapsed. RED has 70 issues across 20 failing later-sync cases; 8 ordinary consume cases already passed via full baseline equality. Both compiler sessions reaped and stopped. Same reviewer re-review next. Earlier evidence below is chronological and superseded by the appended fix report where applicable.
+
 Baseline ff559299184e0f3e18e87c497e9a37534ca39e23. Implementation commit **8562380ccaf3b3c364ddaaef97300442e6003351** (`fix: retain authenticated inert temporary residue`). Final focused verification passed; all four compiler sessions reaped and stopped before commit/report completion. Approved bounded brainstorming design, systematic debugging, TDD/test-writing and verification-before-completion skills applied. Parent owns independent review; no subagents spawned.
 
 Only authenticated selected recovery may tolerate physically verified empty, canonical immediate UUID directories absent (including descendants) from captured inventory. These are inert physical observations, not historical ownership receipts. Never delete or put them in cleanup worklists. Preserve all captured entry rules and existing capacity bounds. Extra empty directories accumulate against current metadata caps; future ordinary source capture may inventory them. Nonempty orphan recovery, App, transport, wire formats and public ownership authority remain outside scope.
@@ -58,3 +60,43 @@ f8b3c18b3f427e9a2696dd1de935cf55849b2d64caf6cb118d199e9db648b312  /tmp/empty-orp
 ```
 
 Final `git diff --check` exited 0; source/test hashes rechecked after compiler completion. Scoped implementation commit has only Transaction and its tests. This report/progress is a separate evidence-only commit so the report records the immutable implementation SHA. Controller scratch `.superpowers/absent-source-design-progress.md` remained untouched/untracked. No subsequent compiler or implementation work is planned before parent independent review.
+
+## Independent-review fix wave (19dc1b0)
+
+Read receiving-code-review, TDD and its test-writing reference. Verified the Important finding against actual control publisher and transaction code: the barrier's local snapshot did not span `controlFile.replace`'s later main synchronization or next-file write/synchronization. Its callback merely classified a fresh set. The legacy transition similarly synchronized directly outside the wrapper, then could publish and proceed to cleanup. This was a real gap, not a test expectation adjustment.
+
+### Behavioral RED and GREEN
+
+Exact focused command, changing only red to green in the output filename:
+
+```sh
+env -u KNITNOTE_RUN_CLOUDKIT_INTEGRATION python3 /tmp/task4-run-bounded.py 1200 arch -arm64 swift test --no-parallel --filter 'SyncAccountSourceStateTests|SyncAccountStorageTests|SyncAccountRecoveryInventoryTests|SyncAccountRecoveryTransactionTests|SyncBootstrapTransactionTests' > /tmp/empty-orphan-fix-red.log 2>&1
+```
+
+- `/tmp/empty-orphan-fix-red.log`: 170 tests / 5 suites, EXIT 1, tests 75.258s / elapsed 97.622s. Exactly **70 issues in 20 failing parameter cases**: fresh/rollback cleanup and restore, plus legacy replayComplete normalization, each with later-main appearance/removal and next-file appearance/replacement. Errors were incorrectly not thrown, main changed, domain bytes changed, and next derivatives were consumed when they should remain. The **8 ordinary consume cases already passed** via the existing complete baseline checks; they are not represented as failing RED. Production was unchanged until the real failures were observed. Session 24228 reaped.
+- `/tmp/empty-orphan-fix-green.log`: 170 tests / 5 suites passed, EXIT 0, tests 84.425s / elapsed 107.625s, all 28 new cases passed, no warning/error/recorded issue. Session 59836 reaped. `git diff --check` exited 0. No compiler remained active before commit/report completion.
+
+Tests use actual synchronized transitions and actual fresh or missing-archive rollback selections. Cleanup targets the third main synchronization, restore the second, and consume/legacy normalization the third; next-file cuts target the actual next descriptor. The callback must be reached. Main and domain bytes remain exact on rejection. A next-file synchronization has already written a derivative, so tests retain/allow exactly that next file rather than asserting impossible whole-tree byte equality. At later-main cuts the prior derivative (including an opaque legacy derivative) remains exact.
+
+### Minimal implementation and inspected paths
+
+Only `SyncAccountRecoveryTransaction.swift` and its existing tests changed in this fix commit (71 additions / 2 deletions). `transition` now captures one authenticated inert Entry array before its initial barrier. The source validator compares against that fixed array before and after payload/inventory validation. That same closure is passed into legacyTransition, checked after its direct barriers and synchronized derivative removal/write, and before rename; it is also checked after transition publication before returning a refreshed authorization. Reclassification is no longer a new acceptance baseline halfway through the transition. No captured equality, completeness, physical classifier, wire, capacity or ownership rules changed.
+
+Inspected consume independently: `consumeRestoredSelection` captures `entries` **before** its bulk directory/file synchronization loop. After the loop it calls `restoredSourceBaseline(value, entries: entries, ...)`, whose first and final guards require `access.entries() == entries`. That same fixed full-inventory baseline is checked inside the control replace callback after later main and next-file synchronization. Therefore changes during the earlier bulk consume sync are already covered by fixed full-entry equality before source publication, rather than only by a freshly computed inert set. The eight targeted consume cases confirm the later replacement checks; no redundant consume production change was made. Its legacy opaque-derivative normalization uses the now-fixed `transition` and is directly covered by the four rollback-normalize cases. Initial seal already uses exact full capture entries in its source callback and does not use the selected inert exception.
+
+Self-review checked callback ordering against every actual synchronization in both transition implementations, fixed snapshot capture placement, main preservation before publication, derivative evidence after a next-write cut, and the existing consume full-entry guards. Additional validation I/O is accepted; no performance refactor was mixed in.
+
+### Parent ruling and remaining limit
+
+Parent explicitly kept ControlFile outside this wave: its test-only `beforeRename` hook remains after the final source callback and before rename. This fix targets actual synchronization callbacks, not a new permission for adversarial mutation inside that artificial hook. That existing test-boundary ordering is **not claimed covered**. No control publisher edit was made absent a concrete production path. Earlier inert-empty retention costs and nonempty-orphan fail-closed limits remain unchanged. Independent same-reviewer re-review is pending; no release or App acceptance is claimed.
+
+### Fix hashes
+
+```text
+ece097fe02cc791f7ea2619070f5d60d94195eef5931c100e9dd00591bd87762  /tmp/empty-orphan-fix-red.log
+1b78df9a1f2295d0502f56f40d447b28c34219a13a7e48b8b46c1424694227de  /tmp/empty-orphan-fix-green.log
+2f738c25e024b409590c51258f1273cdd2b961853edd57516b2b35fbb252a1b2  Sources/KnitNoteCore/CloudSync/SyncAccountRecoveryTransaction.swift
+c6ad69dd6dbf021be5cec9d79a51396fada49fb67f7f1292559b3ce4957e5478  Tests/KnitNoteCoreTests/SyncAccountRecoveryTransactionTests.swift
+```
+
+Implementation commit is 19dc1b033fa65f4de07eff9d165400b12ec379e4; the following evidence-only commit contains report/progress. Original controller scratch remains untracked and unchanged. No further test or edit wave is planned before re-review.

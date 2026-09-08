@@ -5,6 +5,63 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite struct SyncAccountRecoveryTransactionTests {
+    @Test(arguments: ["fresh-cleanup", "rollback-cleanup", "fresh-restore", "rollback-restore",
+        "fresh-consume", "rollback-consume", "rollback-normalize"], ["main-appear", "main-remove", "next-appear", "next-replace"])
+    func inertSnapshotSpansLaterPublicationSynchronizations(route: String, cut: String) throws {
+        let fresh = route.hasPrefix("fresh")
+        let source = try fresh ? SourceInventoryFixture() : nil
+        let rollback = try fresh ? nil : RecoveryInventoryFixture()
+        defer { source?.remove(); rollback?.remove() }
+        let storage = source?.storage ?? rollback!.storage, paths = source?.paths ?? rollback!.paths
+        let account = source?.account ?? rollback!.account, base = source?.base ?? rollback!.base
+        let journal = try source?.journal ?? rollback!.makeMissingArchiveRollback()
+        let fault = TransactionSyncFault()
+        let tx = SyncAccountRecoveryTransaction(storage: storage, paths: paths, account: account,
+            vault: SyncRecoveryVault(directory: paths.vault, keychain: TransactionKeys()), journal: journal, synchronize: fault.sync)
+        try Data("not yet authorized to remove".utf8).write(to: paths.staging.appendingPathComponent("sentinel"))
+        let receipt = try tx.seal(tx.prepare(now: .now), now: .now)
+        let operation = route.split(separator: "-").last!
+        if operation != "cleanup" { try tx.cleanup(receipt) }
+        if operation == "consume" || operation == "normalize" { try tx.restore(vaultID: receipt.vaultID, now: .now) }
+        let control = paths.accountRoot.appendingPathComponent(".sealed-recovery-v1")
+        let main = control.appendingPathComponent("intent.json"), next = control.appendingPathComponent("intent-next.json")
+        if operation == "normalize" { try Data("opaque legacy derivative".utf8).write(to: next) }
+        let extra = paths.decryptedTemporary.deletingLastPathComponent().appendingPathComponent(UUID().uuidString.lowercased())
+        try FileManager.default.createDirectory(at: extra, withIntermediateDirectories: false)
+        let before = try source?.diskBytes() ?? rollback!.diskBytes()
+        let mainBytes = try Data(contentsOf: main)
+        var mainSyncs = 0, hit = false
+        let laterMain = operation == "restore" ? 2 : 3
+        fault.onSync = { fd in
+            var buffer = [CChar](repeating: 0, count: Int(MAXPATHLEN))
+            guard fcntl(fd, F_GETPATH, &buffer) == 0 else { throw TransactionFailure.injected }
+            let path = String(decoding: buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
+            if path == main.path { mainSyncs += 1 }
+            guard !hit, cut.hasPrefix("main") ? path == main.path && mainSyncs == laterMain : path == next.path else { return }
+            hit = true
+            if cut.hasSuffix("remove") { try FileManager.default.removeItem(at: extra) }
+            else if cut.hasSuffix("replace") {
+                try FileManager.default.moveItem(at: extra, to: base.appendingPathComponent("prior-empty-inode"))
+                try FileManager.default.createDirectory(at: extra, withIntermediateDirectories: false)
+            } else {
+                try FileManager.default.createDirectory(at: extra.deletingLastPathComponent().appendingPathComponent(UUID().uuidString.lowercased()), withIntermediateDirectories: false)
+            }
+        }
+        #expect(throws: (any Error).self) {
+            if operation == "cleanup" { try tx.cleanup(receipt) }
+            else if operation == "restore" { try tx.restore(vaultID: receipt.vaultID, now: .now) }
+            else { try tx.consumeRestoredSelection(vaultID: receipt.vaultID, now: .now) }
+        }
+        #expect(hit)
+        #expect(try Data(contentsOf: main) == mainBytes)
+        let after = try source?.diskBytes() ?? rollback!.diskBytes()
+        // A next-file synchronization cut has already written a derivative.
+        // Preserve it as evidence; no main publication or domain effect is allowed.
+        #expect(after.filter { $0.key != next.path } == before.filter { $0.key != next.path })
+        if cut.hasPrefix("next") { #expect(after[next.path] != nil) }
+        else { #expect(after[next.path] == before[next.path]) }
+    }
+
     @Test(arguments: ["nonempty", "nested-empty", "uppercase", "unknown", "symlink", "file",
         "captured-removed", "captured-replaced", "captured-emptied", "missing-key", "wrong-key", "expired", "stale-control"])
     func inertSessionExceptionNeverWeakensCapturedOrAuthenticatedEvidence(damage: String) throws {

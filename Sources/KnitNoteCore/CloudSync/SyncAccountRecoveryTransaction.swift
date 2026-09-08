@@ -591,8 +591,12 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
     }
 
     private func transition(_ value: Authorized, to phase: Phase, access: SyncAccountStorage.RecoveryAccess) throws -> Authorized {
+        // Keep one identity snapshot for the complete publication, not just the
+        // first barrier: replace/legacyTransition perform further synchronizations.
+        let inert = try inertTemporaryEntries(value, current: access.entries(), access: access)
         try barrier(value, access: access)
         let validateSource = {
+            guard try self.inertTemporaryEntries(value, current: access.entries(), access: access) == inert else { throw Error.changedInventory }
             try self.validateSelectedPayload(value, access: access)
             if value.intent.phase == .restoreStarted || value.intent.phase == .replayComplete {
                 try self.validateRestored(value, access: access, complete: phase == .replayComplete)
@@ -600,11 +604,12 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
                 let remaining = try self.remainingEntries(value, access: access)
                 guard (phase != .cleanupComplete && phase != .restoreStarted) || remaining.isEmpty else { throw Error.changedInventory }
             }
+            guard try self.inertTemporaryEntries(value, current: access.entries(), access: access) == inert else { throw Error.changedInventory }
         }
         try validateSource()
         switch value.observation.state {
         case .legacySelection:
-            _ = try legacyTransition(value.intent, to: phase, access: access)
+            _ = try legacyTransition(value.intent, to: phase, access: access, validateSource: validateSource)
         case .selectedRecovery:
             guard let main = value.observation.mainBytes else { throw Error.invalidAuthority }
             var next = value.intent; next.phase = phase
@@ -613,26 +618,33 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
                 access: access, validateSource: validateSource)
         default: throw Error.invalidAuthority
         }
+        try validateSource()
         guard let refreshed = try authorize(access: access, now: value.now), refreshed.receipt == value.receipt,
               refreshed.intent.phase == phase else { throw Error.invalidAuthority }
         return refreshed
     }
 
-    private func legacyTransition(_ intent: Intent, to phase: Phase, access: SyncAccountStorage.RecoveryAccess) throws -> Intent {
+    private func legacyTransition(_ intent: Intent, to phase: Phase, access: SyncAccountStorage.RecoveryAccess,
+        validateSource: () throws -> Void) throws -> Intent {
         guard let control = access.controlDescriptor else { throw Error.invalidAuthority }
         try legacyBarrier(intent, access: access)
+        try validateSource()
         if try read(Self.next, at: control) != nil {
             // A bounded derivative has no authority of its own. Only the
             // authenticated, synchronized main selection permits rebuilding it.
             guard unlinkat(control, Self.next, 0) == 0 else { throw Error.unavailable }
             try synchronize(control)
+            try validateSource()
         }
         var next = intent; next.phase = phase
         try write(try Self.encode(next), name: Self.next, at: control)
+        try validateSource()
         try legacyBarrier(intent, access: access)
+        try validateSource()
         guard renameat(control, Self.next, control, Self.main) == 0 else { throw Error.unavailable }
         try synchronize(control)
         try legacyBarrier(next, access: access)
+        try validateSource()
         return next
     }
 

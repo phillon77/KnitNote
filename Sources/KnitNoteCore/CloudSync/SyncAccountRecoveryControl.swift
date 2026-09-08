@@ -141,9 +141,11 @@ struct SyncAccountRecoveryControlFile {
         let state = try main.map(Self.decode)
         if let next {
             guard let main else { throw Error.invalidAuthority }
-            _ = try Self.decode(next)
-            guard let wire = try? JSONDecoder().decode(Wire.self, from: next), wire.formatVersion == 2,
-                  wire.predecessorSHA256 == Data(SHA256.hash(data: main)) else { throw Error.invalidAuthority }
+            if !Self.isRoutingOnlyLegacyDerivative(next, mainState: state) {
+                _ = try Self.decode(next)
+                guard let wire = try? JSONDecoder().decode(Wire.self, from: next), wire.formatVersion == 2,
+                      wire.predecessorSHA256 == Data(SHA256.hash(data: main)) else { throw Error.invalidAuthority }
+            }
         }
         try access.validate()
         return .init(mainBytes: main, nextBytes: next, state: state)
@@ -170,6 +172,12 @@ struct SyncAccountRecoveryControlFile {
                  access: SyncAccountStorage.RecoveryAccess, validateSource: () throws -> Void) throws -> SyncAccountControlObservation {
         guard let control = access.controlDescriptor, let main = observation.mainBytes,
               try observe(access: access) == observation else { throw Error.changedInventory }
+        if let next = observation.nextBytes,
+           Self.isRoutingOnlyLegacyDerivative(next, mainState: observation.state) {
+            // Observation is only a route to the existing authenticated owner.
+            // It must synchronize/authenticate main and rebuild this derivative.
+            throw Error.invalidAuthority
+        }
         let bytes = try Self.encode(state, predecessorSHA256: Data(SHA256.hash(data: main)))
         try synchronize(observation, access: access)
         try validateSource()
@@ -187,6 +195,15 @@ struct SyncAccountRecoveryControlFile {
         let committed = try observe(access: access)
         guard committed.mainBytes == bytes, committed.nextBytes == nil, committed.state == state else { throw Error.changedInventory }
         return committed
+    }
+
+    private static func isRoutingOnlyLegacyDerivative(_ bytes: Data, mainState: SyncAccountRecoveryControl?) -> Bool {
+        guard case .legacySelection = mainState else { return false }
+        // The v1 transition can leave any bounded prefix before its next-file
+        // fsync. Those bytes have no state/cleanup authority. A recognizable v2
+        // derivative still requires the normal checksum and predecessor checks.
+        let object = (try? JSONSerialization.jsonObject(with: bytes)) as? [String: Any]
+        return object?["formatVersion"] as? Int != 2
     }
 
     /// Called only by the storage owner after an actual mkdir and scaffold proof.

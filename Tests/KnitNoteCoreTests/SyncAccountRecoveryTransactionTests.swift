@@ -5,6 +5,104 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite struct SyncAccountRecoveryTransactionTests {
+    @Test(arguments: [false, true], [false, true])
+    func interruptedLegacyTransitionReopensForAuthenticatedRecovery(existingOnly: Bool, tornNext: Bool) throws {
+        let f = try RecoveryInventoryFixture(); defer { f.remove() }
+        let journal = FileSyncMutationJournal(url: f.paths.mutationJournalURL)
+        let mutation = SyncMutation.delete(.init(kind: .project, uuid: UUID()), mutationID: UUID())
+        try journal.enqueue(mutation)
+        let vault = SyncRecoveryVault(directory: f.paths.vault, keychain: TransactionKeys())
+        let fault = TransactionSyncFault()
+        let tx = SyncAccountRecoveryTransaction(storage: f.storage, paths: f.paths, account: f.account,
+            vault: vault, journal: journal, synchronize: fault.sync)
+        let receipt = try tx.seal(tx.prepare(now: .now), now: .now)
+        let controlRoot = f.paths.accountRoot.appendingPathComponent(".sealed-recovery-v1")
+        let mainURL = controlRoot.appendingPathComponent("intent.json")
+        let nextURL = controlRoot.appendingPathComponent("intent-next.json")
+        let main = try Data(contentsOf: mainURL)
+        // Interrupt the actual v1 transition at its first next-file fsync, before rename.
+        fault.onSync = { _ in
+            if FileManager.default.fileExists(atPath: nextURL.path) { throw TransactionFailure.injected }
+        }
+        #expect(throws: TransactionFailure.injected) { try tx.cleanup(receipt) }
+        fault.onSync = nil
+        let completeNext = try Data(contentsOf: nextURL)
+        let nextIntent = try JSONDecoder().decode(SyncAccountRecoveryIntent.self, from: completeNext)
+        #expect(nextIntent.formatVersion == 1)
+        #expect(nextIntent.phase == .cleanupStarted)
+        #expect(try Data(contentsOf: mainURL) == main)
+        // A crash during write can retain only this bounded prefix of those same bytes.
+        if tornNext { try completeNext.prefix(completeNext.count / 2).write(to: nextURL) }
+        let next = try Data(contentsOf: nextURL)
+        try f.storage.close()
+        let beforeOpen = try f.diskBytes()
+        let reopened = try existingOnly
+            ? f.storage.openExistingAccount(identity: f.account, validateAccount: {})
+            : f.storage.openForVerifiedAccount(identity: f.account, validateAccount: {})
+        #expect(try f.diskBytes() == beforeOpen)
+        try f.storage.withRecoveryOwnership(paths: reopened, account: f.account, maximumBytes: 100_000_000) { access in
+            let control = SyncAccountRecoveryControlFile(synchronize: { _ in })
+            let observation = try control.observe(access: access)
+            #expect(observation.mainBytes == main)
+            #expect(observation.nextBytes == next)
+            guard case .legacySelection(let intent)? = observation.state else {
+                Issue.record("Legacy main must remain authoritative without fresh issuance"); return
+            }
+            #expect(intent.phase == .sealed)
+            #expect(try SyncAccountRecoveryControlFile.encode(.legacySelection(intent), predecessorSHA256: nil) == main)
+            // Routing a derivative cannot grant the new helper authority to discard/rebuild it.
+            let predecessor = Data(SHA256.hash(data: main))
+            #expect(throws: SyncAccountRecoveryTransaction.Error.invalidAuthority) {
+                try control.replace(observation, with: .selectedRecovery(intent, predecessorSHA256: predecessor),
+                    access: access, validateSource: {})
+            }
+            #expect(try Data(contentsOf: mainURL) == main)
+            #expect(try Data(contentsOf: nextURL) == next)
+        }
+        let resumed = SyncAccountRecoveryTransaction(storage: f.storage, paths: reopened, account: f.account,
+            vault: vault, journal: journal)
+        #expect(try resumed.authenticatedSelection(now: .now)?.phase == .sealed)
+        try resumed.cleanup(receipt)
+        #expect(try resumed.authenticatedSelection(now: .now)?.phase == .cleanupComplete)
+        #expect(!FileManager.default.fileExists(atPath: nextURL.path))
+        try resumed.restore(vaultID: receipt.vaultID, now: .now)
+        #expect(try resumed.authenticatedSelection(now: .now)?.phase == .replayComplete)
+        #expect(try journal.pending() == [mutation])
+    }
+
+    @Test(arguments: [false, true], ["mainless", "wrongPredecessor", "corruptV2"])
+    func newOpenNeverRoutesMainlessOrInvalidV2Derivative(existingOnly: Bool, invalid: String) throws {
+        let f = try RecoveryInventoryFixture(); defer { f.remove() }
+        let journal = FileSyncMutationJournal(url: f.paths.mutationJournalURL)
+        let tx = SyncAccountRecoveryTransaction(storage: f.storage, paths: f.paths, account: f.account,
+            vault: SyncRecoveryVault(directory: f.paths.vault, keychain: TransactionKeys()), journal: journal)
+        _ = try tx.seal(tx.prepare(now: .now), now: .now)
+        let controlRoot = f.paths.accountRoot.appendingPathComponent(".sealed-recovery-v1")
+        let mainURL = controlRoot.appendingPathComponent("intent.json")
+        let nextURL = controlRoot.appendingPathComponent("intent-next.json")
+        let main = try Data(contentsOf: mainURL)
+        if invalid == "mainless" {
+            try FileManager.default.moveItem(at: mainURL, to: nextURL)
+        } else {
+            let intent = try JSONDecoder().decode(SyncAccountRecoveryIntent.self, from: main)
+            let predecessor = invalid == "wrongPredecessor" ? Data(repeating: 7, count: 32) : Data(SHA256.hash(data: main))
+            var next = try SyncAccountRecoveryControlFile.encode(.selectedRecovery(intent, predecessorSHA256: predecessor), predecessorSHA256: predecessor)
+            if invalid == "corruptV2" {
+                var object = try JSONSerialization.jsonObject(with: next) as! [String: Any]
+                object["checksum"] = Data(repeating: 7, count: 32).base64EncodedString()
+                next = try JSONSerialization.data(withJSONObject: object)
+            }
+            try next.write(to: nextURL)
+        }
+        try f.storage.close()
+        let before = try f.diskBytes()
+        #expect(throws: (any Error).self) {
+            if existingOnly { _ = try f.storage.openExistingAccount(identity: f.account, validateAccount: {}) }
+            else { _ = try f.storage.openForVerifiedAccount(identity: f.account, validateAccount: {}) }
+        }
+        #expect(try f.diskBytes() == before)
+    }
+
     @Test(arguments: [false, true])
     func canonicalCleanupRequiresUnchangedAuthenticatedSelection(changeAfterSeal: Bool) throws {
         let f = try RecoveryInventoryFixture(); defer { f.remove() }

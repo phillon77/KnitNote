@@ -1523,6 +1523,19 @@ struct SyncAttachmentPublicationEvidenceFile {
         return String(name.prefix(2)) + "/" + name + ".json"
     }
 
+    /// Exact selected immutable inputs for the owned read-only composer. The
+    /// caller preserves every unselected file proof without reading its bytes.
+    static func ownedSelectedExistingPaths(_ evidence: SyncAttachmentPublicationEvidence) throws -> Set<String> {
+        let candidate = try canonicalSaveEvidence(evidence)
+        return Set(attachmentAuthorities(in: candidate).map {
+            "SyncMetadata/attachment-versions.attachment-records/" + immutableRelativePath($0.version.versionID)
+        } + attachmentTombstones(in: candidate).map {
+            "SyncMetadata/attachment-versions.attachment-tombstones/" + immutableRelativePath($0.versionID)
+        } + candidate.watchCommandProofs.map {
+            "SyncMetadata/attachment-versions.watch-proofs/" + immutableRelativePath($0.id)
+        })
+    }
+
     private static func encodeAuthority(_ value: SyncStoredAttachmentVersionAuthority) throws -> Data {
         let bytes = try deterministicEncoder().encode(value.validated())
         guard bytes.count <= maximumAuthorityBytes else { throw SyncPublicationTransactionFileError.corrupt }

@@ -4,6 +4,16 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite struct SyncPendingRecoveryPacketTests {
+    @Test func prospectivePacketCountMatchesRealCodecAtEveryPaddingBoundary() throws {
+        for count in 1...7 {
+            let f = try PacketFixture(); defer { f.remove() }
+            try f.journal.enqueue(f.attachment(Data(repeating: 255, count: count)))
+            let packet = try SyncPendingRecoveryPacket.capture(account: f.account, accountRoot: f.root, journal: f.journal)
+            #expect(try SyncPendingRecoveryPacket.projectedEncodedByteCount(account: f.account,
+                accountRoot: f.root, mutations: packet.mutations, files: packet.files) == packet.encoded().count)
+        }
+    }
+
     @Test func realJournalCapturesOnlyPendingExactVersionsAndStagedSourceURLs() throws {
         let f = try PacketFixture(); defer { f.remove() }
         let firstBytes = Data("version one".utf8), secondBytes = Data("version two".utf8)

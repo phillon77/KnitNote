@@ -24,6 +24,8 @@ import Testing
         // Break caught: a second codec or different candidate selection changes real saved bytes.
         for records in [false, true] {
             let evidence = try fixture(records: records)
+            #expect(try SyncAttachmentPublicationEvidenceFile.ownedSelectedExistingPaths(evidence)
+                == Set([authorityPath(2), authorityPath(3), tombstonePath(3), watchPath]))
             let actual = try ordinaryTree(evidence)
             var calls = 0
             let program = try SyncAttachmentPublicationEvidenceFile.planSave(evidence,

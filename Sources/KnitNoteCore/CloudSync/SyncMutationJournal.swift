@@ -832,9 +832,276 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
         try withJournalCoordination { try enqueueLocked(mutations) }
     }
 
+    /// Caller retains account ownership and producer freeze before this journal
+    /// coordination. The result is wire data only; it issues no executor/lease.
+    func planOwnedEnqueue(_ mutations: [SyncMutation], accountRoot: URL,
+                          inventoryEntries: [SyncAccountRecoveryInventory.Entry],
+                          temporaryID: () -> UUID) throws -> BootstrapManifestV3.CommitProgram {
+        try planOwnedEnqueueProjection(mutations, accountRoot: accountRoot,
+            inventoryEntries: inventoryEntries, preflightSources: [:], temporaryID: temporaryID).commitProgram
+    }
+
+    struct OwnedEnqueueProjection {
+        let commitProgram: BootstrapManifestV3.CommitProgram
+        /// Nil means the existing empty-request no-reduction path. The composer
+        /// retains its independently admitted initial pending snapshot.
+        let pendingMutations: [SyncMutation]?
+        /// Native complete-placement proofs, including the actual append hash.
+        /// CommitProgram's initial files remain the distinct before-state.
+        let finalJournalFiles: [String: BootstrapManifestV3.OutputProof]
+    }
+
+    func planOwnedEnqueueProjection(_ mutations: [SyncMutation], accountRoot: URL,
+        inventoryEntries: [SyncAccountRecoveryInventory.Entry],
+        preflightSources: [UUID: SyncAttachmentSource], temporaryID: () -> UUID) throws -> OwnedEnqueueProjection {
+        var bound = Set<UUID>()
+        for mutation in mutations {
+            guard let source = mutation.attachmentSource,
+                  let readable = preflightSources[mutation.recordID.uuid] else { continue }
+            let version = try requiredAttachmentVersionID(in: mutation)
+            guard !source.isJournalStaged, version == mutation.recordID.uuid,
+                  source.byteCount == readable.byteCount, source.contentSHA256 == readable.contentSHA256 else {
+                throw SyncMutationJournalError.invalidAttachment
+            }
+            _ = try readable.validated()
+            bound.insert(version)
+        }
+        // Every mapping must bind a requested exact version/proof, even if
+        // native duplicate reduction subsequently needs no physical copy.
+        guard bound == Set(preflightSources.keys) else { throw SyncMutationJournalError.invalidAttachment }
+        let live = accountRoot.appendingPathComponent("working-set")
+        let inventory = try RecoverySourceInventory(root: accountRoot, journalURL: url, entries: inventoryEntries)
+        guard url.isFileURL, url.query == nil, url.fragment == nil,
+              url.host == nil || url.host == "", url.path.hasPrefix(live.path + "/"),
+              url.standardizedFileURL.path == url.path else { throw SyncMutationJournalError.unsafeFile }
+        let journalPath = String(url.path.dropFirst(live.path.count + 1))
+        guard OwnedBootstrapCodec.relative(journalPath) else { throw SyncMutationJournalError.unsafeFile }
+        let parentPath = OwnedBootstrapCodec.parent(journalPath)
+        // The wire format deliberately has no alias for the live root barrier.
+        guard mutations.isEmpty || !parentPath.isEmpty else {
+            throw SyncMutationJournalError.unsafeFile
+        }
+        return try coordinator.lock.withLock {
+            let parentExists = try pathExists(url.deletingLastPathComponent())
+            func plan() throws -> OwnedEnqueueProjection {
+                let attachmentPath = (parentPath.isEmpty ? "" : parentPath + "/") + "." + url.lastPathComponent + ".attachments"
+                let directories = OwnedBootstrapCodec.parents(journalPath) + [attachmentPath]
+                func relative(_ location: URL) throws -> String {
+                    guard location.path.hasPrefix(live.path + "/") else { throw SyncMutationJournalError.unsafeFile }
+                    let path = String(location.path.dropFirst(live.path.count + 1))
+                    guard OwnedBootstrapCodec.relative(path) else { throw SyncMutationJournalError.unsafeFile }
+                    return path
+                }
+                func isAttachment(_ path: String) -> Bool {
+                    OwnedBootstrapCodec.samePath(OwnedBootstrapCodec.parent(path), attachmentPath)
+                }
+                func isJournalFile(_ path: String) -> Bool {
+                    if OwnedBootstrapCodec.containsExactPath([journalPath, journalPath + ".checkpoint",
+                        journalPath + ".segment", journalPath + ".migrated"], path) || isAttachment(path) { return true }
+                    let prefix = journalPath + ".proofs."
+                    guard OwnedBootstrapCodec.hasExactPrefix(path, prefix) else { return false }
+                    let suffix = String(path.dropFirst(prefix.count))
+                    guard suffix.utf8.allSatisfy({ (48...57).contains($0) }), let index = Int(suffix), index >= 0 else { return false }
+                    return suffix == String(repeating: "0", count: max(0, 8 - String(index).count)) + String(index)
+                }
+                var initialDirectories: [String] = []
+                var initialFiles: [String: BootstrapManifestV3.OutputProof] = [:]
+                for entry in inventoryEntries where entry.relativePath.hasPrefix("working-set/") {
+                    let path = String(entry.relativePath.dropFirst("working-set/".count))
+                    if entry.isDirectory {
+                        if OwnedBootstrapCodec.containsExactPath(directories, path) { initialDirectories.append(path) }
+                        else if path.hasPrefix(attachmentPath + "/") { throw SyncMutationJournalError.unsafeFile }
+                    } else if isJournalFile(path) {
+                        guard entry.byteCount >= 0, entry.byteCount <= (isAttachment(path) ? 100_000_000 : Int64(Self.maximumEncodedBytes)),
+                              entry.sha256.count == SHA256.byteCount else { throw SyncMutationJournalError.unsafeFile }
+                        initialFiles[path] = .init(.init(byteCount: entry.byteCount, sha256: entry.sha256))
+                    }
+                }
+                // Task1D creates this fixed parent in Staged when writing the
+                // canonical checkpoint. This is an installed precondition, not
+                // a claim that a missing source directory was observed/created.
+                if !parentExists, parentPath == "SyncMetadata",
+                   !OwnedBootstrapCodec.containsExactPath(initialDirectories, parentPath) {
+                    initialDirectories.append(parentPath)
+                }
+                initialDirectories.sort(by: OwnedBootstrapCodec.pathOrder)
+                if mutations.isEmpty {
+                    return .init(commitProgram: .init(journalRelativePath: journalPath,
+                        initialJournalDirectories: initialDirectories, initialJournalFiles: initialFiles,
+                        operations: []), pendingMutations: nil, finalJournalFiles: initialFiles)
+                }
+                guard !(try pathExists(url)) else { throw SyncMutationJournalError.corrupt }
+                var state = try loadSegmentedStateLocked(readOnly: true,
+                    maximumReadBytes: 100_000_000, recoveryInventory: inventory)
+                guard !state.hasPartialFinalFrame, state.cleanupIntentsByMutationID.isEmpty else {
+                    throw SyncMutationJournalError.corrupt
+                }
+                for directory in OwnedBootstrapCodec.parents(journalPath) {
+                    guard OwnedBootstrapCodec.containsExactPath(initialDirectories, directory) else { throw SyncMutationJournalError.unsafeFile }
+                }
+                // Bind the complete existing artifact family, including retained
+                // unselected shards and sources. Metadata does not grant access.
+                let physicalParent = parentExists
+                    ? try FileManager.default.contentsOfDirectory(atPath: url.deletingLastPathComponent().path)
+                        .map { url.deletingLastPathComponent().appendingPathComponent($0) }
+                    : []
+                var observed = Set<String>()
+                for location in physicalParent {
+                    let path = try relative(location)
+                    if isJournalFile(path) { observed.insert(path) }
+                }
+                if try pathExists(attachmentsDirectory) {
+                    guard OwnedBootstrapCodec.containsExactPath(initialDirectories, attachmentPath) else { throw SyncMutationJournalError.unsafeFile }
+                    var status = stat()
+                    guard attachmentsDirectory.path.withCString({ Darwin.lstat($0, &status) }) == 0,
+                          (status.st_mode & S_IFMT) == S_IFDIR else { throw SyncMutationJournalError.unsafeFile }
+                    for name in try FileManager.default.contentsOfDirectory(atPath: attachmentsDirectory.path) {
+                        observed.insert(try relative(attachmentsDirectory.appendingPathComponent(name)))
+                    }
+                } else if OwnedBootstrapCodec.containsExactPath(initialDirectories, attachmentPath) { throw SyncMutationJournalError.unsafeFile }
+                let observedPaths = observed.sorted(by: OwnedBootstrapCodec.pathOrder)
+                let expectedPaths = initialFiles.keys.sorted(by: OwnedBootstrapCodec.pathOrder)
+                guard observedPaths.count == expectedPaths.count,
+                      zip(observedPaths, expectedPaths).allSatisfy({ OwnedBootstrapCodec.samePath($0, $1) }) else {
+                    throw SyncMutationJournalError.unsafeFile
+                }
+                for (path, proof) in initialFiles where !isAttachment(path) {
+                    guard let bytes = try readArtifact(live.appendingPathComponent(path)),
+                          bytes.count == proof.byteCount, Data(SHA256.hash(data: bytes)) == proof.sha256 else {
+                        throw SyncMutationJournalError.corrupt
+                    }
+                }
+                var files = initialFiles
+                var projectedBytes: [String: Data] = [:]
+                var operations: [BootstrapManifestV3.CommitOperation] = []
+                var temporaryPaths = Set<String>()
+                func fixedID(for path: String) throws -> UUID {
+                    let id = temporaryID()
+                    let location = live.appendingPathComponent(path)
+                    let temporary = OwnedBootstrapCodec.parent(path) + "/." + location.lastPathComponent + "." + id.uuidString + ".tmp"
+                    guard temporaryPaths.insert(temporary).inserted,
+                          !(try pathExists(live.appendingPathComponent(temporary))) else { throw SyncMutationJournalError.unsafeFile }
+                    return id
+                }
+                func replace(_ bytes: Data, _ location: URL) throws {
+                    let path = try relative(location)
+                    operations.append(.replace(path: path, old: files[path], bytes: bytes, temporaryID: try fixedID(for: path)))
+                    files[path] = .init(.init(byteCount: Int64(bytes.count), sha256: Data(SHA256.hash(data: bytes))))
+                    projectedBytes[path] = bytes
+                }
+                func readProjected(_ location: URL) throws -> Data? {
+                    if let bytes = projectedBytes[try relative(location)] { return bytes }
+                    return try readArtifact(location)
+                }
+                // Readable initial bytes may be nondurable. Do not mutate the
+                // coordinator's repair flag merely because a trace was built.
+                for index in 0..<state.proofShardCount { operations.append(.synchronize(path: try relative(proofShardURL(index)))) }
+                for location in [checkpointURL, segmentURL] {
+                    let path = try relative(location)
+                    if files[path] != nil { operations.append(.synchronize(path: path)) }
+                }
+                if !operations.isEmpty { operations.append(.synchronize(path: parentPath)) }
+                if state.loadedCheckpointVersion == 1 {
+                    try replaceLegacyHistoryCheckpoint(&state, write: replace, checkpointWritten: {}, read: readProjected)
+                } else if state.loadedCheckpointVersion < 4 {
+                    try persistCheckpoint(&state, write: replace, checkpointWritten: {}, read: readProjected)
+                }
+                var candidate = state
+                let (frames, staging) = try reduceEnqueue(mutations, candidate: &candidate)
+                if !frames.isEmpty {
+                    if candidate.usesCheckpointV5 { try preflightConflictPersistence(candidate, frames: frames, read: readProjected) }
+                    var hasAttachments = OwnedBootstrapCodec.containsExactPath(initialDirectories, attachmentPath)
+                    for requested in staging {
+                        guard let source = requested.attachmentSource else { continue }
+                        let version = try requiredAttachmentVersionID(in: requested)
+                        if source.isJournalStaged {
+                            try validatePersistedAttachmentSource(in: requested)
+                            let path = try relative(source.fileURL)
+                            let proof = BootstrapManifestV3.OutputProof(.init(byteCount: source.byteCount, sha256: source.contentSHA256))
+                            guard OwnedBootstrapCodec.exactValue(path, in: files) == proof else {
+                                throw SyncMutationJournalError.unsafeFile
+                            }
+                            operations.append(.reuse(path: path, proof: proof))
+                            continue
+                        }
+                        if !hasAttachments {
+                            operations.append(.directory(path: attachmentPath))
+                            operations.append(.synchronize(path: parentPath))
+                            hasAttachments = true
+                        }
+                        let staged = try stagedAttachmentMetadata(for: requested)
+                        let destination = try staged.attachmentSource.map { try relative($0.fileURL) }
+                        guard let destination else { throw SyncMutationJournalError.invalidAttachment }
+                        let proof = BootstrapManifestV3.OutputProof(.init(byteCount: source.byteCount, sha256: source.contentSHA256))
+                        if let existing = files[destination] {
+                            guard existing == proof else { throw SyncMutationJournalError.invalidAttachment }
+                            try verifyRegularFile(at: live.appendingPathComponent(destination), expectedByteCount: source.byteCount, expectedSHA256: source.contentSHA256)
+                            operations.append(.reuse(path: destination, proof: proof))
+                        } else {
+                            let readable = preflightSources[version] ?? source
+                            _ = try readVerifiedAttachment(at: readable.fileURL, expectedByteCount: source.byteCount, expectedSHA256: source.contentSHA256)
+                            operations.append(.copyAttachment(path: destination, sourceVersionID: version, proof: proof, temporaryID: try fixedID(for: destination)))
+                            files[destination] = proof
+                        }
+                    }
+                    if candidate.usesCheckpointV5 { try preflightConflictPersistence(candidate, frames: frames, read: readProjected) }
+                    let encoded = try encodeFrames(frames)
+                    guard state.validSegmentByteCount <= Self.maximumEncodedBytes - encoded.count else { throw SyncMutationJournalError.tooLarge }
+                    let segment = journalPath + ".segment"
+                    operations.append(.appendSegment(expected: files[segment], frames: encoded))
+                    // The exact previous segment remains available during planning;
+                    // migrations above have declared an empty replacement.
+                    let prior = try readProjected(segmentURL) ?? Data()
+                    let appended = prior + encoded
+                    files[segment] = .init(.init(byteCount: Int64(appended.count), sha256: Data(SHA256.hash(data: appended))))
+                    projectedBytes[segment] = appended
+                    candidate.validSegmentByteCount = state.validSegmentByteCount + encoded.count
+                    candidate.hasPartialFinalFrame = false
+                }
+                if Self.needsCompaction(candidate) {
+                    try persistCheckpoint(&candidate, write: replace, checkpointWritten: {}, read: readProjected)
+                }
+                return .init(commitProgram: .init(journalRelativePath: journalPath,
+                    initialJournalDirectories: initialDirectories, initialJournalFiles: initialFiles,
+                    operations: operations), pendingMutations: candidate.pending, finalJournalFiles: files)
+            }
+            if mutations.isEmpty { return try plan() }
+            if parentExists { return try withParentDirectoryLock(createIfMissing: false, plan) }
+            guard parentPath == "SyncMetadata" else { throw SyncMutationJournalError.unsafeFile }
+            // Account ownership/freeze is held by the caller. Prove the actual
+            // direct parent absent through a no-follow live descriptor; never
+            // create it just to obtain the ordinary parent-directory flock.
+            let descriptor = live.path.withCString { Darwin.open($0, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC) }
+            guard descriptor >= 0 else { throw SyncMutationJournalError.unsafeFile }
+            defer { Darwin.close(descriptor) }
+            var opened = stat(), observed = stat(), child = stat()
+            guard Darwin.fstat(descriptor, &opened) == 0,
+                  live.path.withCString({ Darwin.lstat($0, &observed) }) == 0,
+                  (observed.st_mode & S_IFMT) == S_IFDIR,
+                  opened.st_dev == observed.st_dev, opened.st_ino == observed.st_ino,
+                  Darwin.fstatat(descriptor, "SyncMetadata", &child, AT_SYMLINK_NOFOLLOW) == -1,
+                  errno == ENOENT else { throw SyncMutationJournalError.unsafeFile }
+            return try plan()
+        }
+    }
+
     private func enqueueLocked(_ mutations: [SyncMutation]) throws {
         guard !mutations.isEmpty else { return }
-            var candidate = try preparedStateLocked()
+        var candidate = try preparedStateLocked()
+        let (frames, staging) = try reduceEnqueue(mutations, candidate: &candidate)
+        guard !frames.isEmpty else {
+            try compactIfNeededLocked()
+            return
+        }
+        if candidate.usesCheckpointV5 { try preflightConflictPersistence(candidate, frames: frames) }
+        for requested in staging { _ = try stageAttachmentIfNeeded(for: requested) }
+        try appendReconcilingMemoryLocked(frames, candidate: candidate)
+    }
+
+    /// The ordinary writer and owned trace share request validation, duplicate
+    /// authority, attachment lineage, FIFO reduction and the exact frame codec.
+    private func reduceEnqueue(_ mutations: [SyncMutation], candidate: inout LoadedState) throws
+        -> (frames: [SyncJournalFrame], staging: [SyncMutation]) {
             let validatedRequests = try mutations.map { try $0.validated() }
             var preflightProofs = candidate.proofsByShard.flatMap { $0 }
                 + candidate.unpersistedProofs
@@ -873,13 +1140,7 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
                 frames.append(frame)
                 staging.append(requested)
             }
-            guard !frames.isEmpty else {
-                try compactIfNeededLocked()
-                return
-            }
-            if candidate.usesCheckpointV5 { try preflightConflictPersistence(candidate, frames: frames) }
-            for requested in staging { _ = try stageAttachmentIfNeeded(for: requested) }
-            try appendReconcilingMemoryLocked(frames, candidate: candidate)
+            return (frames, staging)
     }
 
     /// Lock order: account ownership, process coordinator, journal parent flock,
@@ -1216,11 +1477,13 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
 
     /// Size both the append state and the eventual compacted checkpoint before
     /// any durable intent. Project new shards in memory with their exact roots.
-    private func preflightConflictPersistence(_ state: LoadedState, frames: [SyncJournalFrame]) throws {
+    private func preflightConflictPersistence(_ state: LoadedState, frames: [SyncJournalFrame],
+        read: ((URL) throws -> Data?)? = nil) throws {
+        let read = read ?? { try self.readArtifact($0, maximumBytes: Self.maximumEncodedBytes) }
         var projected = state
         var shardBytes = 0
         for index in 0..<state.proofShardCount {
-            guard let data = try readArtifact(proofShardURL(index), maximumBytes: Self.maximumEncodedBytes) else {
+            guard let data = try read(proofShardURL(index)) else {
                 throw SyncMutationJournalError.corrupt
             }
             shardBytes += data.count
@@ -1246,7 +1509,7 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
         projected.cleanupCompletion.completedUnpersistedMutationIDs = []
         let checkpoint = try encodeCheckpoint(conflictCheckpoint(for: projected))
         let appended = try encodeFrames(frames)
-        let existingCheckpointBytes = try readArtifact(checkpointURL, maximumBytes: Self.maximumEncodedBytes)?.count ?? 0
+        let existingCheckpointBytes = try read(checkpointURL)?.count ?? 0
         guard checkpoint.count <= Self.maximumEncodedBytes - shardBytes,
               state.validSegmentByteCount <= Self.maximumEncodedBytes - appended.count,
               checkpoint.count + shardBytes <= Self.maximumEncodedBytes - state.validSegmentByteCount - appended.count,
@@ -1675,6 +1938,7 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
             hasPartialFinalFrame: false
         )
         state.rebaseHistory = historyState.rebaseHistory
+        state.loadedCheckpointVersion = checkpoint.version
         state.rebasedProofs = historyState.rebasedProofs
         state.rebasedMutations = historyState.rebasedMutations
         state.revisions = historyState.revisions
@@ -1720,7 +1984,14 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
     }
 
     private func replaceLegacyHistoryCheckpointLocked(_ state: inout LoadedState) throws {
-        if state.usesCheckpointV5 { try preflightConflictPersistence(state, frames: []) }
+        try replaceLegacyHistoryCheckpoint(&state, write: atomicWrite,
+            checkpointWritten: { counters.recordCheckpointRewrite() })
+    }
+
+    private func replaceLegacyHistoryCheckpoint(_ state: inout LoadedState,
+        write: (Data, URL) throws -> Void, checkpointWritten: () -> Void,
+        read: ((URL) throws -> Data?)? = nil) throws {
+        if state.usesCheckpointV5 { try preflightConflictPersistence(state, frames: [], read: read) }
         let persistedProofs = state.unpersistedProofs
         var proofShardCount = 0
         var proofShardRoot = SyncJournalCheckpoint.emptyProofShardRoot
@@ -1737,7 +2008,7 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
                 index: proofShardCount,
                 proofs: Array(persistedProofs[chunkStart..<chunkEnd])
             )
-            try atomicWrite(shardData, proofShardURL(proofShardCount))
+            try write(shardData, proofShardURL(proofShardCount))
             proofShardRoot = Self.proofShardRoot(
                 appending: shardData,
                 index: proofShardCount,
@@ -1746,7 +2017,7 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
             proofShardCount += 1
         }
         let throughSequence = state.nextSequence - 1
-        try atomicWrite(try encodeCheckpoint(SyncJournalCheckpoint(
+        try write(try encodeCheckpoint(SyncJournalCheckpoint(
             version: state.usesCheckpointV5 ? 5 : 4,
             throughSequence: throughSequence,
             pending: state.pending,
@@ -1759,8 +2030,8 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
                 Self.identityPrecedes($0.mutation.identity, $1.mutation.identity)
             }
         )), checkpointURL)
-        counters.recordCheckpointRewrite()
-        try atomicWrite(Data(), segmentURL)
+        checkpointWritten()
+        try write(Data(), segmentURL)
         state.proofShardCount = proofShardCount
         state.proofShardRoot = proofShardRoot
         state.unpersistedProofs = []
@@ -1947,16 +2218,22 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
 
     private func compactIfNeededLocked() throws {
         guard var current = loadedState,
-              current.framesSinceCheckpoint >= 256,
-              current.acknowledgedOperationCount * 2 >= current.enqueuedOperationCount else {
+              Self.needsCompaction(current) else {
             return
         }
         try persistCheckpointLocked(&current)
     }
 
+    private static func needsCompaction(_ state: LoadedState) -> Bool {
+        state.framesSinceCheckpoint >= 256
+            && state.acknowledgedOperationCount * 2 >= state.enqueuedOperationCount
+    }
+
     private func publishUnpersistedProofShardsLocked(
-        _ state: inout LoadedState
+        _ state: inout LoadedState,
+        write: ((Data, URL) throws -> Void)? = nil
     ) throws {
+        let write = write ?? atomicWrite
         for chunkStart in stride(
             from: 0,
             to: state.unpersistedProofs.count,
@@ -1972,7 +2249,7 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
             let proofs = Array(state.unpersistedProofs[chunkStart..<chunkEnd])
             let shardIndex = state.proofShardCount
             let shardData = try encodeProofShard(index: shardIndex, proofs: proofs)
-            try atomicWrite(shardData, proofShardURL(shardIndex))
+            try write(shardData, proofShardURL(shardIndex))
             state.proofShardRoot = Self.proofShardRoot(
                 appending: shardData,
                 index: shardIndex,
@@ -2004,21 +2281,28 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
     }
 
     private func persistCheckpointLocked(_ state: inout LoadedState) throws {
-        if state.usesCheckpointV5 { try preflightConflictPersistence(state, frames: []) }
-        try publishUnpersistedProofShardsLocked(&state)
+        try persistCheckpoint(&state, write: atomicWrite,
+            checkpointWritten: { counters.recordCheckpointRewrite() })
+        loadedState = state
+    }
+
+    private func persistCheckpoint(_ state: inout LoadedState,
+        write: (Data, URL) throws -> Void, checkpointWritten: () -> Void,
+        read: ((URL) throws -> Data?)? = nil) throws {
+        if state.usesCheckpointV5 { try preflightConflictPersistence(state, frames: [], read: read) }
+        try withoutActuallyEscaping(write) { try publishUnpersistedProofShardsLocked(&state, write: $0) }
         normalizeCleanupCompletion(in: &state)
         let throughSequence = state.nextSequence - 1
         let checkpoint = try conflictCheckpoint(for: state)
-        try atomicWrite(try encodeCheckpoint(checkpoint), checkpointURL)
-        counters.recordCheckpointRewrite()
-        try atomicWrite(Data(), segmentURL)
+        try write(try encodeCheckpoint(checkpoint), checkpointURL)
+        checkpointWritten()
+        try write(Data(), segmentURL)
         state.nextSequence = throughSequence + 1
         state.framesSinceCheckpoint = 0
         state.enqueuedOperationCount = 0
         state.acknowledgedOperationCount = 0
         state.validSegmentByteCount = 0
         state.hasPartialFinalFrame = false
-        loadedState = state
     }
 
     private func makeFrame<Value: Encodable>(
@@ -2518,12 +2802,14 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
     }
 
     private func withParentDirectoryLock<Result>(
+        createIfMissing: Bool = true,
         _ operation: () throws -> Result
     ) throws -> Result {
         let parent = url.deletingLastPathComponent()
         var pathStatus = stat()
         var pathResult = parent.path.withCString { Darwin.lstat($0, &pathStatus) }
         if pathResult != 0, errno == ENOENT {
+            guard createIfMissing else { throw SyncMutationJournalError.unsafeFile }
             try FileManager.default.createDirectory(
                 at: parent,
                 withIntermediateDirectories: true
@@ -2612,6 +2898,7 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
         var revisions: [UUID: UInt64] = [:]
         var versionedAcknowledgements: [UUID: SyncVersionedMutation] = [:]
         var usesCheckpointV5 = false
+        var loadedCheckpointVersion = 4
         var rebaseHistoryHeadSHA256: Data {
             rebaseHistory.last?.integrity ?? SyncConflictRebaseCoding.emptyRebaseHistoryHeadSHA256
         }

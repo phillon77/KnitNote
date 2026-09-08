@@ -78,7 +78,32 @@ struct SyncDeletionLedger {
         var status = stat()
         let publication = SyncPublicationTransactionFile(archiveURL: archiveURL).url
         guard lstat(publication.path, &status) != 0, errno == ENOENT else { throw SyncDeletionLedgerError.pendingRepair }
-        var manifest = try ledger.load(validateRetainedFiles: false)
+        let manifest = try ledger.load(validateRetainedFiles: false)
+        return try selectRecoveryExport(manifest: manifest, ledgerRoot: ledger.root, pending: pending,
+            maximumBytes: maximumBytes, archiveSHA256: { try Self.hash(ledger.read(archiveURL)) })
+    }
+
+    /// Future packet selection through the native manifest decoder/reduction.
+    /// The archive proof is evaluated lazily at the ordinary inactive binding
+    /// branch. Nothing here certifies physical Staged validation or ownership.
+    static func projectedRecoveryExport(archiveURL: URL, manifestBytes: Data,
+        files: [String: SyncBootstrapOutputProof], pending: [SyncMutation], maximumBytes: Int,
+        archiveSHA256: () throws -> Data) throws -> RecoveryExport {
+        let manifest = try decodeManifest(manifestBytes) { _ in }
+        let selected = try selectRecoveryExport(manifest: manifest, ledgerRoot: root(archiveURL: archiveURL),
+            pending: pending, maximumBytes: maximumBytes, archiveSHA256: archiveSHA256)
+        // Ordinary recovery selection decodes all metadata, but requires
+        // physical payload only for its selected groups, not retired history.
+        for proof in selected.files {
+            guard let value = files[proof.retainedRelativePath], value.byteCount == proof.byteCount,
+                  value.sha256 == proof.sha256 else { throw SyncDeletionLedgerError.witnessMismatch }
+        }
+        return selected
+    }
+
+    private static func selectRecoveryExport(manifest initial: Manifest, ledgerRoot: URL,
+        pending: [SyncMutation], maximumBytes: Int, archiveSHA256: () throws -> Data) throws -> RecoveryExport {
+        var manifest = initial
         guard (manifest.purgeIntents ?? []).isEmpty else { throw SyncDeletionLedgerError.pendingRepair }
         let known = Set(manifest.groups.flatMap { $0.entry.files.map(\.retainedRelativePath) })
         let versions = pending.compactMap(\.savedRecordVersion)
@@ -93,7 +118,7 @@ struct SyncDeletionLedger {
                             let path = url.path
                             return path.hasPrefix("/var/") || path.hasPrefix("/tmp/") ? "/private" + path : path
                         }
-                        let prefix = posixPath(ledger.root) + "/"
+                        let prefix = posixPath(ledgerRoot) + "/"
                         let path = posixPath(source.fileURL)
                         // Other stores own sources outside this ledger. Inside,
                         // only this exact validated restoration's staging path
@@ -126,7 +151,7 @@ struct SyncDeletionLedger {
             guard let binding = group.binding else { continue }
             if group.canceled == true { continue }
             guard binding.commitBoundary != .artifacts,
-                  try Self.hash(ledger.read(archiveURL)) == binding.beforeArchiveSHA256 else {
+                  try archiveSHA256() == binding.beforeArchiveSHA256 else {
                 throw SyncDeletionLedgerError.pendingRepair
             }
         }

@@ -30,6 +30,45 @@ public struct SyncAccountRecoveryInventory: Sendable {
     public let pendingMarkerVersions: [SyncRecordVersion]
     let sourceAuthority: SyncAccountRecoverySourceAuthority?
 
+    /// Encoding-only future witness. Runtime capture/decoding deliberately does
+    /// not accept this extension until the complete owned terminal validator.
+    struct BootstrapEvidence: Codable {
+        let activeEnvelope: Data
+        let historyRecords: [Data]
+    }
+
+    /// Uses the actual payload codec while keeping future selected file bytes
+    /// unallocated. This count is not a decodable inventory or source authority.
+    func projectedEncodedByteCount(entries: [Entry], packetByteCount: Int,
+        deletionFiles: [SyncPendingRecoveryPacket.File],
+        sourceAuthority: SyncAccountRecoverySourceAuthority?, bootstrapEvidence: BootstrapEvidence?,
+        deletionLedgerBytes: Data? = nil, markers: [SyncRecordVersion]? = nil,
+        futureActiveEnvelopeByteCount: Int? = nil, futureRollbackEnvelopeByteCount: Int? = nil,
+        futureHistoryRecordByteCounts: [Int] = []) throws -> Int {
+        guard (0...100_000_000).contains(packetByteCount),
+              bootstrapEvidence == nil || sourceAuthority != nil else { throw Error.tooLarge }
+        let placeholders = deletionFiles.map {
+            SyncPendingRecoveryPacket.File(relativePath: $0.relativePath, byteCount: $0.byteCount,
+                sha256: $0.sha256, bytes: Data())
+        }
+        let payload = Payload(accountIDHash: account.accountIDHash, accountRoot: accountRoot,
+            archiveURL: archiveURL, journalURL: journalURL, entries: entries,
+            fingerprint: try Self.fingerprint(entries, authority: sourceAuthority), packet: nil,
+            deletionLedger: deletionLedgerBytes ?? deletionLedger, deletionFiles: placeholders,
+            pendingMarkerVersions: markers ?? pendingMarkerVersions)
+        var count = try Self.encodePayload(payload, authority: sourceAuthority,
+            bootstrapEvidence: bootstrapEvidence).count
+        count = try SyncBootstrapRecoveryBudget.add(count, 10, packetByteCount)
+        for file in placeholders {
+            count = try SyncBootstrapRecoveryBudget.add(count, Self.base64Count(file.byteCount))
+        }
+        for value in [futureActiveEnvelopeByteCount, futureRollbackEnvelopeByteCount].compactMap({ $0 })
+            + futureHistoryRecordByteCounts {
+            count = try SyncBootstrapRecoveryBudget.add(count, SyncBootstrapRecoveryBudget.base64Bytes(value))
+        }
+        return count
+    }
+
     public static func capture(storage: SyncAccountStorage, paths: SyncAccountStorage.Paths,
                                account: SyncAccountIdentity, journal: FileSyncMutationJournal,
                                archiveURL: URL, maximumBytes: Int = 100_000_000) throws -> Self {
@@ -285,25 +324,34 @@ public struct SyncAccountRecoveryInventory: Sendable {
         let formatVersion: Int
         let legacy: Payload
         let sourceAuthority: SyncAccountRecoverySourceAuthority
-        private enum Keys: String, CodingKey { case formatVersion, sourceAuthority }
-        init(legacy: Payload, sourceAuthority: SyncAccountRecoverySourceAuthority) {
+        let bootstrapEvidence: BootstrapEvidence?
+        private enum Keys: String, CodingKey { case formatVersion, sourceAuthority, bootstrapEvidence }
+        init(legacy: Payload, sourceAuthority: SyncAccountRecoverySourceAuthority,
+             bootstrapEvidence: BootstrapEvidence? = nil) {
             formatVersion = 2; self.legacy = legacy; self.sourceAuthority = sourceAuthority
+            self.bootstrapEvidence = bootstrapEvidence
         }
         init(from decoder: any Decoder) throws {
             let c = try decoder.container(keyedBy: Keys.self)
             formatVersion = try c.decode(Int.self, forKey: .formatVersion)
             sourceAuthority = try c.decode(SyncAccountRecoverySourceAuthority.self, forKey: .sourceAuthority)
             legacy = try Payload(from: decoder)
+            // Unknown future evidence remains rejected by normalized readback.
+            bootstrapEvidence = nil
         }
         func encode(to encoder: any Encoder) throws {
             try legacy.encode(to: encoder)
             var c = encoder.container(keyedBy: Keys.self)
             try c.encode(formatVersion, forKey: .formatVersion)
             try c.encode(sourceAuthority, forKey: .sourceAuthority)
+            try c.encodeIfPresent(bootstrapEvidence, forKey: .bootstrapEvidence)
         }
     }
-    private static func encodePayload(_ payload: Payload, authority: SyncAccountRecoverySourceAuthority?) throws -> Data {
-        if let authority { return try encoder().encode(PayloadV2(legacy: payload, sourceAuthority: authority)) }
+    private static func encodePayload(_ payload: Payload, authority: SyncAccountRecoverySourceAuthority?,
+                                      bootstrapEvidence: BootstrapEvidence? = nil) throws -> Data {
+        if let authority { return try encoder().encode(PayloadV2(legacy: payload, sourceAuthority: authority,
+            bootstrapEvidence: bootstrapEvidence)) }
+        guard bootstrapEvidence == nil else { throw Error.unsafeBinding }
         return try encoder().encode(payload)
     }
     private static func normalizedJSON(_ bytes: Data) throws -> Data {

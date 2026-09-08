@@ -41,7 +41,35 @@ public struct ProjectArchiveSyncMaterialization: Sendable {
     public let localOnlyRelativePaths: [String]
 }
 
+/// Accounting projection only: no URLs, physical verification or install authority.
+struct ProjectArchiveSyncUnvalidatedProjection {
+    struct File {
+        let relativePath: String
+        let version: SyncAttachmentVersion
+        let proof: SyncBootstrapOutputProof
+    }
+    let archive: ProjectArchive
+    let files: [File]
+    let records: [SyncRecord]
+    let counterStates: [UUID: SyncCounterReminderState]
+    let localOnlyRelativePaths: [String]
+}
+
 public enum ProjectArchiveSyncMapper {
+    static func projectUnvalidated(records: [SyncRecord],
+        attachmentProofs: [UUID: SyncBootstrapOutputProof],
+        baseArchive: ProjectArchive) throws -> ProjectArchiveSyncUnvalidatedProjection {
+        try project(records: records, baseArchive: baseArchive) { version in
+            guard let proof = attachmentProofs[version.versionID] else {
+                throw ProjectArchiveSyncMappingError.missingAttachment(version.slot)
+            }
+            guard proof.byteCount == version.byteCount, proof.sha256 == version.contentSHA256 else {
+                throw ProjectArchiveSyncMappingError.invalidDomain(.init(kind: .attachment, uuid: version.versionID))
+            }
+            return proof
+        }
+    }
+
     /// The caller must freeze archive/files and supply the matching publication
     /// cache before export. Disk evidence is read under its existing file lock;
     /// this method does not install data, move source bytes, or publish mutations.
@@ -204,6 +232,31 @@ public enum ProjectArchiveSyncMapper {
         attachments: [UUID: SyncAttachmentSource],
         baseArchive: ProjectArchive
     ) throws -> ProjectArchiveSyncMaterialization {
+        var admitted: [UUID: SyncAttachmentSource] = [:]
+        let projection = try project(records: records, baseArchive: baseArchive) { version in
+            let id = version.versionID
+            guard let source = attachments[id] else { throw ProjectArchiveSyncMappingError.missingAttachment(version.slot) }
+            guard source.isJournalStaged else { throw ProjectArchiveSyncMappingError.unstagedAttachment(id) }
+            guard source.contentSHA256 == version.contentSHA256, source.byteCount == version.byteCount else {
+                throw ProjectArchiveSyncMappingError.invalidDomain(.init(kind: .attachment, uuid: id))
+            }
+            _ = try SyncRegularFileReader().read(source.fileURL,
+                maximumBytes: SyncPublicationFileLimits.maximumAttachmentBytes,
+                expected: .init(byteCount: version.byteCount, sha256: version.contentSHA256))
+            admitted[id] = source
+            return .init(byteCount: source.byteCount, sha256: source.contentSHA256)
+        }
+        // Every projected file was admitted at its original physical-read boundary.
+        let files = projection.files.map {
+            ProjectArchiveSyncFile(relativePath: $0.relativePath, source: admitted[$0.version.versionID]!, version: $0.version)
+        }
+        return .init(archive: projection.archive, files: files, records: projection.records,
+            counterStates: projection.counterStates, localOnlyRelativePaths: projection.localOnlyRelativePaths)
+    }
+
+    private static func project(records: [SyncRecord], baseArchive: ProjectArchive,
+        attachmentProof: (SyncAttachmentVersion) throws -> SyncBootstrapOutputProof
+    ) throws -> ProjectArchiveSyncUnvalidatedProjection {
         guard ProjectArchive.isSupported(version: baseArchive.version) else {
             throw ProjectArchiveSyncMappingError.unsupportedArchive(baseArchive.version)
         }
@@ -328,23 +381,17 @@ public enum ProjectArchiveSyncMapper {
         archive.patternAssets.sort { $0.id.uuidString < $1.id.uuidString }
         try validateArchiveIdentities(archive)
         let lineage = try SyncAttachmentLineage(records: records)
-        var files: [ProjectArchiveSyncFile] = []
+        var files: [ProjectArchiveSyncUnvalidatedProjection.File] = []
         var slots: Set<SyncAttachmentSlot> = []
         for (slot, id) in lineage.resolvedLiveVersionIDs() {
             let version = lineage.recordsByVersionID[id]!.payload.attachment!
-            guard let source = attachments[id] else { throw ProjectArchiveSyncMappingError.missingAttachment(slot) }
-            guard source.isJournalStaged else { throw ProjectArchiveSyncMappingError.unstagedAttachment(id) }
-            guard source.contentSHA256 == version.contentSHA256, source.byteCount == version.byteCount else {
-                throw ProjectArchiveSyncMappingError.invalidDomain(.init(kind: .attachment, uuid: id))
-            }
-            _ = try SyncRegularFileReader().read(source.fileURL,
-                maximumBytes: SyncPublicationFileLimits.maximumAttachmentBytes,
-                expected: .init(byteCount: version.byteCount, sha256: version.contentSHA256))
+            // Preserve the ordinary per-slot source checks before destination errors.
+            let proof = try attachmentProof(version)
             let path = try destination(version, archive: archive)
-            guard !files.contains(where: { $0.relativePath == path && $0.source.contentSHA256 != source.contentSHA256 }) else {
+            guard !files.contains(where: { $0.relativePath == path && $0.proof.sha256 != proof.sha256 }) else {
                 throw ProjectArchiveSyncMappingError.invalidDomain(.init(kind: .attachment, uuid: id))
             }
-            files.append(.init(relativePath: path, source: source, version: version))
+            files.append(.init(relativePath: path, version: version, proof: proof))
             slots.insert(slot)
         }
         // Enumerate required media without consulting the live filesystem;

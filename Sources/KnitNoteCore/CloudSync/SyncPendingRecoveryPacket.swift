@@ -25,6 +25,39 @@ public struct SyncPendingRecoveryPacket: Codable, Equatable, Sendable {
     public let files: [File]
     public static let maximumBytes = 100_000_000
 
+    /// Accounting only. Uses this type's actual private wire without allocating
+    /// future payloads or relaxing validation on any runtime packet.
+    static func projectedEncodedByteCount(account: SyncAccountIdentity, accountRoot: URL,
+        mutations: [SyncMutation], files: [File]) throws -> Int {
+        try validateRoot(accountRoot, hash: account.accountIDHash)
+        try validateMutations(mutations)
+        var indexed: [String: File] = [:]
+        for file in files {
+            try validateRelative(file.relativePath)
+            guard indexed[file.relativePath] == nil, (0...100_000_000).contains(file.byteCount),
+                  file.sha256.count == 32 else { throw SyncPendingRecoveryPacketError.invalidPacket }
+            indexed[file.relativePath] = file
+        }
+        var selected = Set<String>()
+        for source in mutations.compactMap(\.attachmentSource) {
+            let path = try relativePath(source.fileURL, root: accountRoot)
+            guard let file = indexed[path], file.byteCount == source.byteCount,
+                  file.sha256 == source.contentSHA256 else { throw SyncPendingRecoveryPacketError.invalidPacket }
+            selected.insert(path)
+        }
+        guard selected == Set(indexed.keys) else { throw SyncPendingRecoveryPacketError.invalidPacket }
+        let placeholders = files.map {
+            File(relativePath: $0.relativePath, byteCount: $0.byteCount, sha256: $0.sha256, bytes: Data())
+        }
+        var count = try encoder().encode(Wire(formatVersion: 1, accountIDHash: account.accountIDHash,
+            accountRoot: accountRoot, mutations: mutations, files: placeholders)).count
+        for file in placeholders {
+            count = try SyncBootstrapRecoveryBudget.add(count,
+                SyncBootstrapRecoveryBudget.base64Bytes(Int(file.byteCount)))
+        }
+        return count
+    }
+
     public static func capture(account: SyncAccountIdentity, accountRoot: URL,
                                journal: any SyncMutationJournalProtocol,
                                maximumBytes: Int = Self.maximumBytes) throws -> Self {

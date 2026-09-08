@@ -84,6 +84,19 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
             try c.encode(sourceControl, forKey: .sourceControl)
         }
     }
+
+    /// Future lifetime accounting through the actual EnvelopeV2 codec. It emits
+    /// a size only, never a prepared recovery envelope or root authority.
+    static func projectedEnvelopeByteCount(inventoryByteCount: Int, captureID: UUID,
+        accountDevice: UInt64, accountInode: UInt64, temporarySession: String,
+        control: SyncAccountControlObservation) throws -> Int {
+        let empty = Envelope(formatVersion: 2, captureID: captureID, accountDevice: accountDevice,
+            accountInode: accountInode, temporarySession: temporarySession,
+            packetSHA256: Data(repeating: 0, count: 32), inventory: Data())
+        let overhead = try encode(EnvelopeV2(empty, sourceControl: SourceControlSnapshot(control))).count
+        return try SyncBootstrapRecoveryBudget.add(overhead,
+            SyncBootstrapRecoveryBudget.base64Bytes(inventoryByteCount))
+    }
     private typealias Intent = SyncAccountRecoveryIntent
     private struct Authorized {
         let intent: Intent
@@ -144,11 +157,8 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
             if legacy { budget = maximumBytes }
             else {
                 let overhead = try Self.encode(EnvelopeV2(empty, sourceControl: snapshot)).count
-                let remainder = maximumBytes.subtractingReportingOverflow(overhead)
-                guard !remainder.overflow, remainder.partialValue >= 0 else { throw Error.tooLarge }
-                let raw = (remainder.partialValue / 4).multipliedReportingOverflow(by: 3)
-                guard !raw.overflow else { throw Error.tooLarge }
-                budget = raw.partialValue
+                budget = try SyncBootstrapRecoveryBudget.inventoryAllowance(
+                    maximumEnvelopeBytes: maximumBytes, fixedOverheadBytes: overhead)
             }
             let inventory = try SyncAccountRecoveryInventory.capture(access: access, paths: paths, account: account,
                 journal: journal, archiveURL: paths.workingSet.appendingPathComponent("projects-v1.json"),

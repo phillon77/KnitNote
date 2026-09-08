@@ -490,6 +490,23 @@ public final class SyncBootstrapTransaction {
         _ = try KnitNoteBackupService(liveRoot: stage,
             workRoot: transactionDirectory.appendingPathComponent("ValidationMerged"),
             patternFolderNameContext: patternFolderNameContext).createPackage(appVersion: "bootstrap")
+        let mutations = try Self.ownedMutations(merged: merged, sources: sources, context: context)
+        let installed = try inventory(stage)
+        guard try inventory(live) == original else { throw SyncBootstrapError.sourceChanged }
+        try checkContext()
+        if local == nil { try requireMissingArchive() }
+        let manifest = Manifest(id: id, context: context, livePath: live.path, journalPath: journalPath,
+            sourceProof: sourceProof, original: original, installed: installed, mutations: mutations, phase: .prepared)
+        try Self.validateSourceEvidence(manifest, accountIDHash: context.accountIDHash, livePath: live.path, journalMatches: true)
+        try persist(manifest)
+        try boundary(.afterPrepared)
+        return preparation(manifest)
+    }
+
+    /// Shared pure mutation order/identities. Neither caller can invent a
+    /// second upload reduction or change the mapper's deterministic identity.
+    static func ownedMutations(merged: SyncMergeResult, sources: [UUID: SyncAttachmentSource],
+                               context: SyncBootstrapContext) throws -> [SyncMutation] {
         var mutations = merged.mutationsToUpload
         for record in merged.records where merged.recordsToUpload.contains(record.id) {
             let version = try SyncRecordVersion(record: record)
@@ -506,16 +523,7 @@ public final class SyncBootstrapTransaction {
             mutations.append(.delete(legacyID, mutationID: deterministicSyncUUID(kind: legacyID.kind,
                 components: ["bootstrap-legacy-cleanup-v1", context.accountIDHash, context.epoch.uuidString, legacyID.uuid.uuidString])))
         }
-        let installed = try inventory(stage)
-        guard try inventory(live) == original else { throw SyncBootstrapError.sourceChanged }
-        try checkContext()
-        if local == nil { try requireMissingArchive() }
-        let manifest = Manifest(id: id, context: context, livePath: live.path, journalPath: journalPath,
-            sourceProof: sourceProof, original: original, installed: installed, mutations: mutations, phase: .prepared)
-        try Self.validateSourceEvidence(manifest, accountIDHash: context.accountIDHash, livePath: live.path, journalMatches: true)
-        try persist(manifest)
-        try boundary(.afterPrepared)
-        return preparation(manifest)
+        return mutations
     }
 
     public func install(_ prepared: SyncBootstrapPreparation) throws {
@@ -772,11 +780,33 @@ public final class SyncBootstrapTransaction {
         let incomingIDs = Set(remote.filter { $0.deletedAt.value != nil }.map(\.id))
         let deleted = result.records.filter { incomingIDs.contains($0.id) && $0.deletedAt.value != nil }
         guard !deleted.isEmpty else { return }
-        let byID = Dictionary(uniqueKeysWithValues: result.records.map { ($0.id, $0) })
         let liveAttachmentIDs = Set(result.files.map { $0.version.versionID })
         let supportingSources = sources.filter { liveAttachmentIDs.contains($0.key) }
-        var covered = Set<SyncEntityID>()
         let ledger = try SyncDeletionLedger(root: SyncDeletionLedger.root(archiveURL: stage.appendingPathComponent("projects-v1.json")))
+        try Self.walkIncomingDeletionRequests(remote: remote, records: result.records, archive: result.archive,
+            liveAttachmentIDs: liveAttachmentIDs,
+            sourceProofs: supportingSources.mapValues { .init(byteCount: $0.byteCount, sha256: $0.contentSHA256) },
+            counterReminderContext: counterReminderContext) { request in
+            _ = try ledger.captureIncomingDeleted(domain: request.domain,
+                exactRemovalVersions: request.exactRemovalVersions, attachments: [:], restoreRelativePaths: [:],
+                deletedAt: request.deletedAt, currentRecords: request.currentRecords, currentArchive: request.currentArchive,
+                supportingAttachments: supportingSources, sourceRoots: [sourceRoot],
+                counterReminderContext: counterReminderContext)
+        }
+    }
+
+    /// Pure request walk shared with owned planning. The ordinary caller keeps
+    /// ledger initialization before this walk and capture at each callback.
+    static func walkIncomingDeletionRequests(remote: [SyncRecord], records: [SyncRecord], archive: ProjectArchive,
+        liveAttachmentIDs: Set<UUID>, sourceProofs: [UUID: SyncBootstrapOutputProof],
+        counterReminderContext: SyncCounterReminderMergeContext,
+        emit: (SyncDeletionCaptureRequest) throws -> Void) throws {
+        let incomingIDs = Set(remote.filter { $0.deletedAt.value != nil }.map(\.id))
+        let deleted = records.filter { incomingIDs.contains($0.id) && $0.deletedAt.value != nil }
+        guard !deleted.isEmpty else { return }
+        let byID = Dictionary(uniqueKeysWithValues: records.map { ($0.id, $0) })
+        let supporting = sourceProofs.filter { liveAttachmentIDs.contains($0.key) }
+        var covered = Set<SyncEntityID>()
         for project in deleted where project.id.kind == .project {
             guard case let .data(bytes)? = project.payload.fields["domainSnapshot"]?.value,
                   let cascade = project.payload.deletionCascade?.value else { throw SyncDeletionLedgerError.witnessMismatch }
@@ -788,18 +818,16 @@ public final class SyncBootstrapTransaction {
                       id.kind == .projectCounter && byID[id]?.deletedAt.value != nil
                           && byID[id]?.relationships.contains(.init(role: "project", target: project.id)) == true
                   }), covered.isDisjoint(with: selected) else { throw SyncDeletionLedgerError.witnessMismatch }
-            let records = try selected.sorted { $0.uuid.uuidString < $1.uuid.uuidString }.map { id -> SyncRecord in
+            let selectedRecords = try selected.sorted { $0.uuid.uuidString < $1.uuid.uuidString }.map { id -> SyncRecord in
                 guard let record = byID[id] else { throw SyncDeletionLedgerError.witnessMismatch }
                 return record
             }
-            let domain = SyncDeletedDomain(rootIDs: [project.id], ownedRecords: records,
+            let domain = SyncDeletedDomain(rootIDs: [project.id], ownedRecords: selectedRecords,
                 supportingParentIDs: [], removedReminders: [:], restorableRecordIDs: selected)
-            _ = try ledger.captureIncomingDeleted(domain: domain,
-                exactRemovalVersions: records.map { try SyncRecordVersion(record: $0) },
-                attachments: [:], restoreRelativePaths: [:], deletedAt: project.deletedAt.value!,
-                currentRecords: result.records, currentArchive: result.archive,
-                supportingAttachments: supportingSources, sourceRoots: [sourceRoot],
-                counterReminderContext: counterReminderContext)
+            try emit(.init(domain: domain, exactRemovalVersions: selectedRecords.map { try SyncRecordVersion(record: $0) },
+                deletedAt: project.deletedAt.value!, currentRecords: records,
+                currentArchive: archive, attachments: [:], restoreRelativePaths: [:],
+                supportingAttachments: supporting, counterReminderContext: counterReminderContext))
             covered.formUnion(selected)
         }
         guard Set(deleted.map(\.id)).isSubset(of: covered) else { throw SyncDeletionLedgerError.witnessMismatch }
@@ -846,6 +874,37 @@ public final class SyncBootstrapTransaction {
         guard receipt.transactionID == manifest.id, receipt.accountIDHash == context.accountIDHash,
               receipt.sourceProof == manifest.sourceProof else { throw SyncBootstrapError.corrupt }
         return receipt
+    }
+
+    /// Plain parsed evidence for immutable history consumption. This does not
+    /// inspect today's live tree or mint terminal/install/recovery authority.
+    struct LegacyHistorySource {
+        let id: UUID
+        let context: SyncBootstrapContext
+        let livePath: String
+        let journalPath: String
+        let sourceProof: SyncBootstrapSourceProof
+        let original: [String: BootstrapManifestV3.FileProof]
+    }
+
+    static func legacyHistorySource(_ bytes: Data) throws -> LegacyHistorySource {
+        let payload = try OwnedBootstrapCodec.envelopePayload(bytes)
+        // Reuse the real private legacy codec and its source semantics. Strict
+        // shape checks apply only here, never to existing generic readers.
+        let manifest = try OwnedBootstrapCodec.strictData(Manifest.self, bytes: payload)
+        try validateSourceEvidence(manifest, accountIDHash: manifest.context.accountIDHash,
+            livePath: manifest.livePath, journalMatches: true)
+        guard manifest.phase == .rolledBack else { throw SyncBootstrapError.invalidPhase }
+        let original = manifest.original.mapValues { BootstrapManifestV3.FileProof(bytes: $0.bytes, digest: $0.digest) }
+        let installed = manifest.installed.mapValues { BootstrapManifestV3.FileProof(bytes: $0.bytes, digest: $0.digest) }
+        try BootstrapManifestV3.validateProofs(original)
+        try BootstrapManifestV3.validateProofs(installed)
+        guard Set(manifest.mutations.map(\.mutationID)).count == manifest.mutations.count else { throw SyncBootstrapError.corrupt }
+        for mutation in manifest.mutations { _ = try mutation.validatedForJournalLoad() }
+        if case .missingArchive = manifest.sourceProof,
+           original.keys.contains(where: isReconstructionAuthority) { throw SyncBootstrapError.corrupt }
+        return .init(id: manifest.id, context: manifest.context, livePath: manifest.livePath,
+            journalPath: manifest.journalPath, sourceProof: manifest.sourceProof, original: original)
     }
 
     private static func validateSourceEvidence(_ manifest: Manifest, accountIDHash: String,
@@ -962,7 +1021,7 @@ public final class SyncBootstrapTransaction {
             && candidate.split(separator: "/", omittingEmptySubsequences: false).allSatisfy { !$0.isEmpty && $0 != "." && $0 != ".." }
     }
     private static func hash(_ data: Data) -> Data { Data(SHA256.hash(data: data)) }
-    private static func sameArchive(_ lhs: ProjectArchive, _ rhs: ProjectArchive, checkingVersion: Bool = true) -> Bool {
+    static func sameArchive(_ lhs: ProjectArchive, _ rhs: ProjectArchive, checkingVersion: Bool = true) -> Bool {
         func equal<T: Identifiable & Equatable>(_ lhs: [T], _ rhs: [T]) -> Bool where T.ID == UUID {
             lhs.sorted { $0.id.uuidString < $1.id.uuidString } == rhs.sorted { $0.id.uuidString < $1.id.uuidString }
         }

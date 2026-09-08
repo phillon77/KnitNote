@@ -7,6 +7,16 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		B39090800000000000000052 /* SyncBootstrapOwnedProgram.swift in Sources */ = {isa = PBXBuildFile; fileRef = B39090800000000000000051 /* SyncBootstrapOwnedProgram.swift */; };
+		B39090800000000000000053 /* SyncBootstrapOwnedProgram.swift in Sources */ = {isa = PBXBuildFile; fileRef = B39090800000000000000051 /* SyncBootstrapOwnedProgram.swift */; };
+		B39090800000000000000055 /* SyncBootstrapOwnedTransaction.swift in Sources */ = {isa = PBXBuildFile; fileRef = B39090800000000000000054 /* SyncBootstrapOwnedTransaction.swift */; };
+		B39090800000000000000056 /* SyncBootstrapOwnedTransaction.swift in Sources */ = {isa = PBXBuildFile; fileRef = B39090800000000000000054 /* SyncBootstrapOwnedTransaction.swift */; };
+		B39090800000000000000042 /* SyncBootstrapOwnedManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = B39090800000000000000041 /* SyncBootstrapOwnedManifest.swift */; };
+		B39090800000000000000043 /* SyncBootstrapOwnedManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = B39090800000000000000041 /* SyncBootstrapOwnedManifest.swift */; };
+		B39090800000000000000045 /* SyncBootstrapHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = B39090800000000000000044 /* SyncBootstrapHistory.swift */; };
+		B39090800000000000000046 /* SyncBootstrapHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = B39090800000000000000044 /* SyncBootstrapHistory.swift */; };
+		B39090800000000000000032 /* SyncBootstrapRecoveryBudget.swift in Sources */ = {isa = PBXBuildFile; fileRef = B39090800000000000000031 /* SyncBootstrapRecoveryBudget.swift */; };
+		B39090800000000000000033 /* SyncBootstrapRecoveryBudget.swift in Sources */ = {isa = PBXBuildFile; fileRef = B39090800000000000000031 /* SyncBootstrapRecoveryBudget.swift */; };
 		B39090800000000000000002 /* SyncBootstrapOutputPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = B39090800000000000000001 /* SyncBootstrapOutputPlanner.swift */; };
 		B39090800000000000000003 /* SyncBootstrapOutputPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = B39090800000000000000001 /* SyncBootstrapOutputPlanner.swift */; };
 		B39090800000000000000005 /* KnitNoteBackupPackagePlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = B39090800000000000000004 /* KnitNoteBackupPackagePlan.swift */; };
@@ -543,6 +553,11 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		B39090800000000000000051 /* SyncBootstrapOwnedProgram.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncBootstrapOwnedProgram.swift; sourceTree = "<group>"; };
+		B39090800000000000000054 /* SyncBootstrapOwnedTransaction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncBootstrapOwnedTransaction.swift; sourceTree = "<group>"; };
+		B39090800000000000000041 /* SyncBootstrapOwnedManifest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncBootstrapOwnedManifest.swift; sourceTree = "<group>"; };
+		B39090800000000000000044 /* SyncBootstrapHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncBootstrapHistory.swift; sourceTree = "<group>"; };
+		B39090800000000000000031 /* SyncBootstrapRecoveryBudget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncBootstrapRecoveryBudget.swift; sourceTree = "<group>"; };
 		B39090800000000000000001 /* SyncBootstrapOutputPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncBootstrapOutputPlanner.swift; sourceTree = "<group>"; };
 		B39090800000000000000004 /* KnitNoteBackupPackagePlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteBackupPackagePlan.swift; sourceTree = "<group>"; };
 		AA0908000000000000000002 /* CloudAccountIdentityQuery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudAccountIdentityQuery.swift; sourceTree = "<group>"; };
@@ -1483,6 +1498,11 @@
 				942AFD72DC7EF6175855E69D /* SyncAccountStorage.swift */,
 				B3F1A9019920000000000005 /* SyncAccountSourceState.swift */,
 				B39090800000000000000001 /* SyncBootstrapOutputPlanner.swift */,
+				B39090800000000000000031 /* SyncBootstrapRecoveryBudget.swift */,
+				B39090800000000000000041 /* SyncBootstrapOwnedManifest.swift */,
+				B39090800000000000000044 /* SyncBootstrapHistory.swift */,
+				B39090800000000000000051 /* SyncBootstrapOwnedProgram.swift */,
+				B39090800000000000000054 /* SyncBootstrapOwnedTransaction.swift */,
 				B39090800000000000000023 /* SyncPublicationEvidenceOutputProgram.swift */,
 				B3F1A9019920000000000006 /* SyncAccountRecoveryControl.swift */,
 				84AB424D39E0AD34EB88CF6F /* ProjectArchiveSyncMapper.swift */,
@@ -1804,6 +1824,11 @@
 				1E85B79E884DC499B8F7E072 /* SyncAccountStorage.swift in Sources */,
 				B3F1A9019920000000000001 /* SyncAccountSourceState.swift in Sources */,
 				B39090800000000000000002 /* SyncBootstrapOutputPlanner.swift in Sources */,
+				B39090800000000000000032 /* SyncBootstrapRecoveryBudget.swift in Sources */,
+				B39090800000000000000042 /* SyncBootstrapOwnedManifest.swift in Sources */,
+				B39090800000000000000045 /* SyncBootstrapHistory.swift in Sources */,
+				B39090800000000000000052 /* SyncBootstrapOwnedProgram.swift in Sources */,
+				B39090800000000000000055 /* SyncBootstrapOwnedTransaction.swift in Sources */,
 				B39090800000000000000005 /* KnitNoteBackupPackagePlan.swift in Sources */,
 				B3F1A9019920000000000002 /* SyncAccountRecoveryControl.swift in Sources */,
 				2C4DD434A981FC95CF91D11C /* SyncAccountRecoveryTransaction.swift in Sources */,
@@ -2072,6 +2097,11 @@
 				A36A8A3875D4CB670FB285F2 /* SyncAccountStorage.swift in Sources */,
 				B3F1A9019920000000000003 /* SyncAccountSourceState.swift in Sources */,
 				B39090800000000000000003 /* SyncBootstrapOutputPlanner.swift in Sources */,
+				B39090800000000000000033 /* SyncBootstrapRecoveryBudget.swift in Sources */,
+				B39090800000000000000043 /* SyncBootstrapOwnedManifest.swift in Sources */,
+				B39090800000000000000046 /* SyncBootstrapHistory.swift in Sources */,
+				B39090800000000000000053 /* SyncBootstrapOwnedProgram.swift in Sources */,
+				B39090800000000000000056 /* SyncBootstrapOwnedTransaction.swift in Sources */,
 				B39090800000000000000006 /* KnitNoteBackupPackagePlan.swift in Sources */,
 				B3F1A9019920000000000004 /* SyncAccountRecoveryControl.swift in Sources */,
 				9E1D5F3656D7A5FA167E2B01 /* SyncAccountRecoveryTransaction.swift in Sources */,

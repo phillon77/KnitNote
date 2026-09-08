@@ -3,6 +3,131 @@ import Testing
 @testable import KnitNoteCore
 
 struct ProjectArchiveSyncMapperTests {
+    @Test func emptyProjectionNeedsNoAttachmentProofs() throws {
+        let empty = ProjectArchive(version: ProjectArchive.currentVersion, projects: [])
+        let result = try ProjectArchiveSyncMapper.projectUnvalidated(records: [], attachmentProofs: [:], baseArchive: empty)
+        #expect(result.archive.projects.isEmpty)
+        #expect(result.archive.yarns.isEmpty)
+        #expect(result.files.isEmpty)
+        #expect(result.records.isEmpty)
+        #expect(result.counterStates.isEmpty)
+        #expect(result.localOnlyRelativePaths.isEmpty)
+    }
+
+    @Test func labelProjectionKeepsExactPathAndRejectsMissingOrChangedProofs() throws {
+        let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
+            .appendingPathComponent("mapper-label-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: root.appendingPathComponent("YarnLabelPhotos"), withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        var yarn = try StoredYarn(name: "Label source")
+        let name = "\(yarn.id.uuidString)-label-1-\(UUID().uuidString).jpg"
+        try yarn.setLabelPhotoFilenames([name])
+        let archive = ProjectArchive(version: ProjectArchive.currentVersion, projects: [], yarns: [yarn])
+        let file = root.appendingPathComponent("YarnLabelPhotos/" + name)
+        try Data("label photo".utf8).write(to: file)
+        let package = try ProjectArchiveSyncMapper.export(archive: archive, liveRoot: root, deviceID: "label-test")
+        let record = try #require(package.records.first { $0.id.kind == .attachment })
+        let version = try #require(record.payload.attachment)
+        let proof = SyncBootstrapOutputProof(byteCount: version.byteCount, sha256: version.contentSHA256)
+        // The projection must remain independent of physical source availability.
+        try FileManager.default.removeItem(at: file)
+        let result = try ProjectArchiveSyncMapper.projectUnvalidated(records: package.records,
+            attachmentProofs: [version.versionID: proof], baseArchive: archive)
+        #expect(result.files.map(\.relativePath) == ["YarnLabelPhotos/" + name])
+        #expect(result.files.first?.version.slot.slotID == "label:" + yarn.labelPhotoSlotIDs[0].uuidString.lowercased())
+        #expect(result.files.first?.proof == proof)
+        #expect(result.archive.yarns.first?.labelPhotoSlotIDs == yarn.labelPhotoSlotIDs)
+        #expect(throws: ProjectArchiveSyncMappingError.missingAttachment(version.slot)) {
+            try ProjectArchiveSyncMapper.projectUnvalidated(records: package.records, attachmentProofs: [:], baseArchive: archive)
+        }
+        for changed in [SyncBootstrapOutputProof(byteCount: proof.byteCount + 1, sha256: proof.sha256),
+                        SyncBootstrapOutputProof(byteCount: proof.byteCount, sha256: Data(repeating: 0, count: 32))] {
+            #expect(throws: ProjectArchiveSyncMappingError.invalidDomain(record.id)) {
+                try ProjectArchiveSyncMapper.projectUnvalidated(records: package.records,
+                    attachmentProofs: [version.versionID: changed], baseArchive: archive)
+            }
+        }
+        #expect(throws: ProjectArchiveSyncMappingError.missingAttachment(version.slot)) {
+            try ProjectArchiveSyncMapper.projectUnvalidated(records: package.records.filter { $0.id != record.id },
+                attachmentProofs: [:], baseArchive: archive)
+        }
+    }
+
+    @Test(arguments: ["missing", "unstaged", "proof", "bytes", "valid"])
+    func physicalSourceValidationPrecedesInvalidDestination(damage: String) throws {
+        let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
+            .appendingPathComponent("mapper-order-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: root.appendingPathComponent("ProjectPhotos"), withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        var project = try StoredProject(name: "One photo")
+        project.setPhotoFilename("cover.jpg")
+        let archive = ProjectArchive(version: ProjectArchive.currentVersion, projects: [project])
+        try Data("photo bytes".utf8).write(to: root.appendingPathComponent("ProjectPhotos/cover.jpg"))
+        let package = try ProjectArchiveSyncMapper.export(archive: archive, liveRoot: root, deviceID: "order-test")
+        let attachment = try #require(package.records.first { $0.id.kind == .attachment })
+        let version = try #require(attachment.payload.attachment)
+        var records = package.records
+        let index = try #require(records.firstIndex { $0.id.kind == .project })
+        let field = try #require(records[index].payload.fields["domainSnapshot"])
+        guard case let .data(bytes) = field.value else { Issue.record("missing domain bytes"); return }
+        var object = try #require(try JSONSerialization.jsonObject(with: bytes) as? [String: Any])
+        object["photoFilename"] = "different.jpg"
+        records[index].payload.fields["domainSnapshot"] = .init(
+            value: .data(try JSONSerialization.data(withJSONObject: object)), stamp: field.stamp)
+        var sources = try stage(package, root: root)
+        let source = try #require(sources[version.versionID])
+        switch damage {
+        case "missing": sources.removeValue(forKey: version.versionID)
+        case "unstaged": sources = package.attachments
+        case "proof": sources[version.versionID] = .init(fileURL: source.fileURL,
+            contentSHA256: Data(repeating: 0, count: 32), byteCount: source.byteCount, isJournalStaged: true)
+        case "bytes": try Data(repeating: 0, count: Int(source.byteCount)).write(to: source.fileURL)
+        default: break
+        }
+        let run = { try ProjectArchiveSyncMapper.materialize(records: records, attachments: sources, baseArchive: archive) }
+        switch damage {
+        case "missing": #expect(throws: ProjectArchiveSyncMappingError.missingAttachment(version.slot)) { try run() }
+        case "unstaged": #expect(throws: ProjectArchiveSyncMappingError.unstagedAttachment(version.versionID)) { try run() }
+        case "bytes": #expect(throws: SyncRegularFileReadError.expectationMismatch) { try run() }
+        default: #expect(throws: ProjectArchiveSyncMappingError.invalidDomain(attachment.id)) { try run() }
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func unvalidatedProjectionDoesNotReadAndCannotBypassMaterialization(library: Bool) throws {
+        let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
+            .appendingPathComponent("owned-projection-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        if library { _ = try BackupFixture.writePatternLibraryArchive(to: root, includeLinkedYarn: true) }
+        else { _ = try BackupFixture.writeCompleteArchive(to: root) }
+        let archive = try JSONDecoder().decode(ProjectArchive.self,
+            from: Data(contentsOf: root.appendingPathComponent("projects-v1.json")))
+        let package = try ProjectArchiveSyncMapper.export(
+            archive: archive, liveRoot: root, deviceID: "projection-test")
+        let staged = try stage(package, root: root)
+        let proofs = staged.mapValues {
+            SyncBootstrapOutputProof(byteCount: $0.byteCount, sha256: $0.contentSHA256)
+        }
+        let projection = try ProjectArchiveSyncMapper.projectUnvalidated(
+            records: package.records, attachmentProofs: proofs, baseArchive: archive)
+        let actual = try ProjectArchiveSyncMapper.materialize(
+            records: package.records, attachments: staged, baseArchive: archive)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        #expect(try encoder.encode(projection.archive) == encoder.encode(actual.archive))
+        #expect(projection.files.map(\.relativePath) == actual.files.map(\.relativePath))
+        #expect(projection.records == actual.records)
+        let source = try #require(staged.values.first)
+        try Data("damaged after planning".utf8).write(to: source.fileURL)
+        _ = try ProjectArchiveSyncMapper.projectUnvalidated(
+            records: package.records, attachmentProofs: proofs, baseArchive: archive)
+        #expect(throws: (any Error).self) {
+            try ProjectArchiveSyncMapper.materialize(
+                records: package.records, attachments: staged, baseArchive: archive)
+        }
+    }
+
     @Test func newAttachmentDeletionDominatesIssuedLiveVersionAndRetriesExactly() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)

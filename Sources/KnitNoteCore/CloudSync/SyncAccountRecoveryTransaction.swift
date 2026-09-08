@@ -139,13 +139,22 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
             createControl: true) { access in
             let observation = try controlFile.observe(access: access)
             switch observation.state {
-            case nil, .absentSource: break
+            case nil, .absentSource, .sourceSpent: break
             default: throw Error.invalidAuthority
             }
             try controlFile.synchronize(observation, access: access)
             let root = try identity(access.accountDescriptor)
             let entries = try access.entries()
-            let legacy = observation.state == nil && entries.contains {
+            var owned = false
+            for entry in entries where !entry.isDirectory && entry.relativePath.hasPrefix(".KnitNote-SyncBootstrap/")
+                && entry.relativePath.hasSuffix("/active.json") {
+                let value = try SyncRegularFileReader().read(paths.accountRoot.appendingPathComponent(entry.relativePath),
+                    maximumBytes: min(maximumBytes, Int(entry.byteCount)), expected: .init(byteCount: entry.byteCount, sha256: entry.sha256))
+                guard value.device == entry.device, value.inode == entry.inode else { throw Error.invalidAuthority }
+                struct Version: Decodable { let version: Int }
+                if try JSONDecoder().decode(Version.self, from: OwnedBootstrapCodec.envelopePayload(value.data)).version == 3 { owned = true }
+            }
+            let legacy = !owned && observation.state == nil && entries.contains {
                 $0.relativePath == "working-set/projects-v1.json" && !$0.isDirectory
             }
             let captureID = UUID()
@@ -268,7 +277,11 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
                 try controlFile.synchronize(observation, access: access)
                 guard try validateSourceState(observation, access: access) == source else { throw Error.changedInventory }
                 return source
-            case nil, .legacySelection, .selectedRecovery, .sourceSpent: return nil
+            case .sourceSpent:
+                // A spent source is not reusable source authority. This query does not
+                // authorize archive capture; capture/prepare/seal validate that separately.
+                return nil
+            case nil, .legacySelection, .selectedRecovery: return nil
             }
         }
     }
@@ -672,7 +685,11 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
         let (envelope, inventory, snapshot) = try decode(payload)
         switch observation.state {
         case .selectedRecovery(_, let predecessor):
-            guard envelope.formatVersion == 2, case .absentSource = try snapshot?.observation().state else { throw Error.invalidAuthority }
+            guard envelope.formatVersion == 2 else { throw Error.invalidAuthority }
+            switch try snapshot?.observation().state {
+            case .absentSource, .sourceSpent: break
+            default: throw Error.invalidAuthority
+            }
             if intent.phase == .sealed {
                 guard let sourceMain = snapshot?.mainBytes, predecessor == Data(SHA256.hash(data: sourceMain)) else { throw Error.invalidAuthority }
             }
@@ -788,14 +805,22 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
         let inventory = try SyncAccountRecoveryInventory.decodeRecovery(value.inventory, account: account,
             paths: paths, journalURL: journal.recoveryLocation, maximumBytes: maximumBytes)
         if let snapshot {
-            guard case .absent(let evidence) = inventory.sourceAuthority,
-                  evidence.state.accountDevice == value.accountDevice, evidence.state.accountInode == value.accountInode else { throw Error.invalidAuthority }
             let observation = try snapshot.observation()
-            if case .absentSource(let source) = observation.state {
-                guard source == evidence.state else { throw Error.invalidAuthority }
-            } else {
-                guard observation.mainBytes == nil, observation.nextBytes == nil,
-                      case .bootstrapRollback = evidence.state.origin else { throw Error.invalidAuthority }
+            switch inventory.sourceAuthority {
+            case .absent(let evidence):
+                guard evidence.state.accountDevice == value.accountDevice, evidence.state.accountInode == value.accountInode else { throw Error.invalidAuthority }
+                if case .absentSource(let source) = observation.state {
+                    guard source == evidence.state else { throw Error.invalidAuthority }
+                } else {
+                    guard observation.mainBytes == nil, observation.nextBytes == nil,
+                          case .bootstrapRollback = evidence.state.origin else { throw Error.invalidAuthority }
+                }
+            case .archive:
+                try inventory.validateOwnedControl(observation, paths: paths)
+                if case .sourceSpent(let source, _, _) = observation.state {
+                    guard source.accountDevice == value.accountDevice, source.accountInode == value.accountInode else { throw Error.invalidAuthority }
+                }
+            case nil: throw Error.invalidAuthority
             }
         } else if inventory.sourceAuthority != nil { throw Error.invalidAuthority }
         // All prepare/seal/cleanup/restore authorization decodes pass the same

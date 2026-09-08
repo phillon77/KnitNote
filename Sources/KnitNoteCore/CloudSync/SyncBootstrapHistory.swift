@@ -106,7 +106,9 @@ struct BootstrapHistoryRecordV1: Codable {
                 guard SyncBootstrapHistory.exactEntries(body.frozenOutputEntries, treeEntries) else { throw SyncBootstrapError.corrupt }
                 original = nil
             case let .rolledBack(body):
-                guard SyncBootstrapHistory.exactEntries(body.frozenTransactionEntries, treeEntries) else { throw SyncBootstrapError.corrupt }
+                guard SyncBootstrapHistory.exactEntries(body.frozenTransactionEntries, treeEntries),
+                      try BootstrapManifestV3.immutableOutputDigest(entries: treeEntries,
+                        transactionRelativePath: transactionRelativePath) == body.prepared.immutableOutputSHA256 else { throw SyncBootstrapError.corrupt }
                 original = terminal.original
             default: throw SyncBootstrapError.invalidPhase
             }
@@ -210,6 +212,12 @@ enum SyncBootstrapHistory {
         }
         guard supplied.isEmpty, remainingCount == 0, remainingBytes == 0 else { throw SyncBootstrapError.corrupt }
         let currentEntries = subtrees[current.id.uuidString] ?? []
+        if let prepared = current.body.preparedBody {
+            guard try BootstrapManifestV3.immutableOutputDigest(entries: currentEntries,
+                transactionRelativePath: current.transactionRelativePath) == prepared.immutableOutputSHA256 else {
+                throw SyncBootstrapError.corrupt
+            }
+        }
         let currentRoles: Set<String>
         switch current.body {
         case let .preparing(body): currentRoles = Set(body.outputAllocation.allowedRoles.map(\.directoryName))

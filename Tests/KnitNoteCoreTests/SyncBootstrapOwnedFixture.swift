@@ -32,7 +32,9 @@ struct OwnedBootstrapFixture {
     }
 
     var namespace: URL {
-        let hash = Data(SHA256.hash(data: Data(source.paths.workingSet.standardizedFileURL.path.utf8)))
+        let live = source.paths.workingSet.deletingLastPathComponent().standardizedFileURL
+            .appendingPathComponent(source.paths.workingSet.lastPathComponent, isDirectory: true)
+        let hash = Data(SHA256.hash(data: Data(live.path.utf8)))
             .map { String(format: "%02x", $0) }.joined()
         return source.paths.accountRoot.appendingPathComponent(".KnitNote-SyncBootstrap")
             .appendingPathComponent(source.account.accountIDHash).appendingPathComponent(hash)
@@ -47,8 +49,14 @@ struct OwnedBootstrapFixture {
 
 /// Isolated test vault storage, never the system Keychain.
 final class OwnedBootstrapTestKeys: SyncRecoveryVaultKeychain, @unchecked Sendable {
+    private let lock = NSLock()
     private var values: [UUID: Data] = [:]
-    func insert(_ key: Data, for vaultID: UUID) throws { values[vaultID] = key }
-    func key(for vaultID: UUID) throws -> Data? { values[vaultID] }
-    func remove(for vaultID: UUID) throws { values[vaultID] = nil }
+    func insert(_ key: Data, for vaultID: UUID) throws {
+        try lock.withLock {
+            guard values[vaultID] == nil else { throw OwnedFixtureFailure.injected }
+            values[vaultID] = key
+        }
+    }
+    func key(for vaultID: UUID) throws -> Data? { lock.withLock { values[vaultID] } }
+    func remove(for vaultID: UUID) throws { lock.withLock { values[vaultID] = nil } }
 }

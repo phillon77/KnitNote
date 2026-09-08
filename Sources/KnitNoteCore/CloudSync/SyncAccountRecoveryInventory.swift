@@ -29,10 +29,11 @@ public struct SyncAccountRecoveryInventory: Sendable {
     public let deletionFiles: [SyncPendingRecoveryPacket.File]
     public let pendingMarkerVersions: [SyncRecordVersion]
     let sourceAuthority: SyncAccountRecoverySourceAuthority?
+    var bootstrapEvidence: BootstrapEvidence? = nil
 
     /// Encoding-only future witness. Runtime capture/decoding deliberately does
     /// not accept this extension until the complete owned terminal validator.
-    struct BootstrapEvidence: Codable {
+    struct BootstrapEvidence: Codable, Sendable {
         let activeEnvelope: Data
         let historyRecords: [Data]
     }
@@ -94,14 +95,59 @@ public struct SyncAccountRecoveryInventory: Sendable {
         guard archiveURL.deletingLastPathComponent().path == paths.workingSet.path,
               archiveURL.lastPathComponent == "projects-v1.json",
               !reserved(journalPath), !reserved(archivePath) else { throw Error.unsafeBinding }
-        try compatibilityGate(entries)
+        let owned = try SyncBootstrapOwnedTerminalEvidence.read(account: account, accountRoot: paths.accountRoot,
+            liveRoot: paths.workingSet, journalURL: journal.recoveryLocation, entries: entries, maximumBytes: maximumBytes) { path in
+                guard let entry = entries.first(where: { $0.relativePath == path && !$0.isDirectory }) else { throw Error.unsafeBinding }
+                let value = try SyncRegularFileReader().read(paths.accountRoot.appendingPathComponent(path),
+                    maximumBytes: min(maximumBytes, Int(entry.byteCount)), expected: .init(byteCount: entry.byteCount, sha256: entry.sha256))
+                guard value.device == entry.device, value.inode == entry.inode else { throw Error.unsafeBinding }
+                return value.data
+            }
+        let bootstrap = owned.map { BootstrapEvidence(activeEnvelope: $0.activeEnvelope, historyRecords: $0.historyRecords) }
+        if let owned {
+            func readOriginal(_ path: String) throws -> Data? {
+                guard let entry = entries.first(where: { $0.relativePath == path && !$0.isDirectory }) else { return nil }
+                let value = try SyncRegularFileReader().read(paths.accountRoot.appendingPathComponent(path),
+                    maximumBytes: min(maximumBytes, Int(entry.byteCount)), expected: .init(byteCount: entry.byteCount, sha256: entry.sha256))
+                guard value.device == entry.device, value.inode == entry.inode else { throw Error.unsafeBinding }
+                return value.data
+            }
+            if case .committed = owned.manifest.body {
+                try SyncBootstrapOwnedTransaction.validateCommitPrefix(owned.manifest, at: "working-set", entries: entries,
+                    complete: true, read: readOriginal)
+                guard let archive = try readOriginal(archivePath) else { throw Error.unsafeBinding }
+                _ = try JSONDecoder().decode(ProjectArchive.self, from: archive)
+            }
+            for terminal in [owned.activeEnvelope] + (try owned.historyRecords.map { try BootstrapHistoryRecordV1.decodeEnvelope($0).terminalEnvelope }) {
+                struct Version: Decodable { let version: Int }
+                if try JSONDecoder().decode(Version.self, from: OwnedBootstrapCodec.envelopePayload(terminal)).version == 3 {
+                    let manifest = try BootstrapManifestV3.decodeEnvelope(terminal)
+                    if case .rolledBack = manifest.body {
+                        let failed = manifest.transactionRelativePath + "/Failed"
+                        if entries.contains(where: { $0.relativePath == failed }) {
+                            try SyncBootstrapOwnedTransaction.validateCommitPrefix(manifest, at: failed, entries: entries,
+                                complete: false, read: readOriginal)
+                        }
+                    }
+                }
+            }
+        }
+        try compatibilityGate(entries.filter { !(owned?.abandonedEntries.contains($0) ?? false) })
         let dependencies = try captureSourceDependencies(paths: paths, journal: journal, archiveURL: archiveURL,
             entries: entries, maximumBytes: maximumBytes)
         let snapshot = dependencies.snapshot, export = dependencies.export
         let placeholders = dependencies.placeholders, baseline = dependencies.baseline
         let authority: SyncAccountRecoverySourceAuthority?
         let archivePresent = entries.contains { $0.relativePath == archivePath && !$0.isDirectory }
-        if control.mainBytes == nil, control.nextBytes == nil, archivePresent {
+        if let owned, case .committed = owned.manifest.body {
+            guard let archive = entries.first(where: { $0.relativePath == archivePath && !$0.isDirectory }) else { throw Error.unsafeBinding }
+            try validateOwnedControl(control, terminal: owned, account: account, paths: paths)
+            authority = .archive(relativePath: archivePath, sha256: archive.sha256)
+        } else if let owned, case .archive = owned.manifest.sourceProof, archivePresent {
+            try validateOwnedControl(control, terminal: owned, account: account, paths: paths)
+            guard let archive = entries.first(where: { $0.relativePath == archivePath && !$0.isDirectory }) else { throw Error.unsafeBinding }
+            authority = .archive(relativePath: archivePath, sha256: archive.sha256)
+        } else if control.mainBytes == nil, control.nextBytes == nil, archivePresent {
             try SyncBootstrapTransaction.validateTerminalRecovery(account: account, accountRoot: paths.accountRoot,
                 liveRoot: paths.workingSet, journalURL: snapshot.url, entries: entries)
             authority = nil
@@ -113,7 +159,7 @@ public struct SyncAccountRecoveryInventory: Sendable {
             for entry in entries where entry.relativePath.hasPrefix(".KnitNote-SyncBootstrap/") && entry.relativePath.hasSuffix("/active.json") {
                 guard try base64Count(entry.byteCount) <= maximumBytes else { throw Error.tooLarge }
             }
-            let terminal = try SyncBootstrapTransaction.terminalRecoveryEvidence(account: account,
+            let terminal = try owned == nil ? SyncBootstrapTransaction.terminalRecoveryEvidence(account: account,
                 accountRoot: paths.accountRoot, liveRoot: paths.workingSet, journalURL: snapshot.url, entries: entries) { path in
                 guard let entry = entries.first(where: { $0.relativePath == path && !$0.isDirectory }) else { throw Error.unsafeBinding }
                 let value = try SyncRegularFileReader().read(paths.accountRoot.appendingPathComponent(path),
@@ -121,7 +167,7 @@ public struct SyncAccountRecoveryInventory: Sendable {
                     expected: .init(byteCount: entry.byteCount, sha256: entry.sha256))
                 guard value.device == entry.device, value.inode == entry.inode else { throw Error.unsafeBinding }
                 return value.data
-            }
+            } : nil
             let source: SyncAccountSourceState
             if case .absentSource(let active) = control.state { source = active }
             else if control.mainBytes == nil, control.nextBytes == nil, let terminal,
@@ -134,9 +180,9 @@ public struct SyncAccountRecoveryInventory: Sendable {
                     origin: .bootstrapRollback(transactionID: terminal.transactionID,
                         activeRelativePath: terminal.activeRelativePath, activeEnvelopeSHA256: Data(SHA256.hash(data: terminal.activeEnvelope))))
             } else { throw Error.unsafeBinding }
-            authority = .absent(.init(state: source, rollbackEnvelope: terminal?.activeEnvelope))
+            authority = .absent(.init(state: source, rollbackEnvelope: owned?.activeEnvelope ?? terminal?.activeEnvelope))
             try validateAuthority(authority, account: account, paths: paths, archiveURL: archiveURL,
-                journalURL: snapshot.url, entries: entries, baseline: baseline)
+                journalURL: snapshot.url, entries: entries, baseline: baseline, bootstrapEvidence: bootstrap)
         }
         let fingerprint = try fingerprint(entries, authority: authority)
         let metadata = Payload(accountIDHash: account.accountIDHash, accountRoot: paths.accountRoot,
@@ -145,7 +191,7 @@ public struct SyncAccountRecoveryInventory: Sendable {
             pendingMarkerVersions: export?.pendingMarkerVersions ?? [])
         // The omitted packet property adds a comma plus "packet":. The
         // packet preflights its own metadata and all source Base64 expansion.
-        var reservedBytes = try encodePayload(metadata, authority: authority).count + 10
+        var reservedBytes = try encodePayload(metadata, authority: authority, bootstrapEvidence: bootstrap).count + 10
         for file in placeholders {
             guard file.byteCount >= 0, file.byteCount <= Int64(maximumBytes) else { throw Error.tooLarge }
             let expansion = try base64Count(file.byteCount)
@@ -169,7 +215,7 @@ public struct SyncAccountRecoveryInventory: Sendable {
         let result = Self(account: account, accountRoot: paths.accountRoot, archiveURL: archiveURL,
             journalURL: snapshot.url, entries: entries, fingerprint: fingerprint, packet: packet,
             deletionLedger: export?.manifest, deletionFiles: files, pendingMarkerVersions: export?.pendingMarkerVersions ?? [],
-            sourceAuthority: authority)
+            sourceAuthority: authority, bootstrapEvidence: bootstrap)
         let encoded = try result.encoded(maximumBytes: maximumBytes)
         _ = try decodeRecovery(encoded, account: account, paths: paths, journalURL: snapshot.url, maximumBytes: maximumBytes)
         try access.validate()
@@ -184,7 +230,8 @@ public struct SyncAccountRecoveryInventory: Sendable {
         let bytes = try Self.encodePayload(Payload(accountIDHash: account.accountIDHash,
             accountRoot: accountRoot, archiveURL: archiveURL, journalURL: journalURL, entries: entries,
             fingerprint: fingerprint, packet: packet, deletionLedger: deletionLedger,
-            deletionFiles: deletionFiles, pendingMarkerVersions: pendingMarkerVersions), authority: sourceAuthority)
+            deletionFiles: deletionFiles, pendingMarkerVersions: pendingMarkerVersions), authority: sourceAuthority,
+            bootstrapEvidence: bootstrapEvidence)
         guard bytes.count <= maximumBytes else { throw Error.tooLarge }
         return bytes
     }
@@ -198,13 +245,14 @@ public struct SyncAccountRecoveryInventory: Sendable {
         guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { throw Error.unsafeBinding }
         let value: Payload
         let authority: SyncAccountRecoverySourceAuthority?
+        let bootstrap: BootstrapEvidence?
         if object.keys.contains("formatVersion") {
             let v2 = try JSONDecoder().decode(PayloadV2.self, from: data)
             guard v2.formatVersion == 2, try normalizedJSON(data) == normalizedJSON(encoder().encode(v2)) else { throw Error.unsafeBinding }
-            value = v2.legacy; authority = v2.sourceAuthority
+            value = v2.legacy; authority = v2.sourceAuthority; bootstrap = v2.bootstrapEvidence
         } else {
             guard !object.keys.contains("sourceAuthority") else { throw Error.unsafeBinding }
-            value = try JSONDecoder().decode(Payload.self, from: data); authority = nil
+            value = try JSONDecoder().decode(Payload.self, from: data); authority = nil; bootstrap = nil
         }
         guard value.accountIDHash == account.accountIDHash, value.accountRoot == paths.accountRoot,
               value.archiveURL == paths.workingSet.appendingPathComponent("projects-v1.json"),
@@ -244,9 +292,11 @@ public struct SyncAccountRecoveryInventory: Sendable {
                 journalURL: value.journalURL, mutations: packet.mutations, selectedFiles: packet.files + value.deletionFiles,
                 deletionLedger: value.deletionLedger, pendingMarkerVersions: value.pendingMarkerVersions)
             try validateAuthority(authority, account: account, paths: paths, archiveURL: value.archiveURL,
-                journalURL: value.journalURL, entries: value.entries, baseline: baseline)
+                journalURL: value.journalURL, entries: value.entries, baseline: baseline, bootstrapEvidence: bootstrap)
         } else if indexed[archivePath]?.isDirectory != false { throw Error.unsafeBinding }
-        try compatibilityGate(value.entries)
+        let owned = try validateBootstrapEvidence(bootstrap, account: account, paths: paths,
+            journalURL: journalURL, entries: value.entries, maximumBytes: maximumBytes)
+        try compatibilityGate(value.entries.filter { !(owned?.abandonedEntries.contains($0) ?? false) })
         var selectedPaths = Set<String>()
         for file in packet.files + value.deletionFiles {
             guard !reserved(file.relativePath), !file.relativePath.hasPrefix(".decrypted-temporary/"),
@@ -265,7 +315,7 @@ public struct SyncAccountRecoveryInventory: Sendable {
         return Self(account: account, accountRoot: value.accountRoot, archiveURL: value.archiveURL,
             journalURL: value.journalURL, entries: value.entries, fingerprint: value.fingerprint, packet: packet,
             deletionLedger: value.deletionLedger, deletionFiles: value.deletionFiles, pendingMarkerVersions: value.pendingMarkerVersions,
-            sourceAuthority: authority)
+            sourceAuthority: authority, bootstrapEvidence: bootstrap)
     }
 
     private struct Payload: Codable {
@@ -297,8 +347,7 @@ public struct SyncAccountRecoveryInventory: Sendable {
             formatVersion = try c.decode(Int.self, forKey: .formatVersion)
             sourceAuthority = try c.decode(SyncAccountRecoverySourceAuthority.self, forKey: .sourceAuthority)
             legacy = try Payload(from: decoder)
-            // Unknown future evidence remains rejected by normalized readback.
-            bootstrapEvidence = nil
+            bootstrapEvidence = try c.decodeIfPresent(BootstrapEvidence.self, forKey: .bootstrapEvidence)
         }
         func encode(to encoder: any Encoder) throws {
             try legacy.encode(to: encoder)
@@ -340,7 +389,7 @@ public struct SyncAccountRecoveryInventory: Sendable {
     }
     private static func validateAuthority(_ authority: SyncAccountRecoverySourceAuthority?,
         account: SyncAccountIdentity, paths: SyncAccountStorage.Paths, archiveURL: URL, journalURL: URL,
-        entries: [Entry], baseline: Data) throws {
+        entries: [Entry], baseline: Data, bootstrapEvidence: BootstrapEvidence? = nil) throws {
         guard let authority else { throw Error.unsafeBinding }
         let archivePath = try relative(archiveURL, root: paths.accountRoot)
         switch authority {
@@ -364,6 +413,15 @@ public struct SyncAccountRecoveryInventory: Sendable {
                       !entries.contains(where: { $0.relativePath == ".KnitNote-SyncBootstrap"
                         || $0.relativePath.hasPrefix(".KnitNote-SyncBootstrap/") }) else { throw Error.unsafeBinding }
             case .bootstrapRollback(let transactionID, let activePath, let digest):
+                if let bootstrapEvidence {
+                    guard let owned = try validateBootstrapEvidence(bootstrapEvidence, account: account, paths: paths,
+                        journalURL: journalURL, entries: entries, maximumBytes: 100_000_000),
+                          evidence.rollbackEnvelope == bootstrapEvidence.activeEnvelope,
+                          OwnedBootstrapCodec.hash(owned.activeEnvelope) == digest,
+                          owned.activeRelativePath == activePath, owned.manifest.id == transactionID,
+                          case .missingArchive = owned.manifest.sourceProof else { throw Error.unsafeBinding }
+                    break
+                }
                 guard let bytes = evidence.rollbackEnvelope, Data(SHA256.hash(data: bytes)) == digest,
                       let terminal = try SyncBootstrapTransaction.terminalRecoveryEvidence(account: account,
                         accountRoot: paths.accountRoot, liveRoot: paths.workingSet, journalURL: journalURL,
@@ -374,6 +432,55 @@ public struct SyncAccountRecoveryInventory: Sendable {
                       terminal.activeRelativePath == activePath, case .missingArchive = terminal.sourceProof else { throw Error.unsafeBinding }
             }
         }
+    }
+    private static func validateBootstrapEvidence(_ evidence: BootstrapEvidence?, account: SyncAccountIdentity,
+        paths: SyncAccountStorage.Paths, journalURL: URL, entries: [Entry], maximumBytes: Int)
+        throws -> SyncBootstrapOwnedTerminalEvidence? {
+        guard let evidence else { return nil }
+        var records: [String: Data] = [:]
+        let manifest = try BootstrapManifestV3.decodeEnvelope(evidence.activeEnvelope, maximumBytes: maximumBytes)
+        let namespace = OwnedBootstrapCodec.parent(manifest.transactionRelativePath)
+        records[namespace + "/active.json"] = evidence.activeEnvelope
+        for bytes in evidence.historyRecords {
+            let path = SyncBootstrapHistory.recordPath(namespace: namespace, hash: OwnedBootstrapCodec.hash(bytes))
+            guard records.updateValue(bytes, forKey: path) == nil else { throw Error.unsafeBinding }
+        }
+        guard let owned = try SyncBootstrapOwnedTerminalEvidence.read(account: account, accountRoot: paths.accountRoot,
+            liveRoot: paths.workingSet, journalURL: journalURL, entries: entries, maximumBytes: maximumBytes,
+            read: { path in guard let bytes = records[path] else { throw Error.unsafeBinding }; return bytes }),
+              owned.historyRecords == evidence.historyRecords else { throw Error.unsafeBinding }
+        return owned
+    }
+
+    static func validateOwnedControl(_ control: SyncAccountControlObservation,
+        terminal: SyncBootstrapOwnedTerminalEvidence, account: SyncAccountIdentity, paths: SyncAccountStorage.Paths) throws {
+        guard control.nextBytes == nil else { throw Error.unsafeBinding }
+        switch (terminal.manifest.sourceProof, control.state) {
+        case (.archive, nil):
+            let witness: Data?
+            switch terminal.manifest.body {
+            case let .abortedPreparation(value): witness = value.sourceControlSHA256
+            default: witness = terminal.manifest.body.preparedBody?.sourceControlSHA256
+            }
+            guard control.mainBytes == nil, witness == nil else { throw Error.unsafeBinding }
+        case (.missingArchive, .sourceSpent(let source, let id, let digest)):
+            guard case let .committed(prepared) = terminal.manifest.body,
+                  id == terminal.manifest.id, digest == (try terminal.manifest.normalizedPreparedDigest()),
+                  let main = control.mainBytes,
+                  try SyncAccountRecoveryControlFile.sourceSpentPredecessor(main) == prepared.sourceControlSHA256,
+                  try BootstrapManifestV3.formerSourceDigest(control.state) == prepared.formerSourceSHA256,
+                  source.accountIDHash == account.accountIDHash, source.accountRoot == paths.accountRoot,
+                  source.archiveURL == paths.workingSet.appendingPathComponent("projects-v1.json"),
+                  source.journalURL == paths.mutationJournalURL, source.baselineSHA256 == prepared.pendingSnapshotSHA256 else { throw Error.unsafeBinding }
+        default: throw Error.unsafeBinding
+        }
+    }
+
+    func validateOwnedControl(_ control: SyncAccountControlObservation, paths: SyncAccountStorage.Paths) throws {
+        guard let terminal = try Self.validateBootstrapEvidence(bootstrapEvidence, account: account,
+            paths: paths,
+            journalURL: journalURL, entries: entries, maximumBytes: 100_000_000) else { throw Error.unsafeBinding }
+        try Self.validateOwnedControl(control, terminal: terminal, account: account, paths: paths)
     }
     private static func encoder() -> JSONEncoder {
         let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]; return encoder

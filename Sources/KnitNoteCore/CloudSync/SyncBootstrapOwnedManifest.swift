@@ -42,6 +42,10 @@ struct BootstrapManifestV3: Codable, Equatable {
         let installed: [String: FileProof]
         let mutations: [SyncMutation]
         let preparationSHA256: Data
+        let sourceControlSHA256: Data?
+        let formerSourceSHA256: Data?
+        let pendingSnapshotSHA256: Data
+        let immutableOutputSHA256: Data
         let commitProgram: CommitProgram
         let originalLiveRoot: InstallRootIdentity
         let stagedRoot: InstallRootIdentity
@@ -286,13 +290,53 @@ struct BootstrapManifestV3: Codable, Equatable {
             }
         }
     }
+
+    /// Portable bytes/path evidence only. Directory device/inode remain actual
+    /// observation pins unless a terminal/history Entry snapshot persists them.
+    static func immutableOutputDigest(entries: [SyncAccountRecoveryInventory.Entry],
+        transactionRelativePath root: String) throws -> Data {
+        let roles: Set<String> = [Role.original.directoryName, Role.attachments.directoryName,
+            Role.validationOriginal.directoryName, Role.validationMerged.directoryName]
+        let mutable: Set<String> = [Role.staged.directoryName, "Displaced", "Failed"]
+        var proofs: [String: FileProof] = [:]
+        for entry in entries where OwnedBootstrapCodec.hasExactPrefix(entry.relativePath, root + "/") {
+            let path = String(entry.relativePath.dropFirst(root.count + 1))
+            guard let role = path.split(separator: "/").first.map(String.init),
+                  OwnedBootstrapCodec.containsExactPath(roles.union(mutable), role) else { throw SyncBootstrapError.corrupt }
+            guard roles.contains(role) else { continue }
+            guard !entry.isDirectory || entry.byteCount == 0 && entry.sha256.isEmpty else { throw SyncBootstrapError.corrupt }
+            let key = path + (entry.isDirectory ? "/" : "")
+            guard proofs.updateValue(.init(bytes: entry.isDirectory ? -1 : entry.byteCount,
+                digest: entry.sha256), forKey: key) == nil else { throw SyncBootstrapError.corrupt }
+        }
+        try validateProofs(proofs)
+        return OwnedBootstrapCodec.hash(try OwnedBootstrapCodec.encode(proofs))
+    }
+    /// Canonical complete source state, including authority, generation and
+    /// origin. This pure digest is evidence, never a source authority issuer.
+    static func formerSourceDigest(_ state: SyncAccountRecoveryControl?) throws -> Data? {
+        switch state {
+        case nil: return nil
+        case let .absentSource(source), let .sourceSpent(source, _, _):
+            return OwnedBootstrapCodec.hash(try OwnedBootstrapCodec.encode(source))
+        default: throw SyncBootstrapError.sourceChanged
+        }
+    }
     private func validatePrepared(_ v: PreparedBody) throws {
         try Self.validateProofs(v.installed)
-        guard v.preparationSHA256.count == 32, v.originalLiveRoot.device > 0, v.originalLiveRoot.inode > 0,
+        guard v.preparationSHA256.count == 32, v.pendingSnapshotSHA256.count == 32, v.immutableOutputSHA256.count == 32,
+              v.sourceControlSHA256.map({ $0.count == 32 }) ?? true,
+              v.originalLiveRoot.device > 0, v.originalLiveRoot.inode > 0,
               v.stagedRoot.device > 0, v.stagedRoot.inode > 0, v.stagedRoot != v.originalLiveRoot,
               (v.installed["projects-v1.json"]?.bytes ?? -1) >= 0,
               OwnedBootstrapCodec.samePath(v.commitProgram.journalRelativePath, journalPath),
               Set(v.mutations.map(\.mutationID)).count == v.mutations.count else { throw SyncBootstrapError.corrupt }
+        switch sourceProof {
+        case .missingArchive:
+            guard v.sourceControlSHA256 != nil, v.formerSourceSHA256?.count == 32 else { throw SyncBootstrapError.corrupt }
+        case .archive:
+            guard v.formerSourceSHA256 == nil else { throw SyncBootstrapError.corrupt }
+        }
         for mutation in v.mutations {
             // Metadata-only journal validation does not read attachment files.
             _ = try mutation.validatedForJournalLoad()

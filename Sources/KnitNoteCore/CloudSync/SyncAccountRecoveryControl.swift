@@ -90,7 +90,10 @@ struct SyncAccountRecoveryControlFile {
         case .absentSource(let source):
             try validate(source)
             if predecessorSHA256 == nil {
-                guard case .freshAllocation = source.origin else { throw Error.invalidAuthority }
+                switch source.origin {
+                case .freshAllocation, .bootstrapRollback: break
+                case .restoredSelection: throw Error.invalidAuthority
+                }
             }
             payload = .init(kind: "absentSource", source: source)
         case .sourceSpent(let source, let transactionID, let manifest):
@@ -137,6 +140,12 @@ struct SyncAccountRecoveryControlFile {
         }
         _ = try encode(state, predecessorSHA256: wire.predecessorSHA256)
         return state
+    }
+
+    static func sourceSpentPredecessor(_ bytes: Data) throws -> Data {
+        guard case .sourceSpent = try decode(bytes),
+              let predecessor = try JSONDecoder().decode(Wire.self, from: bytes).predecessorSHA256 else { throw Error.invalidAuthority }
+        return predecessor
     }
 
     func observe(access: SyncAccountStorage.RecoveryAccess) throws -> SyncAccountControlObservation {
@@ -227,6 +236,41 @@ struct SyncAccountRecoveryControlFile {
         let bytes = try Self.encode(.absentSource(source), predecessorSHA256: nil)
         try write(bytes, name: Self.main, at: control)
         try synchronize(.init(mainBytes: bytes, nextBytes: nil, state: .absentSource(source)), access: access)
+    }
+
+    /// A narrow owned legacy bridge. The source is derived from the actual
+    /// terminal and selected dependencies inside the same ownership scope;
+    /// no caller can supply an origin/source value to this initializer.
+    func initializeLegacyRollback(access: SyncAccountStorage.RecoveryAccess,
+        paths: SyncAccountStorage.Paths, account: SyncAccountIdentity,
+        journal: FileSyncMutationJournal, maximumBytes: Int) throws {
+        let absent = SyncAccountControlObservation(mainBytes: nil, nextBytes: nil, state: nil)
+        guard let control = access.controlDescriptor, try observe(access: access) == absent else { throw Error.invalidAuthority }
+        let inventory = try SyncAccountRecoveryInventory.capture(access: access, paths: paths, account: account,
+            journal: journal, archiveURL: paths.workingSet.appendingPathComponent("projects-v1.json"),
+            control: absent, maximumBytes: maximumBytes)
+        guard inventory.bootstrapEvidence == nil, case let .absent(evidence) = inventory.sourceAuthority,
+              let terminal = try SyncBootstrapTransaction.terminalRecoveryEvidence(account: account,
+                accountRoot: paths.accountRoot, liveRoot: paths.workingSet,
+                journalURL: journal.recoveryLocation, entries: inventory.entries),
+              terminal.phase == .rolledBack, case .missingArchive = terminal.sourceProof,
+              terminal.activeEnvelope == evidence.rollbackEnvelope else { throw Error.invalidAuthority }
+        let bytes = try Self.encode(.absentSource(evidence.state), predecessorSHA256: nil)
+        func revalidate() throws {
+            try access.validate()
+            guard try observe(access: access) == absent, try access.entries() == inventory.entries else { throw Error.changedInventory }
+            let current = try SyncBootstrapTransaction.terminalRecoveryEvidence(account: account,
+                accountRoot: paths.accountRoot, liveRoot: paths.workingSet,
+                journalURL: journal.recoveryLocation, entries: inventory.entries)
+            let dependencies = try SyncAccountRecoveryInventory.captureSourceDependencies(paths: paths,
+                journal: journal, archiveURL: inventory.archiveURL, entries: inventory.entries, maximumBytes: maximumBytes)
+            guard current == terminal, dependencies.baseline == evidence.state.baselineSHA256 else { throw Error.changedInventory }
+        }
+        try revalidate()
+        try write(bytes, name: Self.main, at: control)
+        let published = SyncAccountControlObservation(mainBytes: bytes, nextBytes: nil, state: .absentSource(evidence.state))
+        try synchronize(published, access: access)
+        guard try access.entries() == inventory.entries else { throw Error.changedInventory }
     }
 
     private func validateFile(_ fd: Int32, name: String, at root: Int32) throws {

@@ -5,6 +5,52 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite(.serialized) struct SyncBootstrapOwnedJournalTests {
+    @Test func ownedCoordinationInvalidatesCachedStateEvenIfParentLockAdmissionThrows() throws {
+        let f = try OwnedJournalFixture(); defer { f.remove() }
+        let counters = SyncJournalIOCounters(), journal = FileSyncMutationJournal(url: f.url, counters: SyncJournalIOCounters())
+        let observed = FileSyncMutationJournal(url: f.url, counters: counters), mutation = f.mutation(1)
+        try journal.enqueue(mutation); _ = try observed.pending()
+        let before = counters.bytesRead
+        let parent = f.url.deletingLastPathComponent(), moved = f.root.appendingPathComponent("temporarily-moved-parent")
+        try FileManager.default.moveItem(at: parent, to: moved)
+        #expect(throws: (any Error).self) { try observed.withOwnedCommitCoordination([mutation]) {} }
+        try FileManager.default.moveItem(at: moved, to: parent)
+        #expect(try observed.pending() == [mutation])
+        #expect(counters.bytesRead > before)
+    }
+
+    @Test(arguments: [false, true]) func ownedCoordinationHoldsBothLocksWithoutLoadingOrFakingRepair(throwInside: Bool) throws {
+        let f = try OwnedJournalFixture(); defer { f.remove() }
+        let counters = SyncJournalIOCounters(), journal = FileSyncMutationJournal(url: f.url, counters: counters)
+        let mutation = f.mutation(1), coordinator = SyncJournalURLCoordinatorRegistry.shared.coordinator(for: f.url)
+        try journal.enqueue(mutation); _ = try journal.pending()
+        coordinator.requiresDurabilityRepair = true
+        let before = counters.bytesRead
+        func operation() throws {
+            let acquired = coordinator.lock.try()
+            if acquired { coordinator.lock.unlock() }
+            #expect(!acquired)
+            let fd = Darwin.open(f.url.deletingLastPathComponent().path, O_RDONLY | O_DIRECTORY | O_CLOEXEC)
+            #expect(fd >= 0); defer { if fd >= 0 { Darwin.close(fd) } }
+            #expect(flock(fd, LOCK_EX | LOCK_NB) != 0)
+            #expect(errno == EWOULDBLOCK)
+            #expect(counters.bytesRead == before)
+            if throwInside { throw OwnedFixtureFailure.injected }
+        }
+        if throwInside { #expect(throws: OwnedFixtureFailure.self) { try journal.withOwnedCommitCoordination([mutation], operation) } }
+        else { try journal.withOwnedCommitCoordination([mutation], operation) }
+        #expect(coordinator.requiresDurabilityRepair)
+        #expect(counters.bytesRead == before)
+        let released = coordinator.lock.try()
+        if released { coordinator.lock.unlock() }
+        #expect(released)
+        #expect(try journal.pending() == [mutation])
+        #expect(counters.bytesRead > before)
+        let missing = f.root.appendingPathComponent("no-parent/pending.json")
+        try FileSyncMutationJournal(url: missing).withOwnedCommitCoordination([]) {}
+        #expect(!FileManager.default.fileExists(atPath: missing.deletingLastPathComponent().path))
+    }
+
     @Test func prospectiveEnqueueReadsBoundExistingSourceAndRetainsFutureMetadata() throws {
         let f = try OwnedJournalFixture(); defer { f.remove() }
         let bytes = Data("real prospective copy".utf8)
@@ -495,7 +541,9 @@ private struct OwnedJournalFixture {
         let manifest = BootstrapManifestV3(id: UUID(), context: .init(accountIDHash: String(repeating: "a", count: 64),
             epoch: UUID(), freezeID: UUID()), livePath: live.path, journalPath: program.journalRelativePath,
             sourceProof: .archive(sha256: digest), original: original, historyHead: nil,
-            body: .prepared(.init(installed: installed, mutations: [], preparationSHA256: digest, commitProgram: program,
+            body: .prepared(.init(installed: installed, mutations: [], preparationSHA256: digest,
+                sourceControlSHA256: nil, formerSourceSHA256: nil, pendingSnapshotSHA256: digest,
+                immutableOutputSHA256: digest, commitProgram: program,
                 originalLiveRoot: .init(device: 1, inode: 2), stagedRoot: .init(device: 1, inode: 3))))
         #expect(try BootstrapManifestV3.decodeEnvelope(manifest.encoded()).body.preparedBody?.commitProgram == program)
         for operation in program.operations {

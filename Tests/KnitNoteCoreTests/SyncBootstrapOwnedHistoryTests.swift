@@ -30,6 +30,9 @@ struct SyncBootstrapOwnedHistoryTests {
             roleLimits: [.init(role: .original, maximumEntryCount: 10, reservedEncodedProofBytes: 10_000)])
         let prepared = BootstrapManifestV3.PreparedBody(installed: ["projects-v1.json": .init(bytes: 1, digest: digest)],
             mutations: [], preparationSHA256: digest,
+            sourceControlSHA256: nil, formerSourceSHA256: nil, pendingSnapshotSHA256: digest,
+            immutableOutputSHA256: try! BootstrapManifestV3.immutableOutputDigest(entries: tree(id),
+                transactionRelativePath: namespace + "/" + id.uuidString),
             commitProgram: .init(journalRelativePath: journal, initialJournalDirectories: [], initialJournalFiles: [:], operations: []),
             originalLiveRoot: .init(device: 1, inode: 100), stagedRoot: .init(device: 1, inode: 101))
         let body: BootstrapManifestV3.Body = aborted

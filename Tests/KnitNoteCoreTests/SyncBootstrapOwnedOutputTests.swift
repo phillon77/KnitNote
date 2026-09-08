@@ -98,7 +98,22 @@ struct SyncBootstrapOwnedOutputTests {
         let after = try f.source.diskBytes()
         #expect(before.allSatisfy { after[$0.key] == $0.value })
         _ = try f.transaction().recover()
-        #expect(try f.source.diskBytes() == after)
+        let handedOff = try f.source.diskBytes()
+        let controlPath = f.source.paths.accountRoot.appendingPathComponent(".sealed-recovery-v1/intent.json").path
+        #expect(handedOff.filter { $0.key != controlPath } == after.filter { $0.key != controlPath })
+        let control = try #require(handedOff[controlPath])
+        guard case let .absentSource(source) = try SyncAccountRecoveryControlFile.decode(control),
+              case let .bootstrapRollback(id, path, digest) = source.origin else {
+            Issue.record("expected exact terminal source handoff"); return
+        }
+        #expect(id == terminal.id)
+        let active = f.namespace.appendingPathComponent("active.json")
+        #expect(path == (terminal.transactionRelativePath as NSString).deletingLastPathComponent + "/active.json")
+        #expect(digest == (try OwnedBootstrapCodec.hash(Data(contentsOf: active))))
+        #expect(try f.manifest() == terminal)
+        #expect(try Data(contentsOf: URL(fileURLWithPath: retained)).count == 7)
+        _ = try f.transaction().recover()
+        #expect(try f.source.diskBytes() == handedOff)
     }
 
     @Test func abortSynchronizesFrozenFilesThenBottomUpDirectoriesBeforePublication() throws {

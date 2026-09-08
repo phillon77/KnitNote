@@ -1567,6 +1567,108 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
         return try recoverySnapshot(maximumBytes: maximumBytes, inventory: inventory)
     }
 
+    /// Replays the native format at its original logical URL using only the
+    /// exact owned Original tree. This is read-only data access, not an executor
+    /// or a replacement source URL; the account owner retains all authority.
+    func recoverySnapshotOfOwnedOriginal(accountRoot: URL, manifest: BootstrapManifestV3,
+        access: SyncAccountStorage.RecoveryAccess, maximumBytes: Int) throws -> [SyncMutation] {
+        _ = try manifest.encoded(maximumBytes: maximumBytes)
+        let backingURL = accountRoot.appendingPathComponent(manifest.transactionRelativePath + "/Original/" + manifest.journalPath)
+        // Commit already holds live's coordinator. Only this immutable backing
+        // lock is nested beneath it; the read-only parser never acquires live
+        // coordination or calls an owner callback while holding this lock.
+        let backingCoordinator = SyncJournalURLCoordinatorRegistry.shared.coordinator(for: backingURL)
+        return try backingCoordinator.lock.withLock {
+            guard (0...100_000_000).contains(maximumBytes), manifest.body.preparedBody != nil else {
+                throw SyncMutationJournalError.corrupt
+            }
+            try access.validate()
+            let entries = try access.entries()
+            let backing = try OwnedOriginalSnapshot(accountRoot: accountRoot, journalURL: url,
+                manifest: manifest, access: access, entries: entries)
+            guard try backing.read(url, maximumBytes: maximumBytes) == nil else { throw SyncMutationJournalError.corrupt }
+            let state = try loadSegmentedStateLocked(readOnly: true, maximumReadBytes: maximumBytes,
+                ownedOriginal: backing)
+            guard !state.hasPartialFinalFrame, state.cleanupIntentsByMutationID.isEmpty else {
+                throw SyncMutationJournalError.corrupt
+            }
+            try access.validate()
+            guard try access.entries() == entries else { throw SyncMutationJournalError.unsafeFile }
+            return state.pending
+        }
+    }
+
+    private struct OwnedOriginalSnapshot {
+        let live: URL
+        let journalPath: String
+        let original: String
+        let manifest: BootstrapManifestV3
+        let access: SyncAccountStorage.RecoveryAccess
+        let entries: [String: SyncAccountRecoveryInventory.Entry]
+
+        init(accountRoot: URL, journalURL: URL, manifest: BootstrapManifestV3,
+            access: SyncAccountStorage.RecoveryAccess, entries: [SyncAccountRecoveryInventory.Entry]) throws {
+            live = accountRoot.appendingPathComponent("working-set")
+            journalPath = manifest.journalPath
+            original = manifest.transactionRelativePath + "/Original"
+            self.manifest = manifest; self.access = access
+            self.entries = Dictionary(uniqueKeysWithValues: entries.map { ($0.relativePath, $0) })
+            guard journalURL == live.appendingPathComponent(journalPath),
+                  SyncBootstrapTransaction.sameStoragePath(URL(fileURLWithPath: manifest.livePath), live),
+                  accountRoot.lastPathComponent == manifest.context.accountIDHash,
+                  self.entries[original]?.isDirectory == true else { throw SyncMutationJournalError.unsafeFile }
+            let actual = Dictionary(uniqueKeysWithValues: entries.compactMap { entry -> (String, BootstrapManifestV3.FileProof)? in
+                guard entry.relativePath.hasPrefix(original + "/") else { return nil }
+                return (String(entry.relativePath.dropFirst(original.count + 1)) + (entry.isDirectory ? "/" : ""),
+                    .init(bytes: entry.isDirectory ? -1 : entry.byteCount, digest: entry.sha256))
+            })
+            guard actual == manifest.original else { throw SyncMutationJournalError.unsafeFile }
+        }
+
+        func read(_ logical: URL, maximumBytes: Int) throws -> Data? {
+            guard logical.isFileURL, logical.query == nil, logical.fragment == nil,
+                  logical.host == nil || logical.host == "", logical.path.hasPrefix(live.path + "/"),
+                  SyncBootstrapTransaction.sameStoragePath(logical.standardizedFileURL, logical) else { throw SyncMutationJournalError.unsafeFile }
+            let relative = String(logical.path.dropFirst(live.path.count + 1))
+            guard OwnedBootstrapCodec.relative(relative) else { throw SyncMutationJournalError.unsafeFile }
+            let attachments = OwnedBootstrapCodec.parent(journalPath) + "/." + URL(fileURLWithPath: journalPath).lastPathComponent + ".attachments"
+            let shardPrefix = journalPath + ".proofs."
+            let shardSuffix = relative.hasPrefix(shardPrefix) ? String(relative.dropFirst(shardPrefix.count)) : ""
+            let canonicalShard = Int(shardSuffix).map { index in
+                index >= 0 && index < FileSyncMutationJournal.maximumProofShardCount
+                    && shardSuffix == String(format: "%08d", index)
+            } ?? false
+            guard [journalPath, journalPath + ".checkpoint", journalPath + ".segment", journalPath + ".migrated"].contains(relative)
+                    || canonicalShard || OwnedBootstrapCodec.parent(relative) == attachments else {
+                throw SyncMutationJournalError.unsafeFile
+            }
+            let path = original + "/" + relative
+            guard let entry = entries[path] else {
+                guard manifest.original[relative] == nil else { throw SyncMutationJournalError.unsafeFile }
+                return nil
+            }
+            guard OwnedBootstrapCodec.samePath(entry.relativePath, path), !entry.isDirectory,
+                  let proof = manifest.original[relative], proof.bytes == entry.byteCount,
+                  proof.digest == entry.sha256 else { throw SyncMutationJournalError.unsafeFile }
+            let parent = try SyncBootstrapOwnedPOSIX.directory(OwnedBootstrapCodec.parent(path), from: access.accountDescriptor)
+            let name = String(path.split(separator: "/").last!)
+            func validate() throws {
+                var status = stat()
+                guard fstatat(parent.value, name, &status, AT_SYMLINK_NOFOLLOW) == 0,
+                      status.st_mode & S_IFMT == S_IFREG, status.st_nlink == 1,
+                      UInt64(status.st_dev) == entry.device, UInt64(status.st_ino) == entry.inode,
+                      status.st_size == entry.byteCount else { throw SyncMutationJournalError.unsafeFile }
+            }
+            try validate()
+            guard let bytes = try SyncBootstrapOwnedPOSIX.read(name, parent: parent.value, maximumBytes: maximumBytes),
+                  bytes.count == entry.byteCount, Data(SHA256.hash(data: bytes)) == entry.sha256 else {
+                throw SyncMutationJournalError.unsafeFile
+            }
+            try validate()
+            return bytes
+        }
+    }
+
     private func recoverySnapshot(maximumBytes: Int, inventory: RecoverySourceInventory?) throws
         -> (url: URL, mutations: [SyncMutation]) {
         try coordinator.lock.withLock {
@@ -1730,6 +1832,19 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
         }
     }
 
+    /// Coordination only for the private installed bootstrap owner. No load,
+    /// repair, directory allocation or cleanup is performed by this adapter.
+    func withOwnedCommitCoordination<Result>(_ mutations: [SyncMutation],
+        _ operation: () throws -> Result) throws -> Result {
+        if mutations.isEmpty { return try operation() }
+        return try coordinator.lock.withLock {
+            defer { loadedState = nil; loadedFingerprint = nil }
+            return try withParentDirectoryLock(createIfMissing: false) {
+                return try operation()
+            }
+        }
+    }
+
     private func preparedStateLocked() throws -> LoadedState {
         let state = try stateLocked()
         try repairDurabilityIfNeededLocked(state)
@@ -1760,14 +1875,18 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
 
     private func loadSegmentedStateLocked(readOnly: Bool = false,
                                          maximumReadBytes: Int? = nil,
-                                         recoveryInventory: RecoverySourceInventory? = nil) throws -> LoadedState {
+                                         recoveryInventory: RecoverySourceInventory? = nil,
+                                         ownedOriginal: OwnedOriginalSnapshot? = nil) throws -> LoadedState {
+        guard ownedOriginal == nil || readOnly && recoveryInventory == nil else { throw SyncMutationJournalError.corrupt }
         // Nonmutating journal reads retain the encoded-authority bound. Only
         // explicit recovery capture also reserves media against a total budget.
         var remainingEncoded = Self.maximumEncodedBytes
         var remaining = maximumReadBytes
         func readSnapshotArtifact(_ location: URL) throws -> Data? {
             let limit = readOnly ? min(remainingEncoded, remaining ?? Self.maximumEncodedBytes) : Self.maximumEncodedBytes
-            let bytes = try readArtifact(location, maximumBytes: limit)
+            let bytes: Data?
+            if let ownedOriginal { bytes = try ownedOriginal.read(location, maximumBytes: limit) }
+            else { bytes = try readArtifact(location, maximumBytes: limit) }
             if readOnly {
                 remainingEncoded -= bytes?.count ?? 0
                 if let budget = remaining { remaining = budget - (bytes?.count ?? 0) }
@@ -1788,7 +1907,7 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
                     throw SyncMutationJournalError.tooLarge
                 }
                 remaining = budget - Int(source.byteCount)
-                try validatePersistedAttachmentSource(in: mutation, recoveryInventory: recoveryInventory)
+                try validatePersistedAttachmentSource(in: mutation, recoveryInventory: recoveryInventory, ownedOriginal: ownedOriginal)
                 verifiedRecoverySources[source.fileURL] = source
             } else {
                 try validatePersistedAttachmentSource(in: mutation)
@@ -3211,7 +3330,8 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
     }
 
     private func validatePersistedAttachmentSource(in mutation: SyncMutation,
-                                                  recoveryInventory: RecoverySourceInventory? = nil) throws {
+                                                  recoveryInventory: RecoverySourceInventory? = nil,
+                                                  ownedOriginal: OwnedOriginalSnapshot? = nil) throws {
         guard let source = mutation.attachmentSource else { return }
         guard source.isJournalStaged else {
             throw SyncMutationJournalError.invalidAttachment
@@ -3223,7 +3343,13 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
               file.resolvingSymlinksInPath().path == file.path else {
             throw SyncMutationJournalError.unsafeFile
         }
-        if let recoveryInventory {
+        if let ownedOriginal {
+            guard source.byteCount >= 0, source.byteCount <= 100_000_000,
+                  let bytes = try ownedOriginal.read(source.fileURL, maximumBytes: Int(source.byteCount)),
+                  bytes.count == source.byteCount, Data(SHA256.hash(data: bytes)) == source.contentSHA256 else {
+                throw SyncMutationJournalError.unsafeFile
+            }
+        } else if let recoveryInventory {
             try recoveryInventory.validate(source)
         } else {
             try verifyRegularFile(

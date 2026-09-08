@@ -95,7 +95,10 @@ enum SyncBootstrapRecoveryBudget {
         let staged = try require(builder.trees[.staged])
         var installed = Dictionary(uniqueKeysWithValues: staged.files.map { ($0.key, M.FileProof(bytes: $0.value.proof.byteCount, digest: $0.value.proof.sha256)) })
         for path in staged.directories where !path.isEmpty { installed[path + "/"] = .init(bytes: -1, digest: Data()) }
-        let prepared = M.PreparedBody(installed: installed, mutations: mutations, preparationSHA256: preparationDigest,
+        let prepared = try M.PreparedBody(installed: installed, mutations: mutations, preparationSHA256: preparationDigest,
+            sourceControlSHA256: preparation.sourceControlSHA256, formerSourceSHA256: M.formerSourceDigest(control.state),
+            pendingSnapshotSHA256: pendingSnapshotSHA256,
+            immutableOutputSHA256: M.immutableOutputDigest(entries: completed, transactionRelativePath: root),
             commitProgram: commit, originalLiveRoot: .init(device: originalLive.device, inode: originalLive.inode),
             stagedRoot: .init(device: stagedRoot.device, inode: stagedRoot.inode))
         var manifest = M(id: preparing.id, context: context, livePath: preparing.livePath,

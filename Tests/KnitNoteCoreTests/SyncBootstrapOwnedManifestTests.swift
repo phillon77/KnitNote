@@ -4,6 +4,34 @@ import Testing
 @testable import KnitNoteCore
 
 struct SyncBootstrapOwnedManifestTests {
+    @Test func formerSourceWitnessIsExactRequiredOnlyForMissingArchive() throws {
+        var object = fixture("prepared")
+        object["original"] = [String: Any]()
+        object["sourceProof"] = ["kind": "missingArchive", "treeSHA256":
+            OwnedBootstrapCodec.hash(try json([String: Any]())).base64EncodedString()]
+        func value(_ digest: Any?) -> [String: Any] {
+            var copy = object, body = prepared
+            body["sourceControlSHA256"] = hash
+            if let digest { body["formerSourceSHA256"] = digest }
+            copy["body"] = ["phase": "prepared", "prepared": body]
+            return copy
+        }
+        let selected = try decode(value(hash))
+        #expect(try BootstrapManifestV3.decodeEnvelope(selected.encoded()) == selected)
+        reject(value(nil)); reject(value(NSNull())); reject(value("AA=="))
+        #expect(try decode(value(Data(repeating: 2, count: 32).base64EncodedString())).normalizedPreparedDigest()
+            != selected.normalizedPreparedDigest())
+        reject(changedBody("prepared") { $0["formerSourceSHA256"] = hash })
+        reject(changedBody("prepared") { $0["formerSourceSHA256"] = NSNull() })
+    }
+    @Test func preparedRequiresImmutableOutputDigest() throws {
+        let object = changedBody("prepared") { $0["immutableOutputSHA256"] = hash }
+        _ = try decode(object)
+        reject(changedBody("prepared") { $0.removeValue(forKey: "immutableOutputSHA256") })
+        for value: Any in [NSNull(), Data(repeating: 1, count: 31).base64EncodedString()] {
+            reject(changedBody("prepared") { $0["immutableOutputSHA256"] = value })
+        }
+    }
     private let id = "11111111-1111-4111-8111-111111111111"
     private let hash = Data(repeating: 1, count: 32).base64EncodedString()
     private let live = "/private/tmp/owned-fixture/working-set"
@@ -16,7 +44,8 @@ struct SyncBootstrapOwnedManifestTests {
     }
     private var preparing: [String: Any] { ["pendingSnapshotSHA256": hash, "outputAllocation": allocation] }
     private var prepared: [String: Any] {
-        ["installed": ["projects-v1.json": proof], "mutations": [], "preparationSHA256": hash,
+        ["installed": ["projects-v1.json": proof], "mutations": [], "preparationSHA256": hash, "pendingSnapshotSHA256": hash,
+         "immutableOutputSHA256": hash,
          "commitProgram": ["journalRelativePath": "SyncMetadata/journal.json", "initialJournalDirectories": [],
              "initialJournalFiles": [:], "operations": []],
          "originalLiveRoot": ["device": 1, "inode": 2], "stagedRoot": ["device": 1, "inode": 3]]
@@ -65,6 +94,17 @@ struct SyncBootstrapOwnedManifestTests {
     }
 
     // Removing the v3-only version check must fail this test at runtime.
+    @Test func preparedPreservesExactSourceWitnessAcrossNormalizedPhases() throws {
+        let value = changedBody("prepared") { $0["sourceControlSHA256"] = hash }
+        let manifest = try decode(value)
+        let encoded = try manifest.encoded()
+        #expect(try BootstrapManifestV3.decodeEnvelope(encoded) == manifest)
+        reject(changedBody("prepared") { $0.removeValue(forKey: "pendingSnapshotSHA256") })
+        reject(changedBody("prepared") { $0["pendingSnapshotSHA256"] = "AA==" })
+        reject(changedBody("prepared") { $0["sourceControlSHA256"] = NSNull() })
+        reject(changedBody("prepared") { $0["sourceControlSHA256"] = "AA==" })
+    }
+
     @Test func existingNoncanonicalAttachmentRequiresExactInstalledInitialProof() throws {
         let parent = "SyncMetadata/.journal.json.attachments"
         let path = parent + "/prior-source-é.bin"
@@ -284,6 +324,9 @@ struct SyncBootstrapOwnedManifestTests {
                 "epoch": "22222222-2222-4222-8222-222222222222", "freezeID": id] },
             changed("prepared") { $0["original"] = ["projects-v1.json": proof, "extra": proof] },
             changedBody("prepared") { $0["preparationSHA256"] = Data(repeating: 2, count: 32).base64EncodedString() },
+            changedBody("prepared") { $0["sourceControlSHA256"] = Data(repeating: 2, count: 32).base64EncodedString() },
+            changedBody("prepared") { $0["pendingSnapshotSHA256"] = Data(repeating: 2, count: 32).base64EncodedString() },
+            changedBody("prepared") { $0["immutableOutputSHA256"] = Data(repeating: 2, count: 32).base64EncodedString() },
             changedBody("prepared") { $0["stagedRoot"] = ["device": 1, "inode": 4] },
             changedBody("prepared") { $0["installed"] = ["projects-v1.json": proof, "extra": proof] },
             changed("prepared") { $0["historyHead"] = ["sha256": hash, "byteCount": 10, "recordCount": 1, "chainByteCount": 10] },

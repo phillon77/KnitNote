@@ -2,6 +2,40 @@ import CryptoKit
 import Darwin
 import Foundation
 
+/// One install/rollback phase ordering for ordinary and account-owned adapters.
+/// Closures retain their caller's validation, error semantics and durable I/O;
+/// this reduction does not itself issue filesystem or source authority.
+enum SyncBootstrapInstallPhases {
+    enum Move { case liveToDisplaced, stagedToLive, liveToFailed, displacedToLive }
+    static func install(move: (Move) throws -> Void, persistInstalled: () throws -> Void,
+                        boundary: (SyncBootstrapBoundary) throws -> Void) throws {
+        try move(.liveToDisplaced)
+        try boundary(.afterLiveMove)
+        try move(.stagedToLive)
+        try boundary(.afterStagedMove)
+        try persistInstalled()
+        try boundary(.afterInstalled)
+    }
+    static func rollback(persistIntent: () throws -> Void, hasDisplaced: () throws -> Bool,
+        validateDisplaced: () throws -> Void, hasLive: () throws -> Bool,
+        move: (Move) throws -> Void, validateRestored: () throws -> Void,
+        persistTerminal: () throws -> Void, boundary: (SyncBootstrapBoundary) throws -> Void) throws {
+        try persistIntent()
+        try boundary(.afterRollbackIntent)
+        if try hasDisplaced() {
+            try validateDisplaced()
+            if try hasLive() {
+                try move(.liveToFailed)
+                try boundary(.afterFailedMove)
+            }
+            try move(.displacedToLive)
+            try boundary(.afterOriginalRestore)
+        }
+        try validateRestored()
+        try persistTerminal()
+    }
+}
+
 public enum SyncBootstrapError: Error, Equatable {
     case contextChanged, incompleteFetch, sourceChanged, unsafePath, corrupt, invalidPhase, alreadyCommitted
 }
@@ -285,12 +319,8 @@ public final class SyncBootstrapTransaction {
         let envelope = try JSONDecoder().decode(Envelope.self, from: activeBytes)
         guard hash(envelope.payload) == envelope.digest else { throw SyncBootstrapError.corrupt }
         let manifest = try JSONDecoder().decode(Manifest.self, from: envelope.payload)
-        func posixPath(_ url: URL) -> String {
-            let path = url.path
-            return path.hasPrefix("/var/") || path.hasPrefix("/tmp/") ? "/private" + path : path
-        }
         try validateSourceEvidence(manifest, accountIDHash: account.accountIDHash, livePath: live.path,
-            journalMatches: posixPath(live.appendingPathComponent(manifest.journalPath)) == posixPath(journalURL))
+            journalMatches: sameStoragePath(live.appendingPathComponent(manifest.journalPath), journalURL))
         // Only a valid nonterminal manifest authorizes the caller to enter the
         // existing recovery route. Foreign or malformed authority is distinct.
         guard manifest.phase == .committed || manifest.phase == .rolledBack else { throw SyncBootstrapError.invalidPhase }
@@ -535,14 +565,18 @@ public final class SyncBootstrapTransaction {
               try inventory(root.appendingPathComponent("Staged")) == manifest.installed else { throw SyncBootstrapError.sourceChanged }
         try checkContext()
         do {
-            try move(live, to: root.appendingPathComponent("Displaced"))
-            try boundary(.afterLiveMove)
-            try checkContext()
-            try move(root.appendingPathComponent("Staged"), to: live)
-            try boundary(.afterStagedMove)
-            manifest.phase = .installed
-            try persist(manifest)
-            try boundary(.afterInstalled)
+            try SyncBootstrapInstallPhases.install(move: { step in
+                switch step {
+                case .liveToDisplaced: try self.move(self.live, to: root.appendingPathComponent("Displaced"))
+                case .stagedToLive:
+                    try self.checkContext()
+                    try self.move(root.appendingPathComponent("Staged"), to: self.live)
+                default: throw SyncBootstrapError.invalidPhase
+                }
+            }, persistInstalled: {
+                manifest.phase = .installed
+                try self.persist(manifest)
+            }, boundary: boundary)
         } catch {
             try rollback(prepared)
             throw error
@@ -577,23 +611,26 @@ public final class SyncBootstrapTransaction {
         if manifest.phase == .rolledBack { return }
         let root = transactionRoot(manifest.id)
         guard try inventory(root.appendingPathComponent("Original")) == manifest.original else { throw SyncBootstrapError.corrupt }
-        manifest.phase = .rollingBack
-        try persist(manifest)
-        try boundary(.afterRollbackIntent)
         let displaced = root.appendingPathComponent("Displaced")
-        if exists(displaced) {
-            guard try inventory(displaced) == manifest.original else { throw SyncBootstrapError.corrupt }
-            if exists(live) {
-                try move(live, to: root.appendingPathComponent("Failed"))
-                try boundary(.afterFailedMove)
+        try SyncBootstrapInstallPhases.rollback(persistIntent: {
+            manifest.phase = .rollingBack
+            try self.persist(manifest)
+        }, hasDisplaced: { self.exists(displaced) }, validateDisplaced: {
+            guard try self.inventory(displaced) == manifest.original else { throw SyncBootstrapError.corrupt }
+        }, hasLive: { self.exists(self.live) }, move: { step in
+            switch step {
+            case .liveToFailed: try self.move(self.live, to: root.appendingPathComponent("Failed"))
+            case .displacedToLive:
+                try self.checkContext()
+                try self.move(displaced, to: self.live)
+            default: throw SyncBootstrapError.invalidPhase
             }
-            try checkContext()
-            try move(displaced, to: live)
-            try boundary(.afterOriginalRestore)
-        }
-        guard try inventory(live) == manifest.original else { throw SyncBootstrapError.sourceChanged }
-        manifest.phase = .rolledBack
-        try persist(manifest)
+        }, validateRestored: {
+            guard try self.inventory(self.live) == manifest.original else { throw SyncBootstrapError.sourceChanged }
+        }, persistTerminal: {
+            manifest.phase = .rolledBack
+            try self.persist(manifest)
+        }, boundary: boundary)
     }
 
     public func recoverInterruptedInstallation() throws -> SyncBootstrapReceipt? {
@@ -905,6 +942,16 @@ public final class SyncBootstrapTransaction {
            original.keys.contains(where: isReconstructionAuthority) { throw SyncBootstrapError.corrupt }
         return .init(id: manifest.id, context: manifest.context, livePath: manifest.livePath,
             journalPath: manifest.journalPath, sourceProof: manifest.sourceProof, original: original)
+    }
+
+    /// Compare the established system /var and /tmp aliases for routing only.
+    /// Never rewrite a historical or hash-bound path with this projection.
+    static func sameStoragePath(_ lhs: URL, _ rhs: URL) -> Bool {
+        func path(_ url: URL) -> String {
+            let value = url.path
+            return value.hasPrefix("/var/") || value.hasPrefix("/tmp/") ? "/private" + value : value
+        }
+        return path(lhs).utf8.elementsEqual(path(rhs).utf8)
     }
 
     private static func validateSourceEvidence(_ manifest: Manifest, accountIDHash: String,

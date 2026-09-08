@@ -1,5 +1,24 @@
 # Inert empty temporary residue report
 
+## Controller scoped acceptance — 2026-09-08
+
+Same-reviewer re-review accepted fix19dc1b033fa65f4de07eff9d165400b12ec379e4: prior Important addressed, no remaining Critical/Important/Minor in fix range. Main read complete review and both implementation reports. Transition snapshot now spans later main/next synchronization and legacy publication callbacks. Existing fixed consume full-entry baseline covers its bulk synchronization; post-publication rejection does not imply unchanged main. Test-only beforeRename hook ordering remains explicitly outside this bounded claim.
+
+On unchanged code19dc1b0 / evidence HEADbd4fb0e7f1d9d177c4f9b8456e412b920e0a148a, controller ran serial actual-source App/root tests and fresh unsigned macOS/iOS builds. Session84329 reaped exit0; no competing compiler/source changes. Each next stage ran only after preceding exit0. Core focused170/5 result above was not repeated as a full Core run.
+
+| Log | Verified result | Command seconds | SHA256 |
+| --- | --- | --- | --- |
+| /tmp/empty-orphan-app-01.log | 241 tests /12 suites, exit0 | 65.585 | 0e02a007812b52b2b14b9fea514e060057b6e71f548d731d4192ff473bfa4934 |
+| /tmp/empty-orphan-root-01.log | 73 tests /7 suites, exit0 | 8.883 | 29959043f0c0222de443e68d1eec66ceb4054522bbbc04faac1ae5d4e0264069 |
+| /tmp/empty-orphan-macos-01.log | unsigned TEST BUILD SUCCEEDED, exit0 | 47.095 | 03efd46a661feb0720dcdbecfdb1f735941bcba937cefc621293cec3724a28aa |
+| /tmp/empty-orphan-ios-01.log | unsigned BUILD SUCCEEDED, exit0 | 44.021 | 29ab6664fd42891034d8ef8ed691651c8d4d536be95663d7b2d6981a65099a05 |
+
+Both Xcode logs contain three expected AppIntents metadata extraction warnings (no framework dependency), no compiler errors. App live Development CloudKit remains opted out. Actual-source harnesses and bounded runner are the same verified paths used by rollback-reopen acceptance; commands are retained in logs. Fresh derived directories `/tmp/empty-orphan-macos-01-derived` and `/tmp/empty-orphan-ios-01-derived`.
+
+Frozen trees: Sources7a72b0be70e6e8bef1e3cfd80a109e1061b32801; Tests6403d5ec3b91e6d1870fafbd9d8e56dcee941d4e; KnitNote78721554b1f8c32862824939dc7ec2e986fded90; PBXc28feabf67cfff7a33ba82d179e532ac3c88722d. HEAD unchanged and no tracked diff at completion. Original controller scratch retained. Version remains1.7.0(13); no signing, upload, push or submission.
+
+This completes only inert-empty residue acceptance under the documented cooperative ownership model and synthetic residue tests. Nonempty orphan recovery/reclamation, realistic many-file performance, owned bootstrap/sourceSpent/reissue/preparing history, transport fullfetch/ACK and actual App/cloud/device release integration remain separate gates. This is not whole-sync or release readiness. Older pending-review prose below records chronology and is superseded by this section.
+
 CURRENT REVIEW FIX COMPLETE: implementation **19dc1b033fa65f4de07eff9d165400b12ec379e4** (`fix: bind inert snapshot through recovery phase publication`), baseline a9c8337e3f197d35848930d38df5bbb389bf5edf. Final /tmp/empty-orphan-fix-green.log passed **170 tests / 5 suites, EXIT 0**, 84.425s tests / 107.625s elapsed. RED has 70 issues across 20 failing later-sync cases; 8 ordinary consume cases already passed via full baseline equality. Both compiler sessions reaped and stopped. Same reviewer re-review next. Earlier evidence below is chronological and superseded by the appended fix report where applicable.
 
 Baseline ff559299184e0f3e18e87c497e9a37534ca39e23. Implementation commit **8562380ccaf3b3c364ddaaef97300442e6003351** (`fix: retain authenticated inert temporary residue`). Final focused verification passed; all four compiler sessions reaped and stopped before commit/report completion. Approved bounded brainstorming design, systematic debugging, TDD/test-writing and verification-before-completion skills applied. Parent owns independent review; no subagents spawned.

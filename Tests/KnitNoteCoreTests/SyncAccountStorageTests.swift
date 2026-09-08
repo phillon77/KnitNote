@@ -64,7 +64,9 @@ struct SyncAccountStorageTests {
         let paths = try old!.open(identity: account)
         let bytes = Data("owned but still inventoried".utf8)
         try Data("archive".utf8).write(to: paths.workingSet.appendingPathComponent("projects-v1.json"))
-        let temporaryFile = paths.decryptedTemporary.appendingPathComponent("copy")
+        let abandoned = paths.decryptedTemporary.deletingLastPathComponent().appendingPathComponent(UUID().uuidString.lowercased())
+        try FileManager.default.createDirectory(at: abandoned, withIntermediateDirectories: false)
+        let temporaryFile = abandoned.appendingPathComponent("copy")
         try bytes.write(to: temporaryFile)
         old = nil
         let storage = SyncAccountStorage(baseURL: fixture.root)
@@ -255,18 +257,69 @@ struct SyncAccountStorageTests {
         _ = try other.open(identity: fixture.identity("A"))
     }
 
+    @Test(arguments: ["main", "next", "unknown", "oversized", "directory"])
+    func genericOpenNeverDeletesAbandonedCopiesWithRecoveryControlEvidence(kind: String) throws {
+        let fixture = try Fixture(); defer { fixture.remove() }
+        let identity = try fixture.identity("A")
+        var original: SyncAccountStorage? = SyncAccountStorage(baseURL: fixture.root)
+        let paths = try original!.open(identity: identity)
+        let abandoned = paths.decryptedTemporary.deletingLastPathComponent().appendingPathComponent(UUID().uuidString.lowercased())
+        try FileManager.default.createDirectory(at: abandoned, withIntermediateDirectories: false)
+        let copy = abandoned.appendingPathComponent("captured")
+        let bytes = Data("retained encrypted-recovery input".utf8)
+        try bytes.write(to: copy)
+        let control = paths.accountRoot.appendingPathComponent(".sealed-recovery-v1")
+        try FileManager.default.createDirectory(at: control, withIntermediateDirectories: false)
+        let name = kind == "next" ? "intent-next.json" : kind == "unknown" ? "other" : "intent.json"
+        let file = control.appendingPathComponent(name)
+        if kind == "directory" { try FileManager.default.createDirectory(at: file, withIntermediateDirectories: false) }
+        else { try Data(repeating: 1, count: kind == "oversized" ? 8193 : 8).write(to: file) }
+        original = nil
+        let reopened = SyncAccountStorage(baseURL: fixture.root)
+        defer { try? reopened.close() }
+        if kind == "main" || kind == "next" { _ = try reopened.open(identity: identity) }
+        else { #expect(throws: (any Error).self) { try reopened.open(identity: identity) } }
+        #expect(try Data(contentsOf: copy) == bytes)
+        #expect(FileManager.default.fileExists(atPath: file.path))
+    }
+
     @Test func abandonedOwnedTemporaryIsRecoveredButPersistentStagingSurvives() throws {
         let fixture = try Fixture(); defer { fixture.remove() }
         var storage: SyncAccountStorage? = SyncAccountStorage(baseURL: fixture.root)
         let paths = try #require(storage).open(identity: fixture.identity("A"))
-        try Data("secret".utf8).write(to: paths.decryptedTemporary.appendingPathComponent("decoded"))
+        let abandoned = paths.decryptedTemporary.deletingLastPathComponent().appendingPathComponent(UUID().uuidString.lowercased())
+        try FileManager.default.createDirectory(at: abandoned, withIntermediateDirectories: false)
+        try Data("secret".utf8).write(to: abandoned.appendingPathComponent("decoded"))
         try Data("upload".utf8).write(to: paths.staging.appendingPathComponent("pending"))
-        // Dropping an unclosed handle releases descriptors; next open owns recovery.
+        // A synthetic abandoned sibling survives this owner's normal ARC close.
+        // No process crash is simulated by dropping the current owner.
         storage = nil
+        #expect(FileManager.default.fileExists(atPath: abandoned.path))
         let reopened = SyncAccountStorage(baseURL: fixture.root)
         _ = try reopened.open(identity: fixture.identity("A")); defer { try? reopened.close() }
         #expect(!FileManager.default.fileExists(atPath: paths.decryptedTemporary.path))
+        #expect(!FileManager.default.fileExists(atPath: abandoned.path))
         #expect(try Data(contentsOf: paths.staging.appendingPathComponent("pending")) == Data("upload".utf8))
+    }
+
+    @Test(arguments: [false, true])
+    func ordinaryARCReleaseUsesValidatedCloseAndPreservesUnsafeEvidence(unsafe: Bool) throws {
+        let fixture = try Fixture(); defer { fixture.remove() }
+        var storage: SyncAccountStorage? = SyncAccountStorage(baseURL: fixture.root)
+        let paths = try storage!.open(identity: fixture.identity("A"))
+        let copy = paths.decryptedTemporary.appendingPathComponent("copy")
+        try Data("temporary copy".utf8).write(to: copy)
+        let link = paths.decryptedTemporary.appendingPathComponent("unsafe")
+        if unsafe {
+            try FileManager.default.createSymbolicLink(at: link, withDestinationURL: fixture.outside)
+            #expect(throws: SyncAccountStorageError.unsafePath) { try storage!.close() }
+        }
+        storage = nil
+        if unsafe {
+            #expect(try Data(contentsOf: copy) == Data("temporary copy".utf8))
+            #expect(try FileManager.default.destinationOfSymbolicLink(atPath: link.path) == fixture.outside.path)
+            #expect(try Data(contentsOf: fixture.sentinel) == Data("outside".utf8))
+        } else { #expect(!FileManager.default.fileExists(atPath: paths.decryptedTemporary.path)) }
     }
 
     @Test func refusesUnownedTemporaryRootWithoutDeletingItsContents() throws {
@@ -349,7 +402,9 @@ struct SyncAccountStorageTests {
         let fixture = try Fixture(); defer { fixture.remove() }
         var storage: SyncAccountStorage? = SyncAccountStorage(baseURL: fixture.root)
         let paths = try #require(storage).open(identity: fixture.identity("A"))
-        let decoded = paths.decryptedTemporary.appendingPathComponent("decoded")
+        let abandoned = paths.decryptedTemporary.deletingLastPathComponent().appendingPathComponent(UUID().uuidString.lowercased())
+        try FileManager.default.createDirectory(at: abandoned, withIntermediateDirectories: false)
+        let decoded = abandoned.appendingPathComponent("decoded")
         try Data("owned-copy".utf8).write(to: decoded)
         storage = nil
         let bootstrap = paths.accountRoot.appendingPathComponent(".KnitNote-SyncBootstrap")

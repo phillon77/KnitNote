@@ -5,6 +5,151 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite struct SyncAccountRecoveryTransactionTests {
+    @Test func ordinaryARCReleasePreservesRegisteredSealedTemporary() throws {
+        let base = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("sealed-arc-" + UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: base) }
+        let account = try SyncAccountIdentity(containerIdentifier: "test", userRecordName: "ARC")
+        var owner: SyncAccountStorage? = SyncAccountStorage(baseURL: base)
+        let paths = try owner!.openForVerifiedAccount(identity: account, validateAccount: {})
+        let copy = paths.decryptedTemporary.appendingPathComponent("captured")
+        try Data("captured before ARC".utf8).write(to: copy)
+        let vault = SyncRecoveryVault(directory: paths.vault, keychain: TransactionKeys())
+        var tx: SyncAccountRecoveryTransaction? = SyncAccountRecoveryTransaction(storage: owner!, paths: paths,
+            account: account, vault: vault, journal: FileSyncMutationJournal(url: paths.mutationJournalURL))
+        let receipt = try tx!.seal(tx!.prepare(now: .now), now: .now)
+        tx = nil; owner = nil
+        #expect(try Data(contentsOf: copy) == Data("captured before ARC".utf8))
+        let reopened = SyncAccountStorage(baseURL: base)
+        defer { try? reopened.close() }
+        let current = try reopened.openExistingAccount(identity: account, validateAccount: {})
+        let recovery = SyncAccountRecoveryTransaction(storage: reopened, paths: current, account: account,
+            vault: vault, journal: FileSyncMutationJournal(url: current.mutationJournalURL))
+        #expect(try recovery.authenticatedSelection(now: .now)?.receipt == receipt)
+        try recovery.cleanup(receipt); try recovery.restore(vaultID: receipt.vaultID, now: .now)
+        #expect(try recovery.consumeRestoredSelection(vaultID: receipt.vaultID, now: .now))
+    }
+
+    @Test func failedSelectionPublicationRetainsTemporaryUntilLaterAuthenticatedCleanup() throws {
+        let f = try SourceInventoryFixture(); defer { f.remove() }
+        let copy = f.paths.decryptedTemporary.appendingPathComponent("captured")
+        let bytes = Data("retained before selector publication".utf8)
+        try bytes.write(to: copy)
+        let vault = SyncRecoveryVault(directory: f.paths.vault, keychain: TransactionKeys())
+        let fault = TransactionSyncFault()
+        var tx: SyncAccountRecoveryTransaction? = SyncAccountRecoveryTransaction(storage: f.storage, paths: f.paths,
+            account: f.account, vault: vault, journal: f.journal, synchronize: fault.sync, controlBoundary: fault.boundary)
+        let prepared = try tx!.prepare(now: .now)
+        fault.onBoundary = { if $0 == .beforeNextWrite { throw TransactionFailure.injected } }
+        #expect(throws: (any Error).self) { try tx!.seal(prepared, now: .now) }
+        fault.onBoundary = nil
+        #expect(try tx!.lifecycleSnapshot(now: .now) == nil)
+        try f.storage.close(); tx = nil
+        #expect(try Data(contentsOf: copy) == bytes)
+        let owner = SyncAccountStorage(baseURL: f.base)
+        let paths = try owner.openExistingAccount(identity: f.account, validateAccount: {})
+        let recovery = SyncAccountRecoveryTransaction(storage: owner, paths: paths, account: f.account, vault: vault,
+            journal: FileSyncMutationJournal(url: paths.mutationJournalURL))
+        let receipt = try recovery.seal(recovery.prepare(now: .now), now: .now)
+        try recovery.cleanup(receipt)
+        #expect(!FileManager.default.fileExists(atPath: copy.path))
+        try owner.close()
+        #expect(!FileManager.default.fileExists(atPath: paths.decryptedTemporary.path))
+    }
+
+    @Test(arguments: ["path", "subtree", "receipt", "foreignRegistration"])
+    func retentionRegistrationRejectsMismatchedCurrentCaptureWithoutDroppingExistingPin(change: String) throws {
+        let f = try SourceInventoryFixture(), other = try SourceInventoryFixture()
+        defer { f.remove(); other.remove() }
+        let tx = SyncAccountRecoveryTransaction(storage: f.storage, paths: f.paths, account: f.account,
+            vault: SyncRecoveryVault(directory: f.paths.vault, keychain: TransactionKeys()), journal: f.journal)
+        let receipt = try tx.seal(tx.prepare(now: .now), now: .now)
+        let selection = try #require(try tx.authenticatedSelection(now: .now))
+        let foreign = SyncAccountRecoveryTransaction(storage: other.storage, paths: other.paths, account: other.account,
+            vault: SyncRecoveryVault(directory: other.paths.vault, keychain: TransactionKeys()), journal: other.journal)
+        let wrong = try foreign.seal(foreign.prepare(now: .now), now: .now)
+        if change == "subtree" { try Data("later temporary bytes".utf8).write(to: f.paths.decryptedTemporary.appendingPathComponent("later")) }
+        let before = try f.diskBytes()
+        try f.storage.withRecoveryOwnership(paths: f.paths, account: f.account, maximumBytes: 100_000_000) { access in
+            if change == "receipt" {
+                #expect(throws: (any Error).self) { try access.releaseCurrentTemporary(for: wrong) }
+            } else {
+                let path = ".decrypted-temporary/" + (change == "path" ? UUID().uuidString.lowercased() : f.paths.decryptedTemporary.lastPathComponent)
+                #expect(throws: (any Error).self) {
+                    try access.retainCurrentTemporary(for: change == "foreignRegistration" ? wrong : receipt,
+                        capturedPath: path, inventory: selection.inventory)
+                }
+            }
+        }
+        #expect(try f.diskBytes() == before)
+        try f.storage.close()
+        #expect(FileManager.default.fileExists(atPath: f.paths.decryptedTemporary.path))
+    }
+
+    @Test(arguments: ["fresh", "rollback"], ["existing-empty", "existing-data", "verified-empty", "verified-data", "existing-visible-failure", "verified-visible-failure", "generic-empty", "generic-data", "generic-visible-failure"])
+    func sealedSelectionSurvivesOrdinaryCloseAndNewOwner(origin: String, route: String) throws {
+        let source = try origin == "fresh" ? SourceInventoryFixture() : nil
+        let rollback = try origin == "rollback" ? RecoveryInventoryFixture() : nil
+        defer { source?.remove(); rollback?.remove() }
+        let storage = source?.storage ?? rollback!.storage
+        let paths = source?.paths ?? rollback!.paths
+        let account = source?.account ?? rollback!.account
+        let base = source?.base ?? rollback!.base
+        let journal = try source?.journal ?? rollback!.makeMissingArchiveRollback()
+        let payload = Data("captured decrypted evidence".utf8)
+        let temporaryFile = paths.decryptedTemporary.appendingPathComponent("nested/copy")
+        if !route.hasSuffix("empty") {
+            try FileManager.default.createDirectory(at: temporaryFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try payload.write(to: temporaryFile)
+        }
+        let fault = TransactionSyncFault(), vault = SyncRecoveryVault(directory: paths.vault, keychain: TransactionKeys())
+        var tx: SyncAccountRecoveryTransaction? = SyncAccountRecoveryTransaction(storage: storage, paths: paths,
+            account: account, vault: vault, journal: journal, synchronize: fault.sync)
+        let prepared = try tx!.prepare(now: .now)
+        let main = paths.accountRoot.appendingPathComponent(".sealed-recovery-v1/intent.json")
+        var hit = false
+        if route.hasSuffix("failure") {
+            fault.onSync = { _ in
+                guard let bytes = try? Data(contentsOf: main) else { return }
+                switch try SyncAccountRecoveryControlFile.decode(bytes) {
+                case .legacySelection(let intent), .selectedRecovery(let intent, _):
+                    if intent.phase == .sealed { hit = true; throw TransactionFailure.injected }
+                default: break
+                }
+            }
+            #expect(throws: (any Error).self) { try tx!.seal(prepared, now: .now) }
+            #expect(hit)
+        } else { _ = try tx!.seal(prepared, now: .now) }
+        fault.onSync = nil
+        let selectedMain = try Data(contentsOf: main)
+        try storage.close(); tx = nil
+        #expect(FileManager.default.fileExists(atPath: paths.decryptedTemporary.path))
+        if !route.hasSuffix("empty") { #expect(try Data(contentsOf: temporaryFile) == payload) }
+        var owner: SyncAccountStorage? = SyncAccountStorage(baseURL: base)
+        let reopenedPaths: SyncAccountStorage.Paths
+        if route.hasPrefix("generic") { reopenedPaths = try owner!.open(identity: account) }
+        else if route.hasPrefix("existing") { reopenedPaths = try owner!.openExistingAccount(identity: account, validateAccount: {}) }
+        else { reopenedPaths = try owner!.openForVerifiedAccount(identity: account, validateAccount: {}) }
+        var recovery: SyncAccountRecoveryTransaction? = SyncAccountRecoveryTransaction(storage: owner!, paths: reopenedPaths,
+            account: account, vault: vault, journal: FileSyncMutationJournal(url: paths.mutationJournalURL))
+        let selected = try #require(try recovery!.authenticatedSelection(now: .now))
+        #expect(selected.phase == .sealed)
+        #expect(try Data(contentsOf: main) == selectedMain)
+        // A post-selection empty session is not part of the capture. Repeated
+        // ordinary release must not accumulate an unowned inventory exception.
+        try owner!.close(); recovery = nil; owner = nil
+        let finalOwner = SyncAccountStorage(baseURL: base)
+        defer { try? finalOwner.close() }
+        let finalPaths = try finalOwner.openExistingAccount(identity: account, validateAccount: {})
+        let final = SyncAccountRecoveryTransaction(storage: finalOwner, paths: finalPaths, account: account,
+            vault: vault, journal: FileSyncMutationJournal(url: paths.mutationJournalURL))
+        #expect(try final.authenticatedSelection(now: .now)?.receipt == selected.receipt)
+        try final.cleanup(selected.receipt)
+        try final.restore(vaultID: selected.receipt.vaultID, now: .now)
+        #expect(try final.consumeRestoredSelection(vaultID: selected.receipt.vaultID, now: .now))
+        #expect(try final.sourceState(now: .now) != nil)
+        #expect(try journal.recoverySnapshot().mutations == selected.inventory.packet.mutations)
+    }
+
     @Test(arguments: [false, true])
     func consumeRejectsControlInodeReplacementDuringSynchronization(consumed: Bool) throws {
         let f = try SourceInventoryFixture(); defer { f.remove() }
@@ -1340,7 +1485,7 @@ import Testing
             #expect(!FileManager.default.fileExists(atPath: source.path))
         }
         let archiveRemains = FileManager.default.fileExists(atPath: paths.workingSet.appendingPathComponent("projects-v1.json").path)
-        tx = nil; owner = nil // Crash: release ownership without close/cleanup.
+        tx = nil; owner = nil // Normal ARC release runs validated close; not a process crash.
         let reopened = SyncAccountStorage(baseURL: base)
         let current = try reopened.open(identity: account)
         defer { try? reopened.close() }

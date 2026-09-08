@@ -192,6 +192,7 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
             }
             try validateSource()
             guard try controlFile.observe(access: access) == captured else { throw Error.changedInventory }
+            try access.retainCurrentTemporary(for: receipt, capturedPath: envelope.temporarySession, inventory: inventory)
             if let main = captured.mainBytes {
                 let predecessor = Data(SHA256.hash(data: main))
                 _ = try controlFile.replace(captured, with: .selectedRecovery(intent, predecessorSHA256: predecessor),
@@ -552,6 +553,7 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
             if authorized.intent.phase == .sealed {
                 authorized = try transition(authorized, to: .cleanupStarted, access: access)
             }
+            try access.releaseCurrentTemporary(for: authorized.receipt)
             for entry in remaining.sorted(by: { $0.relativePath.split(separator: "/").count > $1.relativePath.split(separator: "/").count
                 || ($0.relativePath.split(separator: "/").count == $1.relativePath.split(separator: "/").count && $0.relativePath < $1.relativePath) }) {
                 // No stale receipt may replace a newer durable intent. A readable

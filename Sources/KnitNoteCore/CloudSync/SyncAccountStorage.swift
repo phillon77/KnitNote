@@ -27,7 +27,8 @@ public final class SyncAccountStorage: @unchecked Sendable {
         public let quarantine: URL
         public let vault: URL
         /// Only reconstructible decrypted copies belong here, never sole unsent
-        /// sources. close() removes this owned session tree synchronously.
+        /// sources. close() removes this session unless the authenticated
+        /// recovery owner has retained it for a pending selection publication.
         public let decryptedTemporary: URL
         /// Six standard roots, NOT a complete plaintext inventory. For example,
         /// SyncBootstrapTransaction(liveRoot: workingSet) also owns the sibling
@@ -53,6 +54,10 @@ public final class SyncAccountStorage: @unchecked Sendable {
     init(baseURL: URL, synchronize: @escaping @Sendable (Int32) throws -> Void) {
         self.baseURL = baseURL; self.synchronize = synchronize
     }
+
+    // Normal ARC release uses the same validated close path. This is not crash
+    // recovery: failure leaves evidence, and a retained capture is never removed.
+    deinit { try? close() }
 
     /// Compatibility gate only: never relocate a journal or reinterpret its
     /// absolute attachment URLs. Bootstrap terminal proofs are checked after
@@ -205,7 +210,9 @@ public final class SyncAccountStorage: @unchecked Sendable {
         // this dedicated temporary namespace, never persistentRoots.
         // Verified opens preserve abandoned sessions until authenticated account
         // cleanup. A later generation-validation failure cannot authorize deletion.
-        if mode == .legacy { try Self.removeContents(temporary.handle, excluding: Self.ownerName) }
+        if mode == .legacy, try !Self.hasRecoveryControlEvidence(in: account) {
+            try Self.removeContents(temporary.handle, excluding: Self.ownerName)
+        }
         let name = UUID().uuidString.lowercased()
         let decrypted = try Self.directory(name, in: temporary.handle, create: true).handle
         let paths = Paths(accountRoot: root, workingSet: urls[0], journal: urls[1], engineState: urls[2],
@@ -295,6 +302,12 @@ public final class SyncAccountStorage: @unchecked Sendable {
         try Self.validateOwner(session.marker, in: session.temporary)
         try Self.validateEntry(session.decrypted, named: session.name, in: session.temporary)
         try Self.validateTree(session.decrypted)
+        if session.retainedCapture != nil {
+            // Registration precedes any selector publication. Release ownership
+            // without destroying a captured tree, including uncertain writes.
+            self.session = nil
+            return
+        }
         try Self.removeContents(session.decrypted)
         guard unlinkat(session.temporary.fd, session.name, AT_REMOVEDIR) == 0 else {
             throw SyncAccountStorageError.unavailable
@@ -326,6 +339,29 @@ public final class SyncAccountStorage: @unchecked Sendable {
         let controlDescriptor: Int32?
         let entries: () throws -> [SyncAccountRecoveryInventory.Entry]
         let validate: () throws -> Void
+        private let retain: ((SyncAccountRecoveryTransaction.Sealed, String, SyncAccountRecoveryInventory) throws -> Void)?
+        private let release: ((SyncAccountRecoveryTransaction.Sealed) throws -> Void)?
+
+        init(accountDescriptor: Int32, controlDescriptor: Int32?,
+             entries: @escaping () throws -> [SyncAccountRecoveryInventory.Entry], validate: @escaping () throws -> Void,
+             retain: ((SyncAccountRecoveryTransaction.Sealed, String, SyncAccountRecoveryInventory) throws -> Void)? = nil,
+             release: ((SyncAccountRecoveryTransaction.Sealed) throws -> Void)? = nil) {
+            self.accountDescriptor = accountDescriptor; self.controlDescriptor = controlDescriptor
+            self.entries = entries; self.validate = validate; self.retain = retain; self.release = release
+        }
+
+        func retainCurrentTemporary(for receipt: SyncAccountRecoveryTransaction.Sealed, capturedPath: String,
+                                    inventory: SyncAccountRecoveryInventory) throws {
+            guard let retain else { throw SyncAccountStorageError.invalidIdentity }
+            try retain(receipt, capturedPath, inventory)
+        }
+
+        /// Only the authenticated transaction calls this after its cleanup phase
+        /// has been durably established. A reopened, uncaptured session has no pin.
+        func releaseCurrentTemporary(for receipt: SyncAccountRecoveryTransaction.Sealed) throws {
+            guard let release else { throw SyncAccountStorageError.invalidIdentity }
+            try release(receipt)
+        }
     }
 
     func withRecoveryOwnership<T>(paths: Paths, account: SyncAccountIdentity, maximumBytes: Int,
@@ -368,7 +404,30 @@ public final class SyncAccountStorage: @unchecked Sendable {
             entries: {
                 var remaining = maximumBytes
                 return try Self.recoveryEntries(session.account, prefix: "", remaining: &remaining)
-            }, validate: validateBindings))
+            }, validate: validateBindings, retain: { receipt, capturedPath, inventory in
+                try validateBindings()
+                let path = Self.temporaryName + "/" + session.name
+                guard capturedPath == path, inventory.account == account, inventory.accountRoot == paths.accountRoot,
+                      inventory.fingerprint == receipt.inventoryFingerprint else { throw SyncAccountStorageError.invalidIdentity }
+                var status = stat()
+                guard fstat(session.decrypted.fd, &status) == 0 else { throw SyncAccountStorageError.unsafePath }
+                var remaining = maximumBytes
+                let actual = [SyncAccountRecoveryInventory.Entry(relativePath: path, isDirectory: true,
+                    byteCount: 0, sha256: Data(), device: UInt64(status.st_dev), inode: UInt64(status.st_ino))]
+                    + (try Self.recoveryEntries(session.decrypted, prefix: path + "/", remaining: &remaining))
+                let captured = inventory.entries.filter { $0.relativePath == path || $0.relativePath.hasPrefix(path + "/") }
+                guard actual.sorted(by: { $0.relativePath < $1.relativePath }) == captured.sorted(by: { $0.relativePath < $1.relativePath }) else {
+                    throw SyncAccountStorageError.unsafePath
+                }
+                try validateBindings()
+                self.session?.retainedCapture = receipt
+            }, release: { receipt in
+                try validateBindings()
+                if let retained = self.session?.retainedCapture {
+                    guard retained == receipt else { throw SyncAccountStorageError.invalidIdentity }
+                    self.session?.retainedCapture = nil
+                }
+            }))
         // Rewalking a retained descriptor alone cannot prove accountRoot still
         // names it, nor that excluded control/vault paths retain their bindings.
         try validateBindings()
@@ -383,6 +442,21 @@ public final class SyncAccountStorage: @unchecked Sendable {
                   status.st_mode & S_IFMT == S_IFREG, status.st_nlink == 1,
                   status.st_size >= 0, status.st_size <= 8192 else { throw SyncAccountStorageError.unsafePath }
         }
+    }
+
+    /// Local control presence is only a reason to preserve bytes. It grants no
+    /// cleanup authority and cannot reveal the encrypted envelope's version.
+    private static func hasRecoveryControlEvidence(in account: Handle) throws -> Bool {
+        var status = stat()
+        if fstatat(account.fd, recoveryControlName, &status, AT_SYMLINK_NOFOLLOW) != 0 {
+            guard errno == ENOENT else { throw SyncAccountStorageError.unsafePath }
+            return false
+        }
+        let control = try directory(recoveryControlName, in: account, create: false).handle
+        try validateRecoveryControl(control)
+        let present = try !names(in: control).isEmpty
+        try validateEntry(control, named: recoveryControlName, in: account)
+        return present
     }
 
     private static func recoveryEntries(_ parent: Handle, prefix: String, remaining: inout Int,
@@ -442,8 +516,8 @@ public final class SyncAccountStorage: @unchecked Sendable {
         return result
     }
 
-    // Releasing an unclosed owner releases descriptors/lock only. Next open uses
-    // the marker to recover abandoned copies; deinit cannot report cleanup errors.
+    // Captured-session retention is local to the currently held owner. Reopened
+    // UUID sessions did not exist in earlier captures and start unregistered.
     private struct Session {
         let base: Handle
         let account: Handle
@@ -454,6 +528,7 @@ public final class SyncAccountStorage: @unchecked Sendable {
         let identity: SyncAccountIdentity
         let marker: Data
         let paths: Paths
+        var retainedCapture: SyncAccountRecoveryTransaction.Sealed?
     }
 
     private final class Handle {

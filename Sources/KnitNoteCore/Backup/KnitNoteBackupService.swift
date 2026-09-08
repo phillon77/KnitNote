@@ -347,24 +347,8 @@ public struct KnitNoteBackupService: Sendable {
                     )
                 )
             }
-            manifestFiles.sort {
-                $0.relativePath.localizedStandardCompare($1.relativePath) == .orderedAscending
-            }
-            let manifest = KnitNoteBackupManifest(
-                createdAt: now,
-                appVersion: appVersion,
-                projectCount: archive.projects.count,
-                yarnCount: archive.yarns.count,
-                patternCount: patternCount(in: archive),
-                files: manifestFiles,
-                criticalFeatures: [KnitNoteBackupManifest.fileIntegrityFeature]
-            )
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.sortedKeys]
-            try encoder.encode(manifest).write(
-                to: packageRoot.appendingPathComponent("manifest.json"),
-                options: .atomic
-            )
+            try encodePackageManifest(archive: archive, appVersion: appVersion, now: now, files: manifestFiles)
+                .write(to: packageRoot.appendingPathComponent("manifest.json"), options: .atomic)
             _ = try inspectPackage(at: packageRoot)
             return packageRoot
         } catch {
@@ -1718,29 +1702,164 @@ public struct KnitNoteBackupService: Sendable {
         }
     }
 
-    private func referencedRelativePaths(
-        in archive: ProjectArchive,
-        sourceRoot: URL
-    ) throws -> [String] {
+    private func referencedRelativePaths(in archive: ProjectArchive, sourceRoot: URL) throws -> [String] {
         guard sourceRoot.standardizedFileURL == liveRoot.standardizedFileURL else {
             throw KnitNoteBackupError.unsafePackageEntry
         }
+        return try referencedRelativePaths(in: archive, markupPaths: descriptorMarkupPaths)
+    }
+
+    private func referencedRelativePaths(in archive: ProjectArchive,
+        markupPaths: (String) throws -> [String]) throws -> [String] {
         var paths = referencedMediaPaths(in: archive)
         for project in archive.projects {
             for pattern in project.patterns {
-                let ownerPath = "Patterns/\(project.id.uuidString)/Markup/\(pattern.id.uuidString)"
-                for relativePath in try descriptorMarkupPaths(ownerPath: ownerPath) {
-                    paths.insert(relativePath)
-                }
+                paths.formUnion(try markupPaths("Patterns/\(project.id.uuidString)/Markup/\(pattern.id.uuidString)"))
             }
         }
         for usage in archive.patternUsages {
-            let ownerPath = "Patterns/UsageMarkup/\(usage.id.uuidString)"
-            for relativePath in try descriptorMarkupPaths(ownerPath: ownerPath) {
-                paths.insert(relativePath)
-            }
+            paths.formUnion(try markupPaths("Patterns/UsageMarkup/\(usage.id.uuidString)"))
         }
         return paths.sorted()
+    }
+
+    private func encodePackageManifest(archive: ProjectArchive, appVersion: String, now: Date,
+        files: [KnitNoteBackupManifestFile]) throws -> Data {
+        let ordered = files.sorted { $0.relativePath.localizedStandardCompare($1.relativePath) == .orderedAscending }
+        let manifest = KnitNoteBackupManifest(createdAt: now, appVersion: appVersion,
+            projectCount: archive.projects.count, yarnCount: archive.yarns.count,
+            patternCount: patternCount(in: archive), files: ordered,
+            criticalFeatures: [KnitNoteBackupManifest.fileIntegrityFeature])
+        let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
+        return try encoder.encode(manifest)
+    }
+
+    private func selectedFrozenPackageFiles(_ source: KnitNoteBackupFrozenTree) throws
+        -> (ProjectArchive, [String: SyncBootstrapOutputProof]) {
+        guard Int64(source.archiveData.count) <= KnitNoteBackupLimits.maximumArchiveBytes else {
+            throw KnitNoteBackupError.fileTooLarge
+        }
+        let archive: ProjectArchive
+        do { archive = try JSONDecoder().decode(ProjectArchive.self, from: source.archiveData) }
+        catch { throw KnitNoteBackupError.invalidArchive }
+        try validateArchive(archive)
+        guard source.directories.isDisjoint(with: source.files.keys) else { throw KnitNoteBackupError.unsafePackageEntry }
+        var aliases: [String: String] = [:]
+        for path in Array(source.directories) + Array(source.files.keys) {
+            let alias = path.precomposedStringWithCanonicalMapping.folding(
+                options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
+            if let old = aliases[alias], !old.utf8.elementsEqual(path.utf8) { throw KnitNoteBackupError.unsafePackageEntry }
+            aliases[alias] = path
+        }
+        func exactDirectory(_ path: String) -> Bool {
+            guard let index = source.directories.firstIndex(of: path) else { return false }
+            return source.directories[index].utf8.elementsEqual(path.utf8)
+        }
+        for path in Array(source.directories) + Array(source.files.keys) {
+            let components = path.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+            guard components.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." && !$0.contains("\\") && !$0.utf8.contains(0) }) else {
+                throw KnitNoteBackupError.unsafePackageEntry
+            }
+            for count in 1..<components.count {
+                guard exactDirectory(components.prefix(count).joined(separator: "/")) else { throw KnitNoteBackupError.unsafePackageEntry }
+            }
+        }
+        func parents(_ path: String) throws {
+            let components = path.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+            guard !components.isEmpty, components.allSatisfy(isSafeFileComponent) else { throw KnitNoteBackupError.unsafePackageEntry }
+            for count in 1..<components.count {
+                guard exactDirectory(components.prefix(count).joined(separator: "/")) else {
+                    throw KnitNoteBackupError.unsafePackageEntry
+                }
+            }
+        }
+        let references = try referencedRelativePaths(in: archive) { owner in
+            let prefix = owner + "/"
+            let files = source.files.keys.filter { $0.hasPrefix(prefix) }
+            let directories = source.directories.filter { $0.hasPrefix(prefix) }
+            if !exactDirectory(owner) {
+                guard !source.directories.contains(owner) else { throw KnitNoteBackupError.unsafePackageEntry }
+                guard source.files[owner] == nil, files.isEmpty, directories.isEmpty else { throw KnitNoteBackupError.unsafePackageEntry }
+                // The descriptor reader also rejects a non-directory ancestor even
+                // if the final owner is absent. Missing ordinary ancestors are allowed.
+                let components = owner.split(separator: "/")
+                for count in 1...components.count {
+                    guard source.files[components.prefix(count).joined(separator: "/")] == nil else {
+                        throw KnitNoteBackupError.unsafePackageEntry
+                    }
+                }
+                return []
+            }
+            try parents(owner)
+            guard directories.isEmpty else { throw KnitNoteBackupError.unknownPackageEntry }
+            guard files.count <= KnitNoteBackupLimits.maximumMarkupEntriesPerPattern else { throw KnitNoteBackupError.invalidMarkup }
+            for path in files {
+                let name = String(path.dropFirst(prefix.count))
+                guard !name.contains("/"), isMarkupFilename(name) else { throw KnitNoteBackupError.unknownPackageEntry }
+            }
+            return files.sorted()
+        }
+        var selected: [String: SyncBootstrapOutputProof] = [:]
+        var total: Int64 = 0
+        for path in ["projects-v1.json"] + references {
+            try parents(path)
+            guard let index = source.files.index(forKey: path) else { throw KnitNoteBackupError.missingReferencedFile(path) }
+            guard source.files[index].key.utf8.elementsEqual(path.utf8) else { throw KnitNoteBackupError.unsafePackageEntry }
+            let value = source.files[index].value
+            guard value.byteCount >= 0, value.sha256.count == 32 else { throw KnitNoteBackupError.unsafePackageEntry }
+            guard value.byteCount <= min(copyFileLimit(for: path), 100_000_000) else { throw KnitNoteBackupError.fileTooLarge }
+            guard value.byteCount <= KnitNoteBackupLimits.maximumPackageBytes - total else { throw KnitNoteBackupError.packageTooLarge }
+            total += value.byteCount; selected[path] = value
+        }
+        let actual = SyncBootstrapOutputProof(byteCount: Int64(source.archiveData.count), sha256: Data(SHA256.hash(data: source.archiveData)))
+        guard selected["projects-v1.json"] == actual else { throw KnitNoteBackupError.integrityMismatch("projects-v1.json") }
+        return (archive, selected)
+    }
+
+    /// Plans content and finite outputs only. Does not read disk or grant write authority.
+    func planOwnedPackage(source: KnitNoteBackupFrozenTree, role: SyncBootstrapOutputRole,
+        packageID: UUID, accountIDHash: String, livePathSHA256: String, transactionID: UUID,
+        appVersion: String, now: Date, maximumMetadataBytes: Int = 100_000_000,
+        temporaryID: (String) throws -> UUID = { _ in UUID() }) throws -> KnitNoteBackupPackagePlan {
+        guard role == .validationOriginal || role == .validationMerged else { throw KnitNoteBackupError.unsafePackageEntry }
+        let (archive, selected) = try selectedFrozenPackageFiles(source)
+        let files = selected.map { path, value in
+            KnitNoteBackupManifestFile(relativePath: path, byteCount: value.byteCount,
+                sha256: value.sha256.map { String(format: "%02x", $0) }.joined())
+        }
+        let manifestData = try encodePackageManifest(archive: archive, appVersion: appVersion, now: now, files: files)
+        guard Int64(manifestData.count) <= KnitNoteBackupLimits.maximumManifestBytes else { throw KnitNoteBackupError.fileTooLarge }
+        let package = packageID.uuidString + ".knitnote-backup"
+        var actions: [SyncBootstrapOutputAction] = [.directory(role: role, path: ""),
+            .directory(role: role, path: package), .directory(role: role, path: package + "/Data")]
+        var directories: Set<String> = ["", package, package + "/Data"]
+        var ids: [String: UUID] = [:]
+        func appendFile(_ path: String, _ proof: SyncBootstrapOutputProof) throws {
+            let components = path.split(separator: "/").map(String.init)
+            for count in 1..<components.count {
+                let parent = components.prefix(count).joined(separator: "/")
+                if directories.insert(parent).inserted { actions.append(.directory(role: role, path: parent)) }
+            }
+            let id = try temporaryID(path)
+            ids[path] = id
+            actions.append(.write(role: role, path: path, mode: .create(proof), temporaryID: id))
+        }
+        try appendFile(package + "/Data/projects-v1.json", selected["projects-v1.json"]!)
+        for path in selected.keys.filter({ $0 != "projects-v1.json" }).sorted() {
+            try appendFile(package + "/Data/" + path, selected[path]!)
+        }
+        try appendFile(package + "/manifest.json", .init(byteCount: Int64(manifestData.count), sha256: Data(SHA256.hash(data: manifestData))))
+        let output = try SyncBootstrapOutputPlanner.plan(accountIDHash: accountIDHash,
+            livePathSHA256: livePathSHA256, transactionID: transactionID, actions: actions,
+            maximumMetadataBytes: maximumMetadataBytes)
+        return .init(role: role, packageID: packageID, archiveData: source.archiveData, manifestData: manifestData,
+            sourceFiles: selected, temporaryIDs: ids, actions: actions, output: output)
+    }
+
+    func validateFrozenPackageSource(_ plan: KnitNoteBackupPackagePlan, source: KnitNoteBackupFrozenTree) throws {
+        guard source.archiveData == plan.archiveData else { throw KnitNoteBackupError.integrityMismatch("projects-v1.json") }
+        let (_, selected) = try selectedFrozenPackageFiles(source)
+        guard selected == plan.sourceFiles else { throw KnitNoteBackupError.unsafePackageEntry }
     }
 
     private func descriptorMarkupPaths(ownerPath: String) throws -> [String] {

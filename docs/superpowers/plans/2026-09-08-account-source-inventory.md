@@ -1,5 +1,15 @@
 # Account Source Inventory and Atomic Restore Handoff Implementation Plan
 
+## Execution outcome — 2026-09-08
+
+- [x] Task 1 implemented and independently reviewed at bd78c2a.
+- [x] Task 2 implemented and independently reviewed at 820e887.
+- [x] Task 3 implemented and independently reviewed at de86182.
+- [x] Whole-plan review, sealed-session lifetime fix 42403d9 and scoped re-review completed.
+- [x] Frozen Core/App/root tests and unsigned macOS/iOS builds passed on 42403d955ccdafade6a3470be3c3d1864dc2b93e.
+
+The detailed checklist below is retained as the original execution specification, not a live progress ledger. Actual implementations, approved adjustments, evidence and deferred gates are reconciled in `../reports/2026-09-08-account-source-inventory-verification.md` and the three task reports under `.superpowers/sdd/2026-09-08-account-source-inventory/`. This scoped completion does not close nil-control rollback admission, abrupt-crash orphan handling, App integration, live-device or release gates.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Controller-approved scoped implementation plan. Main owns sequential dispatch, independent reviews and frozen validation; workers do not dispatch additional agents.
 
 **Goal:** Make legitimate fresh, restored-pending, and single validated legacy rollback sources sealable, and consume replayComplete by atomically publishing durable absence provenance.

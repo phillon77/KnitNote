@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		B39090800000000000000002 /* SyncBootstrapOutputPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = B39090800000000000000001 /* SyncBootstrapOutputPlanner.swift */; };
+		B39090800000000000000003 /* SyncBootstrapOutputPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = B39090800000000000000001 /* SyncBootstrapOutputPlanner.swift */; };
+		B39090800000000000000005 /* KnitNoteBackupPackagePlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = B39090800000000000000004 /* KnitNoteBackupPackagePlan.swift */; };
+		B39090800000000000000006 /* KnitNoteBackupPackagePlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = B39090800000000000000004 /* KnitNoteBackupPackagePlan.swift */; };
 		AA0908000000000000000001 /* CloudAccountIdentityQuery.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0908000000000000000002 /* CloudAccountIdentityQuery.swift */; };
 		AC0908000000000000000001 /* AppAccountSessionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC0908000000000000000002 /* AppAccountSessionController.swift */; };
 		AA0908000000000000000003 /* CloudAccountIdentityQueryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0908000000000000000004 /* CloudAccountIdentityQueryTests.swift */; };
@@ -535,6 +539,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		B39090800000000000000001 /* SyncBootstrapOutputPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncBootstrapOutputPlanner.swift; sourceTree = "<group>"; };
+		B39090800000000000000004 /* KnitNoteBackupPackagePlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteBackupPackagePlan.swift; sourceTree = "<group>"; };
 		AA0908000000000000000002 /* CloudAccountIdentityQuery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudAccountIdentityQuery.swift; sourceTree = "<group>"; };
 		AC0908000000000000000002 /* AppAccountSessionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppAccountSessionController.swift; sourceTree = "<group>"; };
 		AA0908000000000000000004 /* CloudAccountIdentityQueryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudAccountIdentityQueryTests.swift; sourceTree = "<group>"; };
@@ -1290,6 +1296,7 @@
 				2165C90407328B78E825881B /* KnitNoteBackupExportPackage.swift */,
 				4C2B7038D08F6C6E76229D7F /* KnitNoteBackupManifest.swift */,
 				6BD9BA7AF9DB8355EC7EDC7F /* KnitNoteBackupService.swift */,
+				B39090800000000000000004 /* KnitNoteBackupPackagePlan.swift */,
 			);
 			path = Backup;
 			sourceTree = "<group>";
@@ -1468,6 +1475,7 @@
 				DC0400000000000000000006 /* SyncCanonicalCheckpointStore.swift */,
 				942AFD72DC7EF6175855E69D /* SyncAccountStorage.swift */,
 				B3F1A9019920000000000005 /* SyncAccountSourceState.swift */,
+				B39090800000000000000001 /* SyncBootstrapOutputPlanner.swift */,
 				B3F1A9019920000000000006 /* SyncAccountRecoveryControl.swift */,
 				84AB424D39E0AD34EB88CF6F /* ProjectArchiveSyncMapper.swift */,
 				81D47F320138BFED01143139 /* PossibleDuplicateDetector.swift */,
@@ -1786,6 +1794,8 @@
 				01D5AB0082A40D41FCD28DFD /* SyncArchiveAttachmentReferences.swift in Sources */,
 				1E85B79E884DC499B8F7E072 /* SyncAccountStorage.swift in Sources */,
 				B3F1A9019920000000000001 /* SyncAccountSourceState.swift in Sources */,
+				B39090800000000000000002 /* SyncBootstrapOutputPlanner.swift in Sources */,
+				B39090800000000000000005 /* KnitNoteBackupPackagePlan.swift in Sources */,
 				B3F1A9019920000000000002 /* SyncAccountRecoveryControl.swift in Sources */,
 				2C4DD434A981FC95CF91D11C /* SyncAccountRecoveryTransaction.swift in Sources */,
 				900A1153B0BD4CF7E21FBFBB /* SyncAccountRecoveryInventory.swift in Sources */,
@@ -2050,6 +2060,8 @@
 				57C6FA575A3A003BAFC84DB5 /* SyncArchiveAttachmentReferences.swift in Sources */,
 				A36A8A3875D4CB670FB285F2 /* SyncAccountStorage.swift in Sources */,
 				B3F1A9019920000000000003 /* SyncAccountSourceState.swift in Sources */,
+				B39090800000000000000003 /* SyncBootstrapOutputPlanner.swift in Sources */,
+				B39090800000000000000006 /* KnitNoteBackupPackagePlan.swift in Sources */,
 				B3F1A9019920000000000004 /* SyncAccountRecoveryControl.swift in Sources */,
 				9E1D5F3656D7A5FA167E2B01 /* SyncAccountRecoveryTransaction.swift in Sources */,
 				26826884EB1921DBAFBBDAF4 /* SyncAccountRecoveryInventory.swift in Sources */,

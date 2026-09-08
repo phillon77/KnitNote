@@ -1,0 +1,13 @@
+# Pure finite bootstrap output planning
+
+Approved technical subunit under renewed autonomous delegation, 2026-09-08. Baseline a859988. This prerequisite does not activate owned bootstrap, issue a capability, touch filesystem data or alter existing helper behavior.
+
+Represent an ordered finite output program under Original, Staged, Attachments, ValidationOriginal and ValidationMerged. Explicit actions create directories, create/replace files with exact modeled prior/new proofs, reuse exact modeled immutable files and acquire empty lock files. Every parent and per-write temporary is explicit; no implicit role escape, alias, reused temporary, path/type collision or guessed output count. Caller-supplied identity is accounting input, not physical ownership proof.
+
+Return conservative potential Entry reservations for every possible final/temporary/lock/directory and four namespace ancestors. Use maximum physical identifier widths, maximum observed file size across writes, worst-case hash encoding, and the larger of current storage/default and canonical JSON entry costs. Checked aggregate arithmetic and existing 100,000,000-byte limits apply; directory depth must remain below128, files at most128 components. No fixed invented entry cap. Potential entries are synthetic accounting bounds and cannot validate real content or ownership.
+
+This unit covers only the supplied program's internal consistency and Entry metadata. It does not establish helper compliance or complete abort/history/pending/Base64/recovery-envelope affordability. Those later gates must pass before a real durable preparing capability can issue. No runtime sink or test-only issuer exists here.
+
+Subsequent owned-helper decisions: preallocate validation scratch under ValidationMerged, never Staged/live; non-mutating copied-ledger inspection rejects outstanding purge intents; generic purge/backup cleanup is unchanged. Exact finite helper output plans replace opaque atomic outputs only on the later owned route. Preserve compact bootstrapRollback origin with strict typed v3 terminal/history evidence when integrated, never an arbitrary aborted boolean. Costs are explicit metadata/preflight and retained outputs; no reclamation or capacity increase.
+
+Tests must prove ordered preconditions, role/parent/collision checks, Unicode alias rejection, explicit locks, exact file-cap and metadata-cap boundaries, storage/canonical encoding bounds and depth. Code remains internal and pure with no production caller. Preserve1.7.0(13), platform floors, legacy wire and all runtime behavior. Main reviews the plan against this scope and independently reviews implementation before any helper integration.

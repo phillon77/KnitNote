@@ -469,7 +469,9 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
             while !parts.isEmpty { directories.insert(parts.joined(separator: "/")); parts.removeLast() }
         }
         let current = try access.entries()
+        let inert = Set(try inertTemporaryEntries(value, current: current, access: access).map(\.relativePath))
         for entry in current {
+            if inert.contains(entry.relativePath) { continue }
             if entry.isDirectory {
                 guard directories.contains(entry.relativePath) else { throw Error.changedInventory }
                 if retained.contains(entry.relativePath), entry.relativePath != session || session == value.envelope.temporarySession {
@@ -668,19 +670,21 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
         try access.validate()
         let expected = Dictionary(uniqueKeysWithValues: value.inventory.entries.map { ($0.relativePath, $0) })
         let current = try access.entries()
+        let inert = Set(try inertTemporaryEntries(value, current: current, access: access).map(\.relativePath))
         let session = ".decrypted-temporary/" + paths.decryptedTemporary.lastPathComponent
         let newSession = session != value.envelope.temporarySession
         let retained = Set(["working-set", "journal", "engine-state", "staging", "quarantine", ".decrypted-temporary", session])
         for entry in current {
+            if inert.contains(entry.relativePath) { continue }
             if newSession, entry.relativePath == session {
                 guard entry.isDirectory else { throw Error.changedInventory }
             } else {
                 guard expected[entry.relativePath] == entry else { throw Error.changedInventory }
             }
         }
-        // Legacy v1 permits its old session to have been reclaimed. Verified
-        // v2 opens retain captured sessions; only the new empty current session
-        // gets a directory-identity exception, never any descendants.
+        // Legacy v1 permits its old session to have been reclaimed. Captured
+        // v2 sessions retain their exact rules independently of uncaptured inert
+        // directories; the current reopened session must still be empty.
         guard !newSession || !current.contains(where: { $0.relativePath.hasPrefix(session + "/") }),
               retained.allSatisfy({ name in current.contains(where: { $0.relativePath == name && $0.isDirectory }) }) else { throw Error.changedInventory }
         if value.intent.phase == .sealed {
@@ -690,7 +694,53 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
                     || name.hasPrefix(value.envelope.temporarySession + "/")))
             }) else { throw Error.changedInventory }
         }
-        return current.filter { !retained.contains($0.relativePath) }
+        return current.filter { !retained.contains($0.relativePath) && !inert.contains($0.relativePath) }
+    }
+
+    /// Authenticated capture exclusions are inert observations, never ownership
+    /// receipts or cleanup authority. Captured names cannot use this exception.
+    private func inertTemporaryEntries(_ value: Authorized, current: [SyncAccountRecoveryInventory.Entry],
+        access: SyncAccountStorage.RecoveryAccess) throws -> [SyncAccountRecoveryInventory.Entry] {
+        let prefix = ".decrypted-temporary/"
+        let captured = Set(value.inventory.entries.map(\.relativePath))
+        var result: [SyncAccountRecoveryInventory.Entry] = []
+        for entry in current where entry.relativePath.hasPrefix(prefix) && !captured.contains(entry.relativePath) {
+            let name = String(entry.relativePath.dropFirst(prefix.count))
+            // Descendants can never independently become inert; their parent
+            // must prove exact emptiness, or ordinary inventory validation fails.
+            if name.contains("/") { continue }
+            guard entry.isDirectory, let id = UUID(uuidString: name), id.uuidString.lowercased() == name,
+                  !captured.contains(where: { $0.hasPrefix(entry.relativePath + "/") }),
+                  !current.contains(where: { $0.relativePath.hasPrefix(entry.relativePath + "/") }) else { throw Error.changedInventory }
+            let parent = try openDirectory(".decrypted-temporary", root: access.accountDescriptor)
+            defer { Darwin.close(parent) }
+            let fd = openat(parent, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+            guard fd >= 0 else { throw Error.changedInventory }
+            guard let stream = fdopendir(fd) else { Darwin.close(fd); throw Error.unavailable }
+            defer { closedir(stream) }
+            func validateIdentity() throws {
+                var opened = stat(), named = stat()
+                guard fstat(fd, &opened) == 0, fstatat(parent, name, &named, AT_SYMLINK_NOFOLLOW) == 0,
+                      opened.st_mode & S_IFMT == S_IFDIR, named.st_mode & S_IFMT == S_IFDIR,
+                      UInt64(opened.st_dev) == entry.device, UInt64(opened.st_ino) == entry.inode,
+                      opened.st_dev == named.st_dev, opened.st_ino == named.st_ino else { throw Error.changedInventory }
+            }
+            try validateIdentity()
+            while true {
+                errno = 0
+                guard let child = readdir(stream) else {
+                    guard errno == 0 else { throw Error.unavailable }; break
+                }
+                let childName = withUnsafePointer(to: &child.pointee.d_name) {
+                    $0.withMemoryRebound(to: CChar.self, capacity: Int(child.pointee.d_namlen) + 1) { String(validatingCString: $0) }
+                }
+                guard childName == "." || childName == ".." else { throw Error.changedInventory }
+            }
+            try validateIdentity()
+            try access.validate()
+            result.append(entry)
+        }
+        return result.sorted { $0.relativePath < $1.relativePath }
     }
 
     private func decode(_ bytes: Data) throws -> (Envelope, SyncAccountRecoveryInventory, SourceControlSnapshot?) {
@@ -757,6 +807,7 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
     }
     private func barrier(_ value: Authorized, access: SyncAccountStorage.RecoveryAccess) throws {
         guard try controlFile.observe(access: access) == value.observation else { throw Error.changedInventory }
+        let inert = try inertTemporaryEntries(value, current: access.entries(), access: access)
         try validateSelectedPayload(value, access: access)
         switch value.observation.state {
         case .legacySelection: try legacyBarrier(value.intent, access: access)
@@ -764,6 +815,7 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
         default: throw Error.invalidAuthority
         }
         guard try controlFile.observe(access: access) == value.observation else { throw Error.changedInventory }
+        guard try inertTemporaryEntries(value, current: access.entries(), access: access) == inert else { throw Error.changedInventory }
     }
     private func legacyBarrier(_ intent: Intent, access: SyncAccountStorage.RecoveryAccess) throws {
         guard let control = access.controlDescriptor, let bytes = try read(Self.main, at: control),

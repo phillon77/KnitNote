@@ -147,6 +147,20 @@ public struct SyncBootstrapPreparation: Sendable {
     public let accountOwnedRoots: [URL]
 }
 
+struct SyncBootstrapTerminalRecoveryEvidence: Equatable, Sendable {
+    enum Phase: String, Sendable { case committed, rolledBack }
+    let transactionID: UUID
+    let activeRelativePath: String
+    let activeEnvelope: Data
+    let phase: Phase
+    let sourceProof: SyncBootstrapSourceProof
+    fileprivate init(transactionID: UUID, activeRelativePath: String, activeEnvelope: Data,
+                     phase: Phase, sourceProof: SyncBootstrapSourceProof) {
+        self.transactionID = transactionID; self.activeRelativePath = activeRelativePath
+        self.activeEnvelope = activeEnvelope; self.phase = phase; self.sourceProof = sourceProof
+    }
+}
+
 enum SyncBootstrapBoundary: CaseIterable {
     case afterPrepared, afterLiveMove, afterStagedMove, afterInstalled
     case afterJournal, afterReceipt, afterRollbackIntent, afterFailedMove, afterOriginalRestore
@@ -226,15 +240,8 @@ public final class SyncBootstrapTransaction {
     static func validateTerminalRecovery(account: SyncAccountIdentity, accountRoot: URL,
                                          liveRoot: URL, journalURL: URL,
                                          entries: [SyncAccountRecoveryInventory.Entry]) throws {
-        let prefix = ".KnitNote-SyncBootstrap/"
-        let owned = entries.filter { $0.relativePath.hasPrefix(prefix) && !$0.isDirectory }
-        guard !owned.isEmpty else { return }
-        let live = liveRoot.standardizedFileURL
-        let liveKey = hash(Data(live.path.utf8)).map { String(format: "%02x", $0) }.joined()
-        let namespace = prefix + account.accountIDHash + "/" + liveKey + "/"
-        let activePath = namespace + "active.json"
-        guard owned.contains(where: { $0.relativePath == activePath }) else { throw SyncBootstrapError.corrupt }
-        func read(_ path: String) throws -> Data {
+        _ = try terminalRecoveryEvidence(account: account, accountRoot: accountRoot, liveRoot: liveRoot,
+            journalURL: journalURL, entries: entries) { path in
             guard let proof = entries.first(where: { $0.relativePath == path && !$0.isDirectory }),
                   proof.byteCount >= 0, proof.byteCount <= 100_000_000 else { throw SyncBootstrapError.corrupt }
             let value = try SyncRegularFileReader().read(accountRoot.appendingPathComponent(path),
@@ -242,7 +249,31 @@ public final class SyncBootstrapTransaction {
             guard value.device == proof.device, value.inode == proof.inode else { throw SyncBootstrapError.unsafePath }
             return value.data
         }
-        let envelope = try JSONDecoder().decode(Envelope.self, from: read(activePath))
+    }
+
+    /// Pure parser shared by physical capture and authenticated embedded recovery.
+    static func terminalRecoveryEvidence(account: SyncAccountIdentity, accountRoot: URL,
+        liveRoot: URL, journalURL: URL, entries: [SyncAccountRecoveryInventory.Entry],
+        read: (String) throws -> Data) throws -> SyncBootstrapTerminalRecoveryEvidence? {
+        let prefix = ".KnitNote-SyncBootstrap/"
+        let owned = entries.filter { $0.relativePath.hasPrefix(prefix) && !$0.isDirectory }
+        guard !owned.isEmpty else { return nil }
+        let live = liveRoot.standardizedFileURL
+        guard live.deletingLastPathComponent().standardizedFileURL == accountRoot.standardizedFileURL,
+              live.lastPathComponent == "working-set" else { throw SyncBootstrapError.unsafePath }
+        let liveKey = hash(Data(live.path.utf8)).map { String(format: "%02x", $0) }.joined()
+        let namespace = prefix + account.accountIDHash + "/" + liveKey + "/"
+        let activePath = namespace + "active.json"
+        guard owned.contains(where: { $0.relativePath == activePath }) else { throw SyncBootstrapError.corrupt }
+        func verifiedRead(_ path: String) throws -> Data {
+            guard let proof = entries.first(where: { $0.relativePath == path && !$0.isDirectory }),
+                  proof.byteCount >= 0, proof.byteCount <= 100_000_000 else { throw SyncBootstrapError.corrupt }
+            let bytes = try read(path)
+            guard bytes.count == proof.byteCount, hash(bytes) == proof.sha256 else { throw SyncBootstrapError.corrupt }
+            return bytes
+        }
+        let activeBytes = try verifiedRead(activePath)
+        let envelope = try JSONDecoder().decode(Envelope.self, from: activeBytes)
         guard hash(envelope.payload) == envelope.digest else { throw SyncBootstrapError.corrupt }
         let manifest = try JSONDecoder().decode(Manifest.self, from: envelope.payload)
         func posixPath(_ url: URL) -> String {
@@ -255,8 +286,21 @@ public final class SyncBootstrapTransaction {
         // existing recovery route. Foreign or malformed authority is distinct.
         guard manifest.phase == .committed || manifest.phase == .rolledBack else { throw SyncBootstrapError.invalidPhase }
         let transactionPrefix = namespace + manifest.id.uuidString + "/"
+        let requiredDirectories = [".KnitNote-SyncBootstrap", prefix + account.accountIDHash,
+            String(namespace.dropLast()), String(transactionPrefix.dropLast()), transactionPrefix + "Original", "working-set"]
+        guard requiredDirectories.allSatisfy({ path in entries.contains { $0.relativePath == path && $0.isDirectory } }) else {
+            throw SyncBootstrapError.corrupt
+        }
         guard owned.allSatisfy({ $0.relativePath == activePath || $0.relativePath.hasPrefix(transactionPrefix) }) else {
             throw SyncBootstrapError.corrupt
+        }
+        if case .missingArchive = manifest.sourceProof {
+            let ancestors: Set<String> = [".KnitNote-SyncBootstrap", prefix + account.accountIDHash,
+                String(namespace.dropLast()), String(transactionPrefix.dropLast())]
+            guard entries.filter({ $0.isDirectory && ($0.relativePath == ".KnitNote-SyncBootstrap"
+                || $0.relativePath.hasPrefix(prefix)) }).allSatisfy({
+                    ancestors.contains($0.relativePath) || $0.relativePath.hasPrefix(transactionPrefix)
+                }), !manifest.original.keys.contains(where: isReconstructionAuthority) else { throw SyncBootstrapError.corrupt }
         }
         func proofs(under path: String) -> [String: FileProof] {
             var result: [String: FileProof] = [:]
@@ -269,12 +313,14 @@ public final class SyncBootstrapTransaction {
         guard proofs(under: transactionPrefix + "Original/") == manifest.original else { throw SyncBootstrapError.corrupt }
         if manifest.phase == .committed {
             let receipt = try JSONDecoder().decode(SyncBootstrapReceipt.self,
-                from: read("working-set/SyncMetadata/bootstrap-receipt.json"))
+                from: verifiedRead("working-set/SyncMetadata/bootstrap-receipt.json"))
             guard receipt.transactionID == manifest.id, receipt.accountIDHash == account.accountIDHash,
                   receipt.sourceProof == manifest.sourceProof else { throw SyncBootstrapError.corrupt }
         } else {
             guard proofs(under: "working-set/") == manifest.original else { throw SyncBootstrapError.sourceChanged }
         }
+        return .init(transactionID: manifest.id, activeRelativePath: activePath, activeEnvelope: activeBytes,
+            phase: manifest.phase == .committed ? .committed : .rolledBack, sourceProof: manifest.sourceProof)
     }
 
     public convenience init(liveRoot: URL, context: SyncBootstrapContext,
@@ -820,7 +866,7 @@ public final class SyncBootstrapTransaction {
         guard errno == ENOENT else { throw SyncBootstrapError.unsafePath }
     }
 
-    private static func isReconstructionAuthority(_ path: String) -> Bool {
+    static func isReconstructionAuthority(_ path: String) -> Bool {
         let names = [".projects-v1.json.sync-publication.json", "SyncMetadata/canonical.json",
             "SyncMetadata/.canonical-next.json", "SyncMetadata/bootstrap-canonical.json", "SyncMetadata/bootstrap-receipt.json"]
         return names.contains { path == $0 || path.hasPrefix($0 + "/") } || isCanonicalAuthority(path)

@@ -138,6 +138,12 @@ struct SyncAccountRecoveryControlFile {
         try access.validate()
         guard let control = access.controlDescriptor else { return .init(mainBytes: nil, nextBytes: nil, state: nil) }
         let main = try read(Self.main, at: control), next = try read(Self.next, at: control)
+        let result = try Self.observation(mainBytes: main, nextBytes: next)
+        try access.validate()
+        return result
+    }
+
+    static func observation(mainBytes main: Data?, nextBytes next: Data?) throws -> SyncAccountControlObservation {
         let state = try main.map(Self.decode)
         if let next {
             guard let main else { throw Error.invalidAuthority }
@@ -147,7 +153,6 @@ struct SyncAccountRecoveryControlFile {
                       wire.predecessorSHA256 == Data(SHA256.hash(data: main)) else { throw Error.invalidAuthority }
             }
         }
-        try access.validate()
         return .init(mainBytes: main, nextBytes: next, state: state)
     }
 
@@ -262,7 +267,7 @@ struct SyncAccountRecoveryControlFile {
         try sync(fd); try sync(root)
         try validateFile(fd, name: name, at: root)
     }
-    private static func validate(_ source: SyncAccountSourceState) throws {
+    static func validate(_ source: SyncAccountSourceState) throws {
         guard source.accountIDHash.count == 64, source.accountIDHash.allSatisfy({ "0123456789abcdef".contains($0) }),
               source.accountRoot.isFileURL, source.archiveURL.isFileURL, source.journalURL.isFileURL,
               source.archiveURL.path == source.accountRoot.appendingPathComponent("working-set/projects-v1.json").path,

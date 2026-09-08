@@ -135,7 +135,9 @@ New metadata preflight must reserve Inventory v2 source fields, exact rollback e
 
 ## Task 1: Pure terminal evidence and versioned source inventory
 
-**Files:** BootstrapTransaction, SourceState, RecoveryInventory, RecoveryControl (pure decoder extraction) and their existing tests listed above. Transaction may receive only the envelope capacity plumbing needed for capture integration in Task 2.
+**Files:** BootstrapTransaction, SourceState, RecoveryInventory, RecoveryControl (pure decoder extraction) and their existing tests listed above. Controller-authorized narrow extension: SyncMutationJournal.swift and focused tests for an internal inventory-backed recovery snapshot using the existing native parser; ordinary recoverySnapshot remains unchanged. This is required because the existing native snapshot materializes selected media before inventory source metadata can be reserved. Transaction may receive only the envelope capacity plumbing needed for capture integration in Task 2.
+
+Controller clarification: preserve every historical semantic/lineage/ACK/cleanup check, but substitute exact inventory proofs only for effective pending sources at the parser's existing physical validation boundary. Properly ACK-reclaimed historical media remains absent by design; requiring its physical presence would contradict existing authenticated reclamation. Selected payload reads and final ownership/inventory revalidation remain mandatory.
 
 **Consumes:** Current `SyncAccountSourceState`, `SyncAccountControlObservation`, `SyncAccountSourceBaseline.digest`, RecoveryAccess, native journal snapshot, deletion RecoveryExport, private bootstrap Manifest/Envelope/validateSourceEvidence.
 
@@ -270,4 +272,3 @@ try recovery.restore(vaultID: next.vaultID, now: .now)
 - [ ] Run a text scan for unresolved placeholders and reconcile all named interfaces with the implemented files before calling the formal plan executable. The three rulings above are binding; new ambiguities must be reported to main, not guessed.
 
 Deferred separately: `/tmp/bootstrap-predecessor-lineage-design-20260908.md` requires v3 preparing-first allocation/history/abortedPreparation with bounded output reservations before repeated owned bootstrap retries. This unit reads only existing v1/v2 terminal evidence and does not loosen unknown UUID/temp-file gates to pre-implement lineage. Later work also owns sourceSpent issuance/reissue, prepared digest capabilities, no-precanonical-writer App gates, account switching/session freeze integration, typed transport namespace descriptors and live cloud/device acceptance. Passing this unit is full source inventory/seal/restore-handoff evidence, not full sync or release acceptance.
-

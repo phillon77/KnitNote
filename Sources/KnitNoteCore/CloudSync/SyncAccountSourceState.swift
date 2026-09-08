@@ -60,6 +60,82 @@ struct SyncAccountSourceState: Codable, Equatable, Sendable {
     let origin: SyncAccountSourceOrigin
 }
 
+struct SyncAccountSourceEvidence: Codable, Equatable, Sendable {
+    let state: SyncAccountSourceState
+    let rollbackEnvelope: Data?
+    private enum CodingKeys: String, CodingKey { case state, rollbackEnvelope }
+    init(state: SyncAccountSourceState, rollbackEnvelope: Data?) {
+        self.state = state; self.rollbackEnvelope = rollbackEnvelope
+    }
+    init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        state = try c.decode(SyncAccountSourceState.self, forKey: .state)
+        rollbackEnvelope = try c.decodeIfPresent(Data.self, forKey: .rollbackEnvelope)
+        var keys: Set<String> = ["state"]
+        if case .bootstrapRollback = state.origin {
+            guard rollbackEnvelope != nil else { throw SyncAccountRecoveryInventory.Error.unsafeBinding }
+            keys.insert("rollbackEnvelope")
+        } else if rollbackEnvelope != nil { throw SyncAccountRecoveryInventory.Error.unsafeBinding }
+        try SourceEvidenceKey.require(keys, from: decoder)
+        let sourceDecoder = try c.superDecoder(forKey: .state)
+        try SourceEvidenceKey.require(["authorityID", "generation", "accountIDHash", "accountRoot",
+            "accountDevice", "accountInode", "archiveURL", "journalURL", "baselineSHA256", "origin"], from: sourceDecoder)
+        let source = try sourceDecoder.container(keyedBy: SourceEvidenceKey.self)
+        let origin = try source.superDecoder(forKey: .init(stringValue: "origin")!)
+        let originKeys: Set<String>
+        switch state.origin {
+        case .freshAllocation: originKeys = ["kind", "allocationID"]
+        case .bootstrapRollback: originKeys = ["kind", "transactionID", "activeRelativePath", "activeEnvelopeSHA256"]
+        case .restoredSelection(_, _, _, _, let deletion):
+            originKeys = Set(["kind", "vaultID", "captureID", "envelopeSHA256", "packetSHA256"])
+                .union(deletion == nil ? [] : ["deletionSHA256"])
+        }
+        try SourceEvidenceKey.require(originKeys, from: origin)
+        try SyncAccountRecoveryControlFile.validate(state)
+    }
+}
+
+enum SyncAccountRecoverySourceAuthority: Codable, Equatable, Sendable {
+    case archive(relativePath: String, sha256: Data)
+    case absent(SyncAccountSourceEvidence)
+
+    private enum Keys: String, CodingKey { case kind, relativePath, sha256, evidence }
+    init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: Keys.self)
+        switch try c.decode(String.self, forKey: .kind) {
+        case "archive":
+            try SourceEvidenceKey.require(["kind", "relativePath", "sha256"], from: decoder)
+            let sha256 = try c.decode(Data.self, forKey: .sha256)
+            guard sha256.count == 32 else { throw SyncAccountRecoveryInventory.Error.unsafeBinding }
+            self = .archive(relativePath: try c.decode(String.self, forKey: .relativePath), sha256: sha256)
+        case "absent":
+            try SourceEvidenceKey.require(["kind", "evidence"], from: decoder)
+            self = .absent(try c.decode(SyncAccountSourceEvidence.self, forKey: .evidence))
+        default: throw SyncAccountRecoveryInventory.Error.unsafeBinding
+        }
+    }
+    func encode(to encoder: any Encoder) throws {
+        var c = encoder.container(keyedBy: Keys.self)
+        switch self {
+        case .archive(let path, let digest):
+            try c.encode("archive", forKey: .kind); try c.encode(path, forKey: .relativePath); try c.encode(digest, forKey: .sha256)
+        case .absent(let evidence):
+            try c.encode("absent", forKey: .kind); try c.encode(evidence, forKey: .evidence)
+        }
+    }
+}
+
+private struct SourceEvidenceKey: CodingKey {
+    let stringValue: String
+    let intValue: Int? = nil
+    init?(stringValue: String) { self.stringValue = stringValue }
+    init?(intValue: Int) { return nil }
+    static func require(_ keys: Set<String>, from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: Self.self)
+        guard Set(c.allKeys.map(\.stringValue)) == keys else { throw SyncAccountRecoveryInventory.Error.unsafeBinding }
+    }
+}
+
 enum SyncAccountSourceBaseline {
     /// Only portable source proofs join this digest. Complete inventory and
     /// dependency authentication remain the owning transaction's responsibility.

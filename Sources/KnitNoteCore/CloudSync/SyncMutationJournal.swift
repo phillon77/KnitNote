@@ -1291,13 +1291,62 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
     /// No parent creation, legacy migration, durability repair or acknowledged
     /// source reclamation occurs here. The concrete URL binds replay ownership.
     func recoverySnapshot(maximumBytes: Int = 100_000_000) throws -> (url: URL, mutations: [SyncMutation]) {
+        try recoverySnapshot(maximumBytes: maximumBytes, inventory: nil)
+    }
+
+    /// Storage ownership and its producer freeze remain held by the inventory
+    /// caller. The already-hashed exact entries replace payload materialization
+    /// only at the native parser's effective-pending source validation boundary.
+    /// Capture must still read selected payloads and revalidate the full inventory.
+    func recoverySnapshot(accountRoot: URL, inventoryEntries: [SyncAccountRecoveryInventory.Entry],
+                          maximumBytes: Int) throws -> (url: URL, mutations: [SyncMutation]) {
+        let inventory = try RecoverySourceInventory(root: accountRoot, journalURL: url, entries: inventoryEntries)
+        return try recoverySnapshot(maximumBytes: maximumBytes, inventory: inventory)
+    }
+
+    private func recoverySnapshot(maximumBytes: Int, inventory: RecoverySourceInventory?) throws
+        -> (url: URL, mutations: [SyncMutation]) {
         try coordinator.lock.withLock {
             guard maximumBytes >= 0, maximumBytes <= 100_000_000 else { throw SyncMutationJournalError.tooLarge }
             guard !(try pathExists(url)) else { throw SyncMutationJournalError.corrupt }
-            let state = try loadSegmentedStateLocked(readOnly: true, maximumReadBytes: maximumBytes)
+            let state = try loadSegmentedStateLocked(readOnly: true, maximumReadBytes: maximumBytes, recoveryInventory: inventory)
             guard !state.hasPartialFinalFrame,
                   state.cleanupIntentsByMutationID.isEmpty else { throw SyncMutationJournalError.corrupt }
             return (url, state.pending)
+        }
+    }
+
+    private struct RecoverySourceInventory {
+        let root: URL
+        let entries: [String: SyncAccountRecoveryInventory.Entry]
+        init(root: URL, journalURL: URL, entries: [SyncAccountRecoveryInventory.Entry]) throws {
+            guard root.isFileURL, root.query == nil, root.fragment == nil,
+                  root.host == nil || root.host == "", root.path.hasPrefix("/"),
+                  journalURL.path.hasPrefix(root.path + "/") else { throw SyncMutationJournalError.unsafeFile }
+            var indexed: [String: SyncAccountRecoveryInventory.Entry] = [:]
+            for entry in entries {
+                let path = entry.relativePath
+                guard !path.isEmpty, !path.hasPrefix("/"), !path.utf8.contains(0),
+                      path.split(separator: "/", omittingEmptySubsequences: false).allSatisfy({
+                        !$0.isEmpty && $0 != "." && $0 != ".."
+                      }), indexed.updateValue(entry, forKey: path) == nil else { throw SyncMutationJournalError.unsafeFile }
+            }
+            self.root = root; self.entries = indexed
+        }
+        func validate(_ source: SyncAttachmentSource) throws {
+            let url = source.fileURL
+            guard url.isFileURL, url.query == nil, url.fragment == nil, url.host == nil || url.host == "",
+                  url.path.hasPrefix(root.path + "/") else { throw SyncMutationJournalError.unsafeFile }
+            let path = String(url.path.dropFirst(root.path.count + 1))
+            guard let proof = entries[path], !proof.isDirectory, proof.device > 0, proof.inode > 0,
+                  proof.byteCount >= 0, proof.byteCount == source.byteCount, proof.sha256.count == SHA256.byteCount,
+                  proof.sha256 == source.contentSHA256 else { throw SyncMutationJournalError.unsafeFile }
+            let components = path.split(separator: "/")
+            for count in 1..<components.count {
+                guard entries[components.prefix(count).joined(separator: "/")]?.isDirectory == true else {
+                    throw SyncMutationJournalError.unsafeFile
+                }
+            }
         }
     }
 
@@ -1447,7 +1496,8 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
     }
 
     private func loadSegmentedStateLocked(readOnly: Bool = false,
-                                         maximumReadBytes: Int? = nil) throws -> LoadedState {
+                                         maximumReadBytes: Int? = nil,
+                                         recoveryInventory: RecoverySourceInventory? = nil) throws -> LoadedState {
         // Nonmutating journal reads retain the encoded-authority bound. Only
         // explicit recovery capture also reserves media against a total budget.
         var remainingEncoded = Self.maximumEncodedBytes
@@ -1475,7 +1525,7 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
                     throw SyncMutationJournalError.tooLarge
                 }
                 remaining = budget - Int(source.byteCount)
-                try validatePersistedAttachmentSource(in: mutation)
+                try validatePersistedAttachmentSource(in: mutation, recoveryInventory: recoveryInventory)
                 verifiedRecoverySources[source.fileURL] = source
             } else {
                 try validatePersistedAttachmentSource(in: mutation)
@@ -2873,7 +2923,8 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
         return version.versionID
     }
 
-    private func validatePersistedAttachmentSource(in mutation: SyncMutation) throws {
+    private func validatePersistedAttachmentSource(in mutation: SyncMutation,
+                                                  recoveryInventory: RecoverySourceInventory? = nil) throws {
         guard let source = mutation.attachmentSource else { return }
         guard source.isJournalStaged else {
             throw SyncMutationJournalError.invalidAttachment
@@ -2885,11 +2936,15 @@ public final class FileSyncMutationJournal: SyncMutationJournalProtocol, @unchec
               file.resolvingSymlinksInPath().path == file.path else {
             throw SyncMutationJournalError.unsafeFile
         }
-        try verifyRegularFile(
-            at: file,
-            expectedByteCount: source.byteCount,
-            expectedSHA256: source.contentSHA256
-        )
+        if let recoveryInventory {
+            try recoveryInventory.validate(source)
+        } else {
+            try verifyRegularFile(
+                at: file,
+                expectedByteCount: source.byteCount,
+                expectedSHA256: source.contentSHA256
+            )
+        }
     }
 
     private func ensureSafeAttachmentsDirectory() throws {

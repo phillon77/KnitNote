@@ -4,6 +4,288 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite struct SyncAccountRecoveryInventoryTests {
+    @Test func legacyInventoryWireRemainsUnchanged() throws {
+        // Literal emitted by the real pre-v2 capture in the behavioral RED run.
+        let bytes = Data(#"{"accountIDHash":"819077780f769d0c256ce1b5f4ab944662a6d1b1a01e25217b44319381ce77c9","accountRoot":"file:///private/var/folders/s_/ylqd3gdx2rz79ppmgsw__8qm0000gn/T/recovery-inventory-BF4434E0-69A5-4AC2-BF97-76DA6384B07F/819077780f769d0c256ce1b5f4ab944662a6d1b1a01e25217b44319381ce77c9/","archiveURL":"file:///private/var/folders/s_/ylqd3gdx2rz79ppmgsw__8qm0000gn/T/recovery-inventory-BF4434E0-69A5-4AC2-BF97-76DA6384B07F/819077780f769d0c256ce1b5f4ab944662a6d1b1a01e25217b44319381ce77c9/working-set/projects-v1.json","deletionFiles":[],"entries":[{"byteCount":0,"device":16777234,"inode":348858192,"isDirectory":true,"relativePath":".decrypted-temporary","sha256":""},{"byteCount":0,"device":16777234,"inode":348858194,"isDirectory":true,"relativePath":".decrypted-temporary/88cc2a64-4069-445d-aaad-e33a45561b57","sha256":""},{"byteCount":0,"device":16777234,"inode":348858188,"isDirectory":true,"relativePath":"engine-state","sha256":""},{"byteCount":0,"device":16777234,"inode":348858187,"isDirectory":true,"relativePath":"journal","sha256":""},{"byteCount":0,"device":16777234,"inode":348858190,"isDirectory":true,"relativePath":"quarantine","sha256":""},{"byteCount":0,"device":16777234,"inode":348858189,"isDirectory":true,"relativePath":"staging","sha256":""},{"byteCount":0,"device":16777234,"inode":348858186,"isDirectory":true,"relativePath":"working-set","sha256":""},{"byteCount":17,"device":16777234,"inode":348858195,"isDirectory":false,"relativePath":"working-set/projects-v1.json","sha256":"7gD5EAa40EtyX4+769d+cgerq//lSLpHq78sAvZ7Ask="}],"fingerprint":"l9H0BDwyqFFvSw96UFRMlLge7MnJrb4SkUi0d3jjkUE=","journalURL":"file:///private/var/folders/s_/ylqd3gdx2rz79ppmgsw__8qm0000gn/T/recovery-inventory-BF4434E0-69A5-4AC2-BF97-76DA6384B07F/819077780f769d0c256ce1b5f4ab944662a6d1b1a01e25217b44319381ce77c9/journal/pending.json","packet":{"accountIDHash":"819077780f769d0c256ce1b5f4ab944662a6d1b1a01e25217b44319381ce77c9","accountRoot":"file:///private/var/folders/s_/ylqd3gdx2rz79ppmgsw__8qm0000gn/T/recovery-inventory-BF4434E0-69A5-4AC2-BF97-76DA6384B07F/819077780f769d0c256ce1b5f4ab944662a6d1b1a01e25217b44319381ce77c9/","files":[],"formatVersion":1,"mutations":[]},"pendingMarkerVersions":[]}"#.utf8)
+        let object = try JSONSerialization.jsonObject(with: bytes) as! [String: Any]
+        let root = URL(string: object["accountRoot"] as! String)!
+        let paths = SyncAccountStorage.Paths(accountRoot: root, workingSet: root.appendingPathComponent("working-set", isDirectory: true),
+            journal: root.appendingPathComponent("journal", isDirectory: true), engineState: root.appendingPathComponent("engine-state"),
+            staging: root.appendingPathComponent("staging"), quarantine: root.appendingPathComponent("quarantine"),
+            vault: root.appendingPathComponent("vault"), decryptedTemporary: root.appendingPathComponent(".decrypted-temporary"))
+        let account = try SyncAccountIdentity(containerIdentifier: "test", userRecordName: "A")
+        let inventory = try SyncAccountRecoveryInventory.decodeRecovery(bytes, account: account, paths: paths,
+            journalURL: URL(string: object["journalURL"] as! String)!, maximumBytes: 100_000_000)
+        #expect(try inventory.encoded() == bytes)
+        let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        #expect(inventory.fingerprint == Data(SHA256.hash(data: try encoder.encode(inventory.entries))))
+    }
+
+    @Test func freshAllocationCapturesWithoutArchive() throws {
+        let f = try SourceInventoryFixture(); defer { f.remove() }
+        let before = try f.diskBytes()
+        let value = try f.capture()
+        #expect(value.packet.mutations.isEmpty)
+        #expect(!value.entries.contains { $0.relativePath == "working-set/projects-v1.json" })
+        #expect(try f.diskBytes() == before)
+    }
+
+    @Test func unknownMissingArchiveCannotCreateInventory() throws {
+        let f = try RecoveryInventoryFixture(); defer { f.remove() }
+        try FileManager.default.removeItem(at: f.archiveURL)
+        let before = try f.diskBytes()
+        #expect(throws: (any Error).self) { try f.capture() }
+        #expect(try f.diskBytes() == before)
+    }
+
+    @Test func rollbackEvidenceMustMatchEmbeddedInventory() throws {
+        let f = try RecoveryInventoryFixture(); defer { f.remove() }
+        let journal = try f.makeMissingArchiveRollback()
+        let value = try SyncAccountRecoveryInventory.capture(storage: f.storage, paths: f.paths, account: f.account,
+            journal: journal, archiveURL: f.archiveURL)
+        guard case .absent(let evidence) = value.sourceAuthority else { Issue.record("Missing rollback evidence"); return }
+        #expect(evidence.rollbackEnvelope != nil)
+        let bytes = try value.encoded()
+        for entry in value.entries where !entry.isDirectory {
+            try FileManager.default.removeItem(at: f.paths.accountRoot.appendingPathComponent(entry.relativePath))
+        }
+        let decoded = try SyncAccountRecoveryInventory.decodeRecovery(bytes, account: f.account, paths: f.paths,
+            journalURL: journal.recoveryLocation, maximumBytes: 100_000_000)
+        #expect(decoded.sourceAuthority == value.sourceAuthority)
+        for mutation in ["envelope", "original", "current", "root", "account", "journal"] {
+            var object = try JSONSerialization.jsonObject(with: bytes) as! [String: Any]
+            var authority = object["sourceAuthority"] as! [String: Any]
+            var source = authority["evidence"] as! [String: Any]
+            var state = source["state"] as! [String: Any]
+            if mutation == "envelope" { source["rollbackEnvelope"] = Data("bad".utf8).base64EncodedString() }
+            else if mutation == "root" { state["accountInode"] = 1 }
+            else if mutation == "account" { state["accountIDHash"] = String(repeating: "b", count: 64) }
+            else if mutation == "journal" { state["journalURL"] = f.journalURL.absoluteString }
+            else {
+                var entries = object["entries"] as! [[String: Any]]
+                let index = try #require(entries.firstIndex {
+                    ($0["isDirectory"] as? Bool) == false && (mutation == "original"
+                        ? ($0["relativePath"] as! String).contains("/Original/")
+                        : ($0["relativePath"] as! String).hasPrefix("working-set/"))
+                })
+                entries[index]["sha256"] = Data(repeating: 9, count: 32).base64EncodedString()
+                object["entries"] = entries
+            }
+            source["state"] = state; authority["evidence"] = source; object["sourceAuthority"] = authority
+            let changed = try sourceInventoryJSON(object, refreshFingerprint: true)
+            #expect(throws: (any Error).self) {
+                try SyncAccountRecoveryInventory.decodeRecovery(changed, account: f.account, paths: f.paths,
+                    journalURL: journal.recoveryLocation, maximumBytes: 100_000_000)
+            }
+        }
+    }
+
+    @Test func sourceV2RejectsMixedNullUnknownFields() throws {
+        let f = try SourceInventoryFixture(); defer { f.remove() }
+        let original = try JSONSerialization.jsonObject(with: f.capture().encoded()) as! [String: Any]
+        for path in [["unknown"], ["formatVersion"], ["sourceAuthority"], ["sourceAuthority", "unknown"],
+                     ["sourceAuthority", "relativePath"], ["sourceAuthority", "evidence", "rollbackEnvelope"],
+                     ["sourceAuthority", "evidence", "state", "origin", "transactionID"]] {
+            func change(_ object: [String: Any], _ keys: ArraySlice<String>) -> [String: Any] {
+                var result = object; let key = keys.first!
+                result[key] = keys.count == 1 ? NSNull() : change(object[key] as! [String: Any], keys.dropFirst())
+                return result
+            }
+            let bytes = try sourceInventoryJSON(change(original, path[...]), refreshFingerprint: true)
+            #expect(throws: (any Error).self) {
+                try SyncAccountRecoveryInventory.decodeRecovery(bytes, account: f.account, paths: f.paths,
+                    journalURL: f.paths.mutationJournalURL, maximumBytes: 100_000_000)
+            }
+            if path.first == "sourceAuthority" {
+                let altered = try JSONSerialization.jsonObject(with: bytes) as! [String: Any]
+                let authority = try JSONSerialization.data(withJSONObject: altered["sourceAuthority"]!, options: .fragmentsAllowed)
+                #expect(throws: (any Error).self) { try JSONDecoder().decode(SyncAccountRecoverySourceAuthority.self, from: authority) }
+            }
+        }
+    }
+
+    @Test func versionedArchiveAuthorityBindsOnlyExactArchiveProof() throws {
+        let f = try RecoveryInventoryFixture(); defer { f.remove() }
+        let captured = try f.capture()
+        let archive = try #require(captured.entries.first { $0.relativePath == "working-set/projects-v1.json" })
+        var object = try JSONSerialization.jsonObject(with: captured.encoded()) as! [String: Any]
+        object["formatVersion"] = 2
+        object["sourceAuthority"] = ["kind": "archive", "relativePath": archive.relativePath, "sha256": archive.sha256.base64EncodedString()]
+        let bytes = try sourceInventoryJSON(object, refreshFingerprint: true)
+        let decoded = try SyncAccountRecoveryInventory.decodeRecovery(bytes, account: f.account, paths: f.paths,
+            journalURL: f.journalURL, maximumBytes: 100_000_000)
+        #expect(decoded.sourceAuthority == .archive(relativePath: archive.relativePath, sha256: archive.sha256))
+        #expect(try decoded.encoded() == bytes)
+        for field in ["sha256", "relativePath", "evidence"] {
+            var authority = object["sourceAuthority"] as! [String: Any]
+            authority[field] = field == "sha256" ? Data(repeating: 8, count: 32).base64EncodedString()
+                : field == "relativePath" ? "staging/not-archive" : NSNull()
+            object["sourceAuthority"] = authority
+            #expect(throws: (any Error).self) {
+                try SyncAccountRecoveryInventory.decodeRecovery(sourceInventoryJSON(object, refreshFingerprint: true),
+                    account: f.account, paths: f.paths, journalURL: f.journalURL, maximumBytes: 100_000_000)
+            }
+        }
+    }
+
+    @Test(arguments: ["projects-v1.json", "SyncMetadata/canonical.json", "SyncMetadata/.canonical-next.json",
+                      "SyncMetadata/bootstrap-canonical.json", "SyncMetadata/bootstrap-receipt.json",
+                      ".projects-v1.json.sync-publication.json"])
+    func absentSourceRejectsCanonicalAuthorityDirectories(path: String) throws {
+        let f = try SourceInventoryFixture(); defer { f.remove() }
+        try FileManager.default.createDirectory(at: f.paths.workingSet.appendingPathComponent(path), withIntermediateDirectories: true)
+        let before = try f.diskBytes()
+        #expect(throws: (any Error).self) { try f.capture() }
+        #expect(try f.diskBytes() == before)
+    }
+
+    @Test(arguments: [false, true])
+    func completedCaptureRechecksExactControlAndEntries(controlOnly: Bool) throws {
+        let f = try SourceInventoryFixture(); defer { f.remove() }
+        try f.storage.withRecoveryOwnership(paths: f.paths, account: f.account, maximumBytes: 100_000_000) { access in
+            let control = try SyncAccountRecoveryControlFile(synchronize: { _ in }).observe(access: access)
+            guard case .absentSource(let source) = control.state else { Issue.record("Missing fresh source"); return }
+            let changed = SyncAccountSourceState(authorityID: UUID(), generation: UUID(), accountIDHash: source.accountIDHash,
+                accountRoot: source.accountRoot, accountDevice: source.accountDevice, accountInode: source.accountInode,
+                archiveURL: source.archiveURL, journalURL: source.journalURL, baselineSHA256: source.baselineSHA256, origin: source.origin)
+            let changedBytes = try SyncAccountRecoveryControlFile.encode(.absentSource(changed),
+                predecessorSHA256: Data(SHA256.hash(data: try #require(control.mainBytes))))
+            var reads = 0
+            let observed = SyncAccountStorage.RecoveryAccess(accountDescriptor: access.accountDescriptor,
+                controlDescriptor: access.controlDescriptor, entries: {
+                    reads += 1
+                    if reads == 2 {
+                        if controlOnly { try changedBytes.write(to: f.paths.accountRoot.appendingPathComponent(".sealed-recovery-v1/intent.json")) }
+                        else { try Data("concurrent engine write".utf8).write(to: f.paths.engineState.appendingPathComponent("changed")) }
+                    }
+                    return try access.entries()
+                }, validate: access.validate)
+            #expect(throws: (any Error).self) {
+                try SyncAccountRecoveryInventory.capture(access: observed, paths: f.paths, account: f.account,
+                    journal: f.journal, archiveURL: f.archiveURL, control: control, maximumBytes: 100_000_000)
+            }
+            #expect(reads == 2)
+        }
+    }
+
+    @Test func retainedTemporarySessionsAreExactInventoryEntries() throws {
+        let f = try SourceInventoryFixture(); defer { f.remove() }
+        let retained = ".decrypted-temporary/" + UUID().uuidString.lowercased()
+        let folder = f.paths.accountRoot.appendingPathComponent(retained)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false)
+        try Data("old session".utf8).write(to: folder.appendingPathComponent("copy"))
+        let captured = try f.capture()
+        #expect(captured.entries.contains { $0.relativePath == retained + "/copy" })
+        let bytes = try captured.encoded()
+        _ = try SyncAccountRecoveryInventory.decodeRecovery(bytes, account: f.account, paths: f.paths,
+            journalURL: f.paths.mutationJournalURL, maximumBytes: 100_000_000)
+        var object = try JSONSerialization.jsonObject(with: bytes) as! [String: Any]
+        var entries = object["entries"] as! [[String: Any]]
+        entries.removeAll { $0["relativePath"] as? String == retained }
+        object["entries"] = entries
+        #expect(throws: (any Error).self) {
+            try SyncAccountRecoveryInventory.decodeRecovery(sourceInventoryJSON(object, refreshFingerprint: true),
+                account: f.account, paths: f.paths, journalURL: f.paths.mutationJournalURL, maximumBytes: 100_000_000)
+        }
+        try FileManager.default.createDirectory(at: f.paths.accountRoot.appendingPathComponent(".decrypted-temporary/not-a-session"), withIntermediateDirectories: false)
+        #expect(throws: (any Error).self) { try f.capture() }
+    }
+
+    @Test func sourceEvidenceOverheadRejectsBeforeSelectedMediaRead() throws {
+        let f = try RecoveryInventoryFixture(); defer { f.remove() }
+        let journal = try f.makeMissingArchiveRollback(withMedia: true)
+        let complete = try SyncAccountRecoveryInventory.capture(storage: f.storage, paths: f.paths, account: f.account,
+            journal: journal, archiveURL: f.archiveURL)
+        let limit = try complete.encoded().count - 1
+        let selected = try #require(complete.packet.files.first)
+        let source = f.paths.accountRoot.appendingPathComponent(selected.relativePath)
+        let media = selected.bytes
+        let before = try f.diskBytes()
+        // The real journal reader runs after the complete descriptor inventory.
+        // Truncate only fixture media while preserving its safe path: a downstream
+        // selected-payload read would fail its size proof; metadata must fail first.
+        let observed = FileSyncMutationJournal(url: f.paths.mutationJournalURL, reader: SyncRegularFileReader(beforeRead: {
+            try Data().write(to: source)
+        }))
+        #expect(throws: SyncPendingRecoveryPacketError.tooLarge) {
+            try SyncAccountRecoveryInventory.capture(storage: f.storage, paths: f.paths, account: f.account,
+                journal: observed, archiveURL: f.archiveURL, maximumBytes: limit)
+        }
+        #expect(try Data(contentsOf: source).isEmpty)
+        try media.write(to: source)
+        #expect(try f.diskBytes() == before)
+        // Evidence alone must also be bounded before its payload is materialized.
+        let active = try #require(complete.entries.first { $0.relativePath.hasSuffix("/active.json") })
+        let url = f.paths.accountRoot.appendingPathComponent(active.relativePath)
+        let original = try Data(contentsOf: url)
+        try (original + Data(repeating: 32, count: 2_000_000)).write(to: url)
+        #expect(throws: SyncAccountRecoveryInventory.Error.tooLarge) {
+            try SyncAccountRecoveryInventory.capture(storage: f.storage, paths: f.paths, account: f.account,
+                journal: journal, archiveURL: f.archiveURL, maximumBytes: 1_000_000)
+        }
+    }
+
+    @Test func inventoryBackedJournalRequiresExactEveryPendingSourceProof() throws {
+        let f = try RecoveryInventoryFixture(); defer { f.remove() }
+        let journal = try f.makeMissingArchiveRollback(withMedia: true)
+        let before = try f.diskBytes()
+        let pending = try journal.pending()
+        let sources = pending.compactMap(\.attachmentSource)
+        #expect(sources.count > 1)
+        try f.storage.withRecoveryInventory(paths: f.paths, account: f.account, maximumBytes: 100_000_000) { entries in
+            #expect(try journal.recoverySnapshot(accountRoot: f.paths.accountRoot, inventoryEntries: entries,
+                maximumBytes: 100_000_000).mutations == pending)
+            for source in sources {
+                let path = String(source.fileURL.path.dropFirst(f.paths.accountRoot.path.count + 1))
+                let index = try #require(entries.firstIndex { $0.relativePath == path })
+                for damage in ["missing", "hash", "count", "directory"] {
+                    var changed = entries
+                    let old = changed[index]
+                    if damage == "missing" { changed.remove(at: index) }
+                    else {
+                        changed[index] = .init(relativePath: path, isDirectory: damage == "directory",
+                            byteCount: damage == "count" ? old.byteCount + 1 : old.byteCount,
+                            sha256: damage == "hash" ? Data(repeating: 7, count: 32) : old.sha256,
+                            device: old.device, inode: old.inode)
+                    }
+                    #expect(throws: (any Error).self) {
+                        try journal.recoverySnapshot(accountRoot: f.paths.accountRoot, inventoryEntries: changed, maximumBytes: 100_000_000)
+                    }
+                }
+            }
+        }
+        #expect(try f.diskBytes() == before)
+    }
+
+    @Test func inventoryBackedJournalPreservesExactACKReclaimedSourceSemantics() throws {
+        let f = try RecoveryInventoryFixture(); defer { f.remove() }
+        let journal = try f.makeMissingArchiveRollback(withMedia: true)
+        let pending = try journal.pending()
+        let media = pending.filter { $0.attachmentSource != nil }
+        #expect(!media.isEmpty)
+        try journal.acknowledge(Set(media.map(\.identity)))
+        for mutation in media { #expect(!FileManager.default.fileExists(atPath: mutation.attachmentSource!.fileURL.path)) }
+        let expected = try journal.recoverySnapshot().mutations
+        let before = try f.diskBytes()
+        try f.storage.withRecoveryInventory(paths: f.paths, account: f.account, maximumBytes: 100_000_000) { entries in
+            let snapshot = try journal.recoverySnapshot(accountRoot: f.paths.accountRoot, inventoryEntries: entries,
+                maximumBytes: 100_000_000)
+            #expect(snapshot.mutations == expected)
+        }
+        #expect(try f.diskBytes() == before)
+    }
+
+    private func sourceInventoryJSON(_ input: [String: Any], refreshFingerprint: Bool) throws -> Data {
+        var object = input
+        if refreshFingerprint {
+            let projection = try JSONSerialization.data(withJSONObject: [
+                "entries": object["entries"]!, "sourceAuthority": object["sourceAuthority"]!
+            ], options: [.sortedKeys, .withoutEscapingSlashes])
+            object["fingerprint"] = Data(SHA256.hash(data: projection)).base64EncodedString()
+        }
+        return try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys, .withoutEscapingSlashes])
+    }
+
     @Test func canonicalCandidateDirectoryCannotAuthorizeCleanup() throws {
         let f = try RecoveryInventoryFixture(); defer { f.remove() }
         let url = f.paths.workingSet.appendingPathComponent("SyncMetadata/.canonical-next.json")
@@ -394,6 +676,32 @@ import Testing
     }
 }
 
+struct SourceInventoryFixture {
+    let base: URL
+    let account = try! SyncAccountIdentity(containerIdentifier: "test", userRecordName: "source")
+    let storage: SyncAccountStorage
+    let paths: SyncAccountStorage.Paths
+    let journal: FileSyncMutationJournal
+    var archiveURL: URL { paths.workingSet.appendingPathComponent("projects-v1.json") }
+    init() throws {
+        base = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("source-inventory-" + UUID().uuidString)
+        storage = SyncAccountStorage(baseURL: base)
+        paths = try storage.openForVerifiedAccount(identity: account, validateAccount: {})
+        journal = FileSyncMutationJournal(url: paths.mutationJournalURL)
+    }
+    func capture(maximumBytes: Int = 100_000_000) throws -> SyncAccountRecoveryInventory {
+        try .capture(storage: storage, paths: paths, account: account, journal: journal, archiveURL: archiveURL, maximumBytes: maximumBytes)
+    }
+    func diskBytes() throws -> [String: Data] {
+        var result: [String: Data] = [:]
+        for case let url as URL in FileManager.default.enumerator(at: base, includingPropertiesForKeys: [.isRegularFileKey])! {
+            if try url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile == true { result[url.path] = try Data(contentsOf: url) }
+        }
+        return result
+    }
+    func remove() { try? storage.close(); try? FileManager.default.removeItem(at: base) }
+}
+
 struct RecoveryInventoryFixture {
     let base: URL
     let account = try! SyncAccountIdentity(containerIdentifier: "test", userRecordName: "A")
@@ -413,6 +721,26 @@ struct RecoveryInventoryFixture {
     }
     func capture(maximumBytes: Int = 100_000_000) throws -> SyncAccountRecoveryInventory {
         try .capture(storage: storage, paths: paths, account: account, journal: journal, archiveURL: archiveURL, maximumBytes: maximumBytes)
+    }
+    func makeMissingArchiveRollback(withMedia: Bool = false) throws -> FileSyncMutationJournal {
+        if withMedia { _ = try BackupFixture.writeCompleteArchive(to: paths.workingSet) }
+        else {
+            let archive = ProjectArchive(version: ProjectArchive.currentVersion, projects: [try StoredProject(name: "Pending reconstruction")])
+            try JSONEncoder().encode(archive).write(to: archiveURL)
+        }
+        let archive = try JSONDecoder().decode(ProjectArchive.self, from: Data(contentsOf: archiveURL))
+        let package = try ProjectArchiveSyncMapper.export(archive: archive, liveRoot: paths.workingSet, deviceID: "fixture")
+        let native = FileSyncMutationJournal(url: paths.mutationJournalURL)
+        try native.enqueue(package.records.map { try SyncMutation.save(recordVersion: SyncRecordVersion(record: $0),
+            attachmentSource: package.attachments[$0.id.uuid], mutationID: UUID()) })
+        let pending = try native.pending()
+        try FileManager.default.removeItem(at: archiveURL)
+        let context = SyncBootstrapContext(accountIDHash: account.accountIDHash, epoch: UUID(), freezeID: UUID())
+        let bootstrap = try SyncBootstrapTransaction(liveRoot: paths.workingSet, context: context, validateContext: { _ in })
+        let prepared = try bootstrap.prepareReconstruction(remote: .init(context: context, records: [], attachments: [:], isComplete: true),
+            pendingSnapshot: .init(mutations: pending, sourceTreeFingerprint: bootstrap.sourceFingerprint()))
+        try bootstrap.install(prepared); try bootstrap.rollback(prepared)
+        return native
     }
     func installCanonicalCheckpoint() throws -> SyncCanonicalCheckpoint {
         let archive = ProjectArchive(version: ProjectArchive.currentVersion, projects: [try StoredProject(name: "Canonical account A")])

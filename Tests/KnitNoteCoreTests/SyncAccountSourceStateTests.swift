@@ -5,6 +5,67 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite struct SyncAccountSourceStateTests {
+    @Test func allSourceOriginsAndSpentControlRoundtripStrictly() throws {
+        let f = sourceState()
+        let hash = Data(repeating: 8, count: 32)
+        let origins: [SyncAccountSourceOrigin] = [
+            .restoredSelection(vaultID: UUID(), captureID: UUID(), envelopeSHA256: hash, packetSHA256: hash, deletionSHA256: nil),
+            .restoredSelection(vaultID: UUID(), captureID: UUID(), envelopeSHA256: hash, packetSHA256: hash, deletionSHA256: hash),
+            .bootstrapRollback(transactionID: UUID(), activeRelativePath: ".KnitNote-SyncBootstrap/account/tree/active.json", activeEnvelopeSHA256: hash)
+        ]
+        for origin in origins {
+            let state = SyncAccountSourceState(authorityID: f.authorityID, generation: f.generation,
+                accountIDHash: f.accountIDHash, accountRoot: f.accountRoot, accountDevice: f.accountDevice,
+                accountInode: f.accountInode, archiveURL: f.archiveURL, journalURL: f.journalURL,
+                baselineSHA256: f.baselineSHA256, origin: origin)
+            for control in [SyncAccountRecoveryControl.absentSource(state),
+                            .sourceSpent(state, transactionID: UUID(), preparedManifestSHA256: hash)] {
+                let bytes = try SyncAccountRecoveryControlFile.encode(control, predecessorSHA256: hash)
+                #expect(try SyncAccountRecoveryControlFile.decode(bytes) == control)
+                #expect(try SyncAccountRecoveryControlFile.observation(mainBytes: bytes, nextBytes: nil).state == control)
+                for field in ["mixed", "nullHash", "badHash"] {
+                    var wire = try JSONSerialization.jsonObject(with: bytes) as! [String: Any]
+                    var payload = try JSONSerialization.jsonObject(with: Data(base64Encoded: wire["payload"] as! String)!) as! [String: Any]
+                    var source = payload["source"] as! [String: Any]
+                    var altered = source["origin"] as! [String: Any]
+                    if field == "mixed" { altered["allocationID"] = UUID().uuidString }
+                    else {
+                        let key = altered["kind"] as! String == "bootstrapRollback" ? "activeEnvelopeSHA256" : "packetSHA256"
+                        altered[key] = field == "nullHash" ? NSNull() : Data([1]).base64EncodedString()
+                    }
+                    source["origin"] = altered; payload["source"] = source
+                    let payloadBytes = try canonicalJSON(payload)
+                    wire["payload"] = payloadBytes.base64EncodedString()
+                    wire["checksum"] = Data(SHA256.hash(data: try canonicalJSON([
+                        "predecessorSHA256": hash.base64EncodedString(), "payload": payloadBytes.base64EncodedString()
+                    ]))).base64EncodedString()
+                    let invalid = try canonicalJSON(wire)
+                    #expect(throws: (any Error).self) { try SyncAccountRecoveryControlFile.observation(mainBytes: invalid, nextBytes: nil) }
+                }
+            }
+        }
+    }
+
+    @Test func pendingMarkerOrderAndContentChangeBaseline() throws {
+        let f = try RecoveryInventoryFixture(); defer { f.remove() }
+        let ledger = try SyncDeletionLedger(root: f.ledgerRoot)
+        let a = try f.addDeletion(ledger: ledger, name: "first")
+        let b = try f.addDeletion(ledger: ledger, name: "second")
+        try ledger.purge(now: Date(timeIntervalSince1970: 2_592_100),
+            references: .init(acknowledgedRemovalVersionIDs: Set((a.versions + b.versions).map(\.versionID))))
+        let markers = try ledger.pendingDeletionMarkerVersions()
+        let first = try #require(markers.first)
+        let second = try #require(markers.first { $0 != first })
+        func digest(_ markers: [SyncRecordVersion]) throws -> Data {
+            try SyncAccountSourceBaseline.digest(entries: [], accountRoot: f.paths.accountRoot,
+                journalURL: f.paths.mutationJournalURL, mutations: [], selectedFiles: [], deletionLedger: nil,
+                pendingMarkerVersions: markers)
+        }
+        let original = try digest([first, second])
+        #expect(try digest([second, first]) != original)
+        #expect(try digest([first, first]) != original)
+    }
+
     @Test func v1IntentBytesStayUnchanged() throws {
         let f = try RecoveryInventoryFixture(); defer { f.remove() }
         let tx = SyncAccountRecoveryTransaction(storage: f.storage, paths: f.paths, account: f.account,

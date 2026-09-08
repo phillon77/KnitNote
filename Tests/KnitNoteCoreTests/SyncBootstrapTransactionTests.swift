@@ -4,6 +4,59 @@ import Testing
 @testable import KnitNoteCore
 
 struct SyncBootstrapTransactionTests {
+    @Test func terminalRollbackEvidenceSurvivesPlaintextCleanupAndRejectsChangedProofs() throws {
+        let f = try RecoveryInventoryFixture(); defer { f.remove() }
+        let journal = try f.makeMissingArchiveRollback()
+        try f.storage.withRecoveryInventory(paths: f.paths, account: f.account, maximumBytes: 100_000_000) { entries in
+            let evidence = try #require(try SyncBootstrapTransaction.terminalRecoveryEvidence(account: f.account,
+                accountRoot: f.paths.accountRoot, liveRoot: f.paths.workingSet, journalURL: journal.recoveryLocation,
+                entries: entries, read: { try Data(contentsOf: f.paths.accountRoot.appendingPathComponent($0)) }))
+            #expect(evidence.phase == .rolledBack)
+            let embedded: (String) throws -> Data = { path in
+                guard path == evidence.activeRelativePath else { throw SyncBootstrapError.corrupt }
+                return evidence.activeEnvelope
+            }
+            #expect(try SyncBootstrapTransaction.terminalRecoveryEvidence(account: f.account, accountRoot: f.paths.accountRoot,
+                liveRoot: f.paths.workingSet, journalURL: journal.recoveryLocation, entries: entries, read: embedded) == evidence)
+            #expect(throws: (any Error).self) {
+                try SyncBootstrapTransaction.terminalRecoveryEvidence(account: f.account, accountRoot: f.paths.accountRoot,
+                    liveRoot: f.paths.workingSet, journalURL: journal.recoveryLocation, entries: entries, read: { _ in evidence.activeEnvelope + Data([0]) })
+            }
+            for prefix in [evidence.activeRelativePath, "working-set/", evidence.activeRelativePath.replacingOccurrences(of: "active.json", with: evidence.transactionID.uuidString + "/Original/")] {
+                var changed = entries
+                let index = try #require(changed.firstIndex { $0.relativePath.hasPrefix(prefix) && !$0.isDirectory })
+                let old = changed[index]
+                changed[index] = .init(relativePath: old.relativePath, isDirectory: false, byteCount: old.byteCount,
+                    sha256: Data(repeating: 7, count: 32), device: old.device, inode: old.inode)
+                #expect(throws: (any Error).self) {
+                    try SyncBootstrapTransaction.terminalRecoveryEvidence(account: f.account, accountRoot: f.paths.accountRoot,
+                        liveRoot: f.paths.workingSet, journalURL: journal.recoveryLocation, entries: changed, read: embedded)
+                }
+            }
+            let sibling = evidence.activeRelativePath.replacingOccurrences(of: "active.json", with: UUID().uuidString)
+            let originalDirectory = evidence.activeRelativePath.replacingOccurrences(of: "active.json", with: evidence.transactionID.uuidString + "/Original")
+            #expect(throws: (any Error).self) {
+                try SyncBootstrapTransaction.terminalRecoveryEvidence(account: f.account, accountRoot: f.paths.accountRoot,
+                    liveRoot: f.paths.workingSet, journalURL: journal.recoveryLocation,
+                    entries: entries.filter { $0.relativePath != originalDirectory }, read: embedded)
+            }
+            let extra = SyncAccountRecoveryInventory.Entry(relativePath: sibling, isDirectory: true, byteCount: 0, sha256: Data(), device: 1, inode: 1)
+            #expect(throws: (any Error).self) {
+                try SyncBootstrapTransaction.terminalRecoveryEvidence(account: f.account, accountRoot: f.paths.accountRoot,
+                    liveRoot: f.paths.workingSet, journalURL: journal.recoveryLocation, entries: entries + [extra], read: embedded)
+            }
+            let other = try SyncAccountIdentity(containerIdentifier: "test", userRecordName: "wrong")
+            #expect(throws: (any Error).self) {
+                try SyncBootstrapTransaction.terminalRecoveryEvidence(account: other, accountRoot: f.paths.accountRoot,
+                    liveRoot: f.paths.workingSet, journalURL: journal.recoveryLocation, entries: entries, read: embedded)
+            }
+            #expect(throws: (any Error).self) {
+                try SyncBootstrapTransaction.terminalRecoveryEvidence(account: f.account, accountRoot: f.paths.accountRoot,
+                    liveRoot: f.paths.workingSet, journalURL: f.journalURL, entries: entries, read: embedded)
+            }
+        }
+    }
+
     @Test(arguments: [false, true])
     func preparationWireFormatKeepsArchiveV1DistinctFromAbsenceV2(reconstruction: Bool) throws {
         let fixture = try Fixture(); defer { fixture.remove() }

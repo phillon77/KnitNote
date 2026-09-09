@@ -2,7 +2,7 @@
 
 日期：2026-09-09。版本維持 **1.7.0 (13)**。
 
-狀態：使用者已確認分段接線方向；本書面規格待確認，尚未開始實作。基準提交為 `d68b557b4bfa7fbd90f0bcdb84adf2a19c0eb9ba`，工作樹為 `.worktrees/cross-device-sync-design`，分支為 `docs/cross-device-sync-design`。先前 Core、App 測試與建置結果只屬於該基準，不是本橋接的驗收證據。
+狀態：使用者已確認本書面規格，並同意依六階段計畫以子代理逐項實作與審查；實作進行中，尚未完成橋接驗收。基準提交為 `d68b557b4bfa7fbd90f0bcdb84adf2a19c0eb9ba`，工作樹為 `.worktrees/cross-device-sync-design`，分支為 `docs/cross-device-sync-design`。先前 Core、App 測試與建置結果只屬於該基準，不是本橋接的驗收證據。
 
 ## 1. 目標與本次範圍
 
@@ -54,7 +54,7 @@ reader 私有建立不可由一般 caller 拼裝的已驗證結果（建議名�
 
 ## 4. 資料流與交接
 
-1. 確认目前帳號，撤銷／停止舊 session，排空 App producer 與舊傳輸；沿用現有 recovery restore/consume 或同步 absence 步驟。
+1. 確認目前帳號，撤銷／停止舊 session，排空 App producer 與舊傳輸；沿用現有 recovery restore/consume 或同步 absence 步驟。
 2. 檢查非終止 bootstrap；存在時先以 owned/legacy 的正確原生路徑恢復，再重驗 namespace。不能把任意解析錯誤當成「沒有資料」。
 3. 已有有效 canonical 就走原本 install／local-ready／背景同步。沒有 canonical 且沒有 committed handoff 才進入初始化橋接。
 4. 在已確認且保持有效的帳號 session 下開始完整遠端讀取；一般 transport 尚未啟動，不寫一般 engine state、incoming ACK 或上傳佇列。
@@ -96,7 +96,7 @@ reader 私有建立不可由一般 caller 拼裝的已驗證結果（建議名�
 
 ## 7. 驗收與完成定義
 
-先測實際 adapter 的 callback→租約路徑，再测橋接的真實 store/journal/owned transaction；不以測試直接設 `isComplete = true` 代替傳輸來源證據。
+先測實際 adapter 的 callback→租約路徑，再測橋接的真實 store/journal/owned transaction；不以測試直接設 `isComplete = true` 代替傳輸來源證據。
 
 必測：
 

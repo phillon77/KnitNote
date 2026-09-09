@@ -33,9 +33,9 @@ Test-only fixtures may clean successful isolated roots; retain and print failed 
 - Produces: test suite `SyncBootstrapOwnedCommitCrashTests`, worker `nativeCommitCrashWorker`, parent case `receiptBoundaryReopensWithoutDuplicateImport`, corruption case `invalidCommittedReceiptPreservesEvidence`.
 - No new production interface. Helper naming may follow the actual accessible existing fixture signatures; native ownership and nonempty expectations may not be replaced with mocks.
 
-- [ ] **Step 1: Inspect fixture and establish baseline.** Root runs existing `SyncBootstrapOwnedTransactionTests` once. Reuse its verified-account fixture patterns, but create nonempty archive content and at least one actual journal mutation. Child writes before/installed expected snapshots outside the account root before the cut. Parent must not initialize data. Keep child fixture construction private to worker, with a unique `owned-commit-crash-` temporary root that must not exist yet.
+- [x] **Step 1: Inspect fixture and establish baseline.** Root runs existing `SyncBootstrapOwnedTransactionTests` once. Reuse its verified-account fixture patterns, but create nonempty archive content and at least one actual journal mutation. Child writes before/installed expected snapshots outside the account root before the cut. Parent must not initialize data. Keep child fixture construction private to worker, with a unique `owned-commit-crash-` temporary root that must not exist yet.
 
-- [ ] **Step 2: Add parent and real child tests.** The child invokes actual `prepare`, `install`, `commit`; cut uses `Darwin._exit(86)` at `.afterReceipt`, or immediately after successful `commit` returns without handoff/publication. Pass cut/root through dedicated `KNITNOTE_OWNED_COMMIT_CHILD`/`KNITNOTE_OWNED_COMMIT_ROOT` environment keys; remove real CloudKit integration flag. Launch current `swiftpm-testing-helper` with only worker filter, stripping both separated and equals-form prior filters. Worker is a no-op without its dedicated environment. Timeout is at most 60 seconds with termination/grace/KILL and reaping. Logs remain available on failure.
+- [x] **Step 2: Add parent and real child tests.** The child invokes actual `prepare`, `install`, `commit`; cut uses `Darwin._exit(86)` at `.afterReceipt`, or immediately after successful `commit` returns without handoff/publication. Pass cut/root through dedicated `KNITNOTE_OWNED_COMMIT_CHILD`/`KNITNOTE_OWNED_COMMIT_ROOT` environment keys; remove real CloudKit integration flag. Launch current `swiftpm-testing-helper` with only worker filter, stripping both separated and equals-form prior filters. Worker is a no-op without its dedicated environment. Timeout is at most 60 seconds with termination/grace/KILL and reaping. Logs remain available on failure.
 
 ```swift
 // Break caught: receipt existence is confused with committed native state,
@@ -54,9 +54,9 @@ func receiptBoundaryReopensWithoutDuplicateImport(cut: String) throws {
 
 This code block defines the behavioral skeleton; each comment must become a real assertion/operation, not remain an empty test. The actual fixture must contain a literal named project and prove nonempty journal before comparing snapshots, to avoid empty-set equality.
 
-- [ ] **Step 3: Prove oracle sensitivity.** These tests characterize existing code, so no missing production feature is expected. First run with the two parent phase expectations deliberately inverted (installed vs committed), retain the expected assertion failure log, then restore the correct expectations with apply_patch and rerun. Do not change production for this sensitivity check, and do not claim the negative control found a production defect.
+- [x] **Step 3: Prove oracle sensitivity.** These tests characterize existing code, so no missing production feature is expected. First run with the two parent phase expectations deliberately inverted (installed vs committed), retain the expected assertion failure log, then restore the correct expectations with apply_patch and rerun. Do not change production for this sensitivity check, and do not claim the negative control found a production defect.
 
-- [ ] **Step 4: Add invalid receipt matrix.** Generate a real committed crash fixture for each `missing`, `corrupt`, `wrong-account`, `wrong-transaction` case. Mutate only the receipt in the isolated root; for valid JSON wrong-binding cases preserve all unrelated fields so rejection is not merely bad JSON. Snapshot all regular account-root bytes AFTER intentional damage, attempt native reopen/recover, require rejection and unchanged bytes after. Parent must record actual observed exception and not swallow unexpected setup failures. Baseline valid committed case in Step 2 is the positive control. No wrong-account store opening that could create a new empty namespace.
+- [x] **Step 4: Add invalid receipt matrix.** Generate a real committed crash fixture for each `missing`, `corrupt`, `wrong-account`, `wrong-transaction` case. Mutate only the receipt in the isolated root; for valid JSON wrong-binding cases preserve all unrelated fields so rejection is not merely bad JSON. Snapshot all regular account-root bytes AFTER intentional damage, attempt native reopen/recover, require rejection and unchanged bytes after. Parent must record actual observed exception and not swallow unexpected setup failures. Baseline valid committed case in Step 2 is the positive control. No wrong-account store opening that could create a new empty namespace.
 
 ```swift
 @Test(arguments: ["missing", "corrupt", "wrong-account", "wrong-transaction"])
@@ -66,7 +66,7 @@ func invalidCommittedReceiptPreservesEvidence(damage: String) throws {
 }
 ```
 
-- [ ] **Step 5: Focused tests, self-review and commit.** Run the new suite, then new suite plus `SyncBootstrapOwnedTransactionTests|SyncBootstrapOwnedHandoffTests|SyncBootstrapOwnedInterruptionMatrixTests` once. Record exact commands, counts, exit codes and logs; no claims from previous counts. Use the existing bounded runner and cache paths below, formal escalation if native fixture permission requires it. Commit only new suite after `git diff --check` and self-review. Report RED as negative-control oracle sensitivity, GREEN as actual restored assertions, explicitly no production fix.
+- [x] **Step 5: Focused tests, self-review and commit.** Run the new suite, then new suite plus `SyncBootstrapOwnedTransactionTests|SyncBootstrapOwnedHandoffTests|SyncBootstrapOwnedInterruptionMatrixTests` once. Record exact commands, counts, exit codes and logs; no claims from previous counts. Use the existing bounded runner and cache paths below, formal escalation if native fixture permission requires it. Commit only new suite after `git diff --check` and self-review. Report RED as negative-control oracle sensitivity, GREEN as actual restored assertions, explicitly no production fix.
 
 ```sh
 env -u KNITNOTE_RUN_CLOUDKIT_INTEGRATION CLANG_MODULE_CACHE_PATH=/tmp/knitnote-account-domain-jnjVrd/clang-cache python3 /tmp/knitnote-legacy-final-iHUGGh/run-bounded.py 900 arch -arm64 swift test --disable-xctest --disable-sandbox --cache-path /tmp/knitnote-account-domain-jnjVrd/cache --config-path /tmp/knitnote-account-domain-jnjVrd/config --security-path /tmp/knitnote-account-domain-jnjVrd/security --no-parallel --filter 'SyncBootstrapOwnedCommitCrashTests'
@@ -77,7 +77,7 @@ git commit -m "test: verify owned receipt and commit crash recovery"
 ## Controller completion
 
 - [ ] Task spec/quality review, fix if necessary; final review of this bounded candidate from documentation base, not a release/whole historical branch sign-off.
-- [ ] Fresh root targeted verification on final source SHA; record report and update plan status.
+- [x] Fresh root targeted verification on final source SHA; record report and update plan status.
 - [ ] Keep local branch/worktree and review evidence. No merge, push, upload or submission.
 
 ## Plan self-review

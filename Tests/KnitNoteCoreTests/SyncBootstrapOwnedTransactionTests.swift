@@ -882,6 +882,8 @@ struct SyncBootstrapOwnedTransactionTests {
         }
         let committed = try #require(full.lifetimeScenarios.first { $0.name == "committed" })
         #expect(full.preparingEnvelope.count < committed.recoveryEnvelopeBytes - 1)
+        // This whole-plan no-write rejection may occur at an earlier lifetime
+        // scenario. BudgetTests separately isolates the committed-only cause.
         #expect(throws: (any Error).self) {
             _ = try f.transaction(maximumBytes: committed.recoveryEnvelopeBytes - 1,
                 transactionID: id, now: now).plan(f.input())

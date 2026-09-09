@@ -6,6 +6,9 @@ import Foundation
 struct SyncBootstrapOwnedIO {
     var write: (Int32, Data) throws -> Void = SyncBootstrapOwnedPOSIX.write
     var synchronize: (Int32) throws -> Void = SyncBootstrapOwnedPOSIX.synchronize
+    // Recovery controls require a Sendable callback; keep synchronous output
+    // observation separate without weakening either closure's concurrency type.
+    var controlSynchronize: @Sendable (Int32) throws -> Void = SyncBootstrapOwnedPOSIX.synchronize
 }
 
 /// Checked descriptor operations. Authorization remains in the private issuer;

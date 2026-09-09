@@ -80,7 +80,7 @@ struct SyncBootstrapOwnedOutputTests {
         var partial: String?, writesAfterFailure = 0
         let io = SyncBootstrapOwnedIO(write: { fd, bytes in
             let path = try Self.path(fd)
-            if partial != nil { writesAfterFailure += 1 }
+            if partial != nil, !path.hasSuffix("/active-next.json") { writesAfterFailure += 1 }
             if path.contains("/Staged/.projects-v1.json.") {
                 partial = path
                 try SyncBootstrapOwnedPOSIX.write(fd, Data(bytes.prefix(7)))
@@ -477,7 +477,8 @@ struct SyncBootstrapOwnedOutputTests {
         let plan = try f.transaction(transactionID: id, now: now).plan(f.input())
         var indices: [Int] = [], writes: [String] = []
         let io = SyncBootstrapOwnedIO(write: { fd, bytes in
-            writes.append(try Self.path(fd))
+            let path = try Self.path(fd)
+            if !path.hasSuffix("/active-next.json") { writes.append(path) }
             try SyncBootstrapOwnedPOSIX.write(fd, bytes)
         })
         _ = try f.transaction(transactionID: id, now: now, boundary: { point in
@@ -528,7 +529,7 @@ struct SyncBootstrapOwnedOutputTests {
         let reused = staged.appendingPathComponent(reusePath)
         var publicationLocked = false, failed = false, laterWrites = 0
         let io = SyncBootstrapOwnedIO(write: { fd, bytes in
-            if failed { laterWrites += 1 }
+            if failed, try !Self.path(fd).hasSuffix("/active-next.json") { laterWrites += 1 }
             try SyncBootstrapOwnedPOSIX.write(fd, bytes)
         }, synchronize: { fd in
             let path = try Self.path(fd)

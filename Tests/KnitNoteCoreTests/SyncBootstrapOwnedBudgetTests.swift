@@ -3,6 +3,56 @@ import Testing
 @testable import KnitNoteCore
 
 struct SyncBootstrapOwnedBudgetTests {
+    @Test func committedProjectionAloneCrossesInclusiveEnvelopeCap() throws {
+        let f = try OwnedBootstrapFixture(); defer { f.remove() }
+        let before = try f.source.diskBytes()
+        let p = try f.transaction().plan(f.input())
+        let manifest = try BootstrapManifestV3.decodeEnvelope(p.preparingEnvelope)
+        guard case let .preparing(preparing) = manifest.body else {
+            Issue.record("missing preparing projection"); return
+        }
+        var builder = SyncBootstrapOwnedProgramBuilder()
+        try builder.appendHelper(p.actions, step: .publication)
+        let record = try #require(SyncCanonicalPublicationSnapshot(
+            archive: .init(version: ProjectArchive.currentVersion, projects: [try StoredProject(name: "budget")]),
+            deviceID: "budget").records.values.first)
+        let pending = (0..<32_768).map { _ in SyncMutation.delete(record.id, mutationID: UUID()) }
+        // This isolates the pure accounting input, not an executable journal
+        // program: only the future packet varies. No ownership is issued and
+        // no claim is made that this synthetic combination can be installed.
+        func compose(_ finalPending: [SyncMutation], cap: Int) throws -> SyncBootstrapRecoveryBudget.Result {
+            try SyncBootstrapRecoveryBudget.compose(inventory: p.initialInventory, control: p.initialControl,
+                context: manifest.context, original: manifest.original, sourceProof: manifest.sourceProof,
+                builder: builder, reservation: p.reservation, deletion: p.deletion, commit: p.commitProgram,
+                mutations: p.mutations, finalPending: finalPending, finalJournalFiles: p.finalJournalFiles,
+                namespace: OwnedBootstrapCodec.parent(manifest.transactionRelativePath), predecessor: nil,
+                pendingSnapshotSHA256: preparing.pendingSnapshotSHA256, maximumBytes: cap)
+        }
+        let baseline = try compose([], cap: 100_000_000)
+        let projected = try compose(pending, cap: 100_000_000)
+        let committed = try #require(projected.scenarios.first { $0.name == "committed" })
+        let prior = projected.scenarios.filter { $0.name != "committed" }
+        let baselinePrior = baseline.scenarios.filter { $0.name != "committed" }
+        #expect(prior.count == 6)
+        #expect(prior.map(\.name) == baselinePrior.map(\.name))
+        #expect(prior.map(\.recoveryEnvelopeBytes) == baselinePrior.map(\.recoveryEnvelopeBytes))
+        #expect(prior.map(\.inventoryBytes) == baselinePrior.map(\.inventoryBytes))
+        #expect(prior.map(\.nextRetryPreparingBytes) == baselinePrior.map(\.nextRetryPreparingBytes))
+        let cap = committed.recoveryEnvelopeBytes
+        try #require(prior.allSatisfy { $0.recoveryEnvelopeBytes < cap - 1 })
+        #expect(projected.maximumRecoveryEnvelopeBytes == cap)
+        #expect(projected.preparingEnvelope.count < cap - 1)
+        #expect(try compose(pending, cap: cap).maximumRecoveryEnvelopeBytes == cap)
+        #expect(throws: SyncAccountRecoveryTransaction.Error.tooLarge) {
+            _ = try compose(pending, cap: cap - 1)
+        }
+        // At exactly the same lower cap all preceding scenarios and a small
+        // committed packet pass: an earlier abort shape cannot explain RED.
+        #expect(try compose([], cap: cap - 1).maximumRecoveryEnvelopeBytes < cap - 1)
+        #expect(try f.source.diskBytes() == before)
+        #expect(!FileManager.default.fileExists(atPath: f.namespace.path))
+    }
+
     @Test func strictDataOnlyHistoryComposesExactPredecessorAndFullRetryLifetimes() throws {
         let f = try OwnedBootstrapFixture(); defer { f.remove() }
         let p = try f.transaction().plan(f.input())

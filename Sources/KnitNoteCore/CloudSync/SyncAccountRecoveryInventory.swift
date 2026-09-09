@@ -31,8 +31,8 @@ public struct SyncAccountRecoveryInventory: Sendable {
     let sourceAuthority: SyncAccountRecoverySourceAuthority?
     var bootstrapEvidence: BootstrapEvidence? = nil
 
-    /// Encoding-only future witness. Runtime capture/decoding deliberately does
-    /// not accept this extension until the complete owned terminal validator.
+    /// Exact owned terminal/history bytes. Capture validates physical evidence;
+    /// decoding accepts them only through the authenticated terminal validator.
     struct BootstrapEvidence: Codable, Sendable {
         let activeEnvelope: Data
         let historyRecords: [Data]

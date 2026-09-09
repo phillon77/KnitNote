@@ -110,7 +110,12 @@ import Testing
                     record["createdAt"] = 999
                     json["record"] = record
                 }
-                if change == "wrong-id" { json["version"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(fixture().allVersions[0])) }
+                if change == "wrong-id" {
+                    // A fully self-consistent envelope for another ID must fail
+                    // the expected-path binding, not an internal record mismatch.
+                    let other = try #require(initial.files.first { $0.path == authorityPath(3) }?.bytes)
+                    return item(file.path, other)
+                }
                 if change == "watch" {
                     var p = try #require(json["proof"] as? [String: Any])
                     p["rejection"] = "counterMissing"; json["proof"] = p

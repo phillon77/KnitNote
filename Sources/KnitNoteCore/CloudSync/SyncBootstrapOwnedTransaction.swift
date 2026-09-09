@@ -10,6 +10,13 @@ enum SyncBootstrapOwnedBoundary: Equatable {
     case beforeSourceSpend, afterSourceSpend, afterLiveMove, afterStagedMove, afterInstalled
     case afterJournalOperation(index: Int), afterReceipt, afterRollbackIntent, afterFailedMove, afterOriginalRestore
     case beforeAbortPublication, afterAbortPublication
+    case beforeValidation(SyncBootstrapOwnedValidation), afterValidation(SyncBootstrapOwnedValidation)
+}
+
+/// Observation around the existing physical helper calls, never validation authority.
+enum SyncBootstrapOwnedValidation: Equatable {
+    case backupSource(index: Int, final: Bool), backupInspection(index: Int)
+    case localMaterialization, mergedMaterialization, deletion(step: Int)
 }
 
 /// Exact selected terminal and immutable history, shared by physical capture
@@ -658,6 +665,7 @@ extension SyncBootstrapOwnedTransaction {
             try access.validate()
             guard try read(owner.namespace + "/active.json") == bytes else { throw SyncBootstrapError.sourceChanged }
             let entries = try owner.validateHistory(manifest, access: access)
+            try owner.validatePreparedDerivative(manifest, bytes: bytes, entries: entries, access: access)
             func immutable(_ entries: [SyncAccountRecoveryInventory.Entry]) -> [SyncAccountRecoveryInventory.Entry] {
                 entries.filter { entry in
                     if [owner.namespace + "/active.json", owner.namespace + "/active-next.json"].contains(entry.relativePath) { return false }
@@ -809,7 +817,7 @@ extension SyncBootstrapOwnedTransaction {
             guard SyncBootstrapOwnedTransaction.proofs(entries, under: "working-set") == manifest.original,
                   entries.contains(where: { $0.relativePath == root + "/Staged" }) else { throw SyncBootstrapError.sourceChanged }
             try owner.boundary(.beforeSourceSpend)
-            let file = SyncAccountRecoveryControlFile(synchronize: POSIX.synchronize)
+            let file = SyncAccountRecoveryControlFile(synchronize: owner.io.controlSynchronize)
             let observed = try source(entries)
             if case let .absentSource(value) = observed.state {
                 _ = try file.replace(observed, with: .sourceSpent(value, transactionID: manifest.id,
@@ -1012,8 +1020,8 @@ extension SyncBootstrapOwnedTransaction {
         }
     }
 
-    /// Preparing recovery freezes outputs; canonical/source-origin handoff is
-    /// deliberately absent until the coherent installation/inventory checkpoint.
+    /// Preparing recovery freezes outputs before exact terminal source handoff.
+    /// Installed states use the shared rollback and committed receipt validators.
     func recover() throws -> SyncCanonicalBootstrapHandoff? {
         try validateContext(context)
         return try storage.withRecoveryOwnership(paths: paths, account: account, maximumBytes: maximumBytes,
@@ -1034,7 +1042,7 @@ extension SyncBootstrapOwnedTransaction {
             if version != 3 {
                 let source = try SyncBootstrapTransaction.legacyHistorySource(bytes)
                 if case .missingArchive = source.sourceProof {
-                    let control = SyncAccountRecoveryControlFile(synchronize: POSIX.synchronize)
+                    let control = SyncAccountRecoveryControlFile(synchronize: io.controlSynchronize)
                     let observed = try control.observe(access: access)
                     let journal = FileSyncMutationJournal(url: paths.workingSet.appendingPathComponent(journalRelativePath))
                     if observed.mainBytes == nil, observed.nextBytes == nil {
@@ -1060,8 +1068,7 @@ extension SyncBootstrapOwnedTransaction {
                 let issuer = try Issuer(owner: self, access: access, selected: manifest, exactBytes: bytes, baseline: nil)
                 try issuer.abort()
             case .abortedPreparation:
-                // A later v3 attempt needs Task3's source-origin adapter. Do
-                // not report an unresolved later selector as recovered here.
+                // Do not report an unresolved later selector as recovered.
                 guard try POSIX.read("active-next.json", parent: directory.value, maximumBytes: maximumBytes) == nil else {
                     throw SyncBootstrapError.invalidPhase
                 }
@@ -1096,10 +1103,14 @@ extension SyncBootstrapOwnedTransaction {
         access: SyncAccountStorage.RecoveryAccess) throws {
         let nextPath = namespace + "/active-next.json"
         let directory = try POSIX.directory(namespace, from: access.accountDescriptor)
-        guard let next = try POSIX.read("active-next.json", parent: directory.value, maximumBytes: maximumBytes),
-              let nextEntry = entries.first(where: { $0.relativePath == nextPath }), !nextEntry.isDirectory,
-              POSIX.proof(next) == .init(byteCount: nextEntry.byteCount, sha256: nextEntry.sha256) else {
-            throw SyncBootstrapError.invalidPhase
+        let next = try POSIX.read("active-next.json", parent: directory.value, maximumBytes: maximumBytes)
+        if let next {
+            guard let nextEntry = entries.first(where: { $0.relativePath == nextPath }), !nextEntry.isDirectory,
+                  POSIX.proof(next) == .init(byteCount: nextEntry.byteCount, sha256: nextEntry.sha256) else {
+                throw SyncBootstrapError.invalidPhase
+            }
+        } else {
+            guard !entries.contains(where: { $0.relativePath == nextPath }) else { throw SyncBootstrapError.sourceChanged }
         }
         let control = try SyncAccountRecoveryControlFile(synchronize: { _ in }).observe(access: access)
         // Legacy missing-source origin reissue belongs to the later handoff.
@@ -1126,7 +1137,7 @@ extension SyncBootstrapOwnedTransaction {
         let dependencies = try SyncAccountRecoveryInventory.captureSourceDependencies(paths: paths,
             journal: FileSyncMutationJournal(url: paths.workingSet.appendingPathComponent(journalRelativePath)),
             archiveURL: paths.workingSet.appendingPathComponent("projects-v1.json"), entries: entries, maximumBytes: maximumBytes)
-        if (try? JSONSerialization.jsonObject(with: next, options: [.fragmentsAllowed])) != nil, next != bytes {
+        if let next, (try? JSONSerialization.jsonObject(with: next, options: [.fragmentsAllowed])) != nil, next != bytes {
             let candidate = try BootstrapManifestV3.decodeEnvelope(next, maximumBytes: maximumBytes)
             guard case let .preparing(preparing) = candidate.body, let pending = preparing.predecessor,
                   candidate.historyHead == nil, candidate.livePath == old.livePath, candidate.journalPath == old.journalPath,
@@ -1138,15 +1149,32 @@ extension SyncBootstrapOwnedTransaction {
                   !entries.contains(where: { $0.relativePath == candidate.transactionRelativePath
                     || $0.relativePath.hasPrefix(candidate.transactionRelativePath + "/") }) else { throw SyncBootstrapError.sourceChanged }
         }
+        if next == nil {
+            // A healthy legacy terminal is already selected. Validate the full
+            // existing capture without manufacturing another publication.
+            _ = try SyncAccountRecoveryInventory.capture(access: access, paths: paths, account: account,
+                journal: FileSyncMutationJournal(url: paths.workingSet.appendingPathComponent(journalRelativePath)),
+                archiveURL: paths.workingSet.appendingPathComponent("projects-v1.json"),
+                control: control, maximumBytes: maximumBytes)
+        }
         try access.validate()
         guard try access.entries() == entries,
               try SyncAccountRecoveryControlFile(synchronize: { _ in }).observe(access: access) == control else {
             throw SyncBootstrapError.sourceChanged
         }
         try synchronizeSelected(bytes, access: access)
+        if next == nil {
+            guard try access.entries() == entries,
+                  try SyncAccountRecoveryControlFile(synchronize: { _ in }).observe(access: access) == control else {
+                throw SyncBootstrapError.sourceChanged
+            }
+            return
+        }
         try publish(bytes, replacing: bytes, access: access) {
             try access.validate()
+            let derivative = try POSIX.read("active-next.json", parent: directory.value, maximumBytes: self.maximumBytes)
             guard try access.entries().filter({ $0.relativePath != nextPath }) == filtered,
+                  derivative == next || derivative == bytes,
                   try SyncAccountRecoveryControlFile(synchronize: { _ in }).observe(access: access) == control else {
                 throw SyncBootstrapError.sourceChanged
             }
@@ -1161,10 +1189,10 @@ extension SyncBootstrapOwnedTransaction {
         }
         let file = try POSIX.Descriptor(openat(directory.value, "active.json", O_RDONLY | O_NOFOLLOW | O_CLOEXEC))
         try POSIX.match(file.value, name: "active.json", parent: directory.value, directory: false)
-        try POSIX.synchronize(file.value)
+        try io.synchronize(file.value)
         for path in ([namespace] + OwnedBootstrapCodec.parents(namespace).reversed() + [""]) {
             let fd = try POSIX.directory(path, from: access.accountDescriptor)
-            try POSIX.synchronize(fd.value)
+            try io.synchronize(fd.value)
         }
         guard try POSIX.read("active.json", parent: directory.value, maximumBytes: maximumBytes) == bytes else {
             throw SyncBootstrapError.sourceChanged
@@ -1178,18 +1206,29 @@ extension SyncBootstrapOwnedTransaction {
         guard try POSIX.read("active.json", parent: directory.value, maximumBytes: maximumBytes) == old else {
             throw SyncBootstrapError.sourceChanged
         }
+        let admittedNext = try POSIX.read("active-next.json", parent: directory.value, maximumBytes: maximumBytes)
         try revalidate()
         // An existing derivative may be replaced only by the owner of the exact
         // current main after its complete source/history checks.
         let next = try POSIX.read("active-next.json", parent: directory.value, maximumBytes: maximumBytes)
-        guard next == nil || old != nil else { throw SyncBootstrapError.sourceChanged }
-        let flags = O_WRONLY | O_NOFOLLOW | O_CLOEXEC | (next == nil ? O_CREAT | O_EXCL : O_TRUNC)
+        guard next == admittedNext, next == nil || old != nil else { throw SyncBootstrapError.sourceChanged }
+        let flags = O_WRONLY | O_NOFOLLOW | O_CLOEXEC | (next == nil ? O_CREAT | O_EXCL : 0)
         let file = try POSIX.Descriptor(openat(directory.value, "active-next.json", flags, 0o600))
         try POSIX.match(file.value, name: "active-next.json", parent: directory.value, directory: false)
+        guard try POSIX.read("active.json", parent: directory.value, maximumBytes: maximumBytes) == old,
+              try POSIX.read("active-next.json", parent: directory.value, maximumBytes: maximumBytes) == (next ?? Data()) else {
+            throw SyncBootstrapError.sourceChanged
+        }
+        if next != nil, ftruncate(file.value, 0) != 0 { throw SyncAccountStorageError.unavailable }
         try boundary(.selector(.afterNextCreation))
-        try POSIX.write(file.value, bytes)
+        try POSIX.match(file.value, name: "active-next.json", parent: directory.value, directory: false)
+        guard try POSIX.read("active.json", parent: directory.value, maximumBytes: maximumBytes) == old,
+              try POSIX.read("active-next.json", parent: directory.value, maximumBytes: maximumBytes) == Data() else {
+            throw SyncBootstrapError.sourceChanged
+        }
+        try io.write(file.value, bytes)
         try boundary(.selector(.afterNextWrite))
-        try POSIX.synchronize(file.value)
+        try io.synchronize(file.value)
         try boundary(.selector(.afterNextSynchronize))
         try revalidate()
         guard try POSIX.read("active.json", parent: directory.value, maximumBytes: maximumBytes) == old,
@@ -1198,6 +1237,11 @@ extension SyncBootstrapOwnedTransaction {
         }
         try POSIX.match(file.value, name: "active-next.json", parent: directory.value, directory: false)
         try boundary(.selector(.beforeRename))
+        try POSIX.match(file.value, name: "active-next.json", parent: directory.value, directory: false)
+        guard try POSIX.read("active.json", parent: directory.value, maximumBytes: maximumBytes) == old,
+              try POSIX.read("active-next.json", parent: directory.value, maximumBytes: maximumBytes) == bytes else {
+            throw SyncBootstrapError.sourceChanged
+        }
         guard renameat(directory.value, "active-next.json", directory.value, "active.json") == 0 else {
             throw SyncAccountStorageError.unavailable
         }
@@ -1206,7 +1250,7 @@ extension SyncBootstrapOwnedTransaction {
         // perform the exact selected readback and synchronization again.
         for path in ([namespace] + OwnedBootstrapCodec.parents(namespace).reversed() + [""]) {
             let fd = try POSIX.directory(path, from: access.accountDescriptor)
-            try POSIX.synchronize(fd.value)
+            try io.synchronize(fd.value)
         }
         try synchronizeSelected(bytes, access: access)
         try boundary(.selector(.afterSelectedSynchronize))
@@ -1313,8 +1357,14 @@ extension SyncBootstrapOwnedTransaction {
         switch selected.body { case .abortedPreparation, .rolledBack: break; default: throw SyncBootstrapError.invalidPhase }
         // Archive provenance stays archive provenance; there is no invented
         // absentSource for a completed abort of an archive bootstrap.
-        if case .archive = selected.sourceProof { return }
-        let file = SyncAccountRecoveryControlFile(synchronize: POSIX.synchronize)
+        if case .archive = selected.sourceProof {
+            _ = try SyncAccountRecoveryInventory.capture(access: access, paths: paths, account: account,
+                journal: FileSyncMutationJournal(url: paths.workingSet.appendingPathComponent(journalRelativePath)),
+                archiveURL: paths.workingSet.appendingPathComponent("projects-v1.json"),
+                control: SyncAccountRecoveryControlFile(synchronize: { _ in }).observe(access: access), maximumBytes: maximumBytes)
+            return
+        }
+        let file = SyncAccountRecoveryControlFile(synchronize: io.controlSynchronize)
         let observation = try file.observe(access: access)
         let source: SyncAccountSourceState
         if case let .sourceSpent(value, _, _) = observation.state {
@@ -1350,11 +1400,45 @@ extension SyncBootstrapOwnedTransaction {
         }
     }
 
+    /// Only exact successors of this prepared lineage can be an interrupted
+    /// publication. Incomplete bytes must prefix one of those same envelopes;
+    /// a bounded regular file alone never proves ownership.
+    private func validatePreparedDerivative(_ selected: BootstrapManifestV3, bytes: Data,
+        entries: [SyncAccountRecoveryInventory.Entry], access: SyncAccountStorage.RecoveryAccess) throws {
+        let directory = try POSIX.directory(namespace, from: access.accountDescriptor)
+        guard let next = try POSIX.read("active-next.json", parent: directory.value, maximumBytes: maximumBytes) else { return }
+        guard let entry = entries.first(where: { $0.relativePath == namespace + "/active-next.json" }),
+              !entry.isDirectory, POSIX.proof(next) == .init(byteCount: entry.byteCount, sha256: entry.sha256),
+              let prepared = selected.body.preparedBody else { throw SyncBootstrapError.sourceChanged }
+        if next == bytes { return }
+        let root = selected.transactionRelativePath
+        let frozen = entries.filter { $0.relativePath == root || $0.relativePath.hasPrefix(root + "/") }
+        let successors: [BootstrapManifestV3.Body]
+        switch selected.body {
+        case .prepared: successors = [.installed(prepared), .rollingBack(prepared)]
+        case .installed: successors = [.committed(prepared), .rollingBack(prepared)]
+        case .rollingBack: successors = [.rolledBack(.init(prepared: prepared, frozenTransactionEntries: frozen))]
+        default: successors = []
+        }
+        let complete = (try? JSONSerialization.jsonObject(with: next, options: [.fragmentsAllowed])) != nil
+        if complete { _ = try BootstrapManifestV3.decodeEnvelope(next, maximumBytes: maximumBytes) }
+        if bytes.starts(with: next) { return }
+        // Native publication emits these canonical bytes. Structural String
+        // equality would accept byte-distinct Unicode paths under another hash.
+        for body in [selected.body] + successors {
+            var candidate = selected; candidate.body = body
+            if let encoded = try? candidate.encoded(maximumBytes: maximumBytes),
+               complete ? encoded == next : encoded.starts(with: next) { return }
+        }
+        throw SyncBootstrapError.sourceChanged
+    }
+
     /// Prepared recovery retains its initial source. It must not consume that
     /// source just to enter an install-recovery route.
     private func rollbackUnspent(_ selected: BootstrapManifestV3, bytes: Data,
         access: SyncAccountStorage.RecoveryAccess) throws {
         guard let prepared = selected.body.preparedBody else { throw SyncBootstrapError.invalidPhase }
+        try validatePreparedDerivative(selected, bytes: bytes, entries: access.entries(), access: access)
         try synchronizeSelected(bytes, access: access)
         try validateSource(selected, access: access)
         let entries = try validateHistory(selected, access: access)
@@ -1370,6 +1454,7 @@ extension SyncBootstrapOwnedTransaction {
         func revalidate() throws {
             try self.validateSource(current, access: access)
             _ = try self.validateHistory(current, access: access)
+            try self.validatePreparedDerivative(current, bytes: currentBytes, entries: access.entries(), access: access)
             guard try access.entries().filter({ $0.relativePath != self.namespace + "/active.json"
                 && $0.relativePath != self.namespace + "/active-next.json" }) == entries.filter({
                     $0.relativePath != self.namespace + "/active.json" && $0.relativePath != self.namespace + "/active-next.json"
@@ -1829,7 +1914,9 @@ extension SyncBootstrapOwnedTransaction {
                     let service = KnitNoteBackupService(liveRoot: owner.paths.accountRoot.appendingPathComponent(rolePath(role)),
                         workRoot: owner.paths.accountRoot.appendingPathComponent(rolePath(package.role)),
                         patternFolderNameContext: owner.patternFolderNameContext)
+                    try owner.boundary(.beforeValidation(.backupSource(index: packageIndex, final: false)))
                     try service.validateFrozenPackageSource(package, source: actual)
+                    try owner.boundary(.afterValidation(.backupSource(index: packageIndex, final: false)))
                     var locations: [Int: String] = [:]
                     for (actionIndex, action) in package.actions.enumerated() {
                         let bytes: Data?
@@ -1846,15 +1933,22 @@ extension SyncBootstrapOwnedTransaction {
                         try output(action, bytes: bytes, consumeRoot: established && actionIndex == 0)
                         locations[actionIndex] = outputLocation(action)
                     }
+                    try owner.boundary(.beforeValidation(.backupSource(index: packageIndex, final: true)))
                     try service.validateFrozenPackageSource(package, source: frozenTree(role))
+                    try owner.boundary(.afterValidation(.backupSource(index: packageIndex, final: true)))
+                    try owner.boundary(.beforeValidation(.backupInspection(index: packageIndex)))
                     _ = try service.inspectPackage(at: owner.paths.accountRoot.appendingPathComponent(
                         rolePath(package.role, package.packageID.uuidString + ".knitnote-backup")))
+                    try owner.boundary(.afterValidation(.backupInspection(index: packageIndex)))
                     helpers[index] = locations
                 case let .validateLocal(projection, expected):
+                    try owner.boundary(.beforeValidation(.localMaterialization))
                     let actual = try ProjectArchiveSyncMapper.materialize(records: projection.records,
                         attachments: stagedSources(program), baseArchive: expected)
                     guard SyncBootstrapTransaction.sameArchive(actual.archive, expected, checkingVersion: false) else { throw SyncBootstrapError.sourceChanged }
+                    try owner.boundary(.afterValidation(.localMaterialization))
                 case let .validateMaterialization(projection):
+                    try owner.boundary(.beforeValidation(.mergedMaterialization))
                     let base: ProjectArchive
                     switch manifest.sourceProof {
                     case .archive:
@@ -1868,6 +1962,7 @@ extension SyncBootstrapOwnedTransaction {
                         attachments: stagedSources(program), baseArchive: base)
                     guard SyncBootstrapTransaction.sameArchive(actual.archive, projection.archive), actual.records == projection.records,
                           actual.files.map(\.relativePath) == projection.files.map(\.relativePath) else { throw SyncBootstrapError.sourceChanged }
+                    try owner.boundary(.afterValidation(.mergedMaterialization))
                 case .deletion:
                     var locations: [Int: String] = [:], actions: [Int: String] = [:]
                     var actionIndex = 0
@@ -1895,6 +1990,7 @@ extension SyncBootstrapOwnedTransaction {
                             locations[localIndex] = outputLocation(value.action)
                             actions[actionIndex] = outputLocation(value.action); actionIndex += 1
                         case let .validate(validation):
+                            try owner.boundary(.beforeValidation(.deletion(step: localIndex)))
                             if let context = validation.counterReminderContext {
                                 _ = try SyncMergeEngine().merge(local: validation.records, remote: [], pendingLocal: [], counterReminderContext: context)
                             }
@@ -1909,6 +2005,7 @@ extension SyncBootstrapOwnedTransaction {
                             let actual = try ProjectArchiveSyncMapper.materialize(records: validation.records,
                                 attachments: sources, baseArchive: validation.baseArchive)
                             try SyncDeletionLedger.validateOwnedMaterialization(actual, comparison: validation.comparison)
+                            try owner.boundary(.afterValidation(.deletion(step: localIndex)))
                         }
                     }
                     locks.removeAll(); helpers[index] = actions

@@ -61,13 +61,13 @@ binding 必須被準備摘要、immutable output、每次 phase 出版、history
 ## 6. 寫入順序
 
 1. 合法來源觀察、完整備份、目的帳號隔離合併；不移動目的 live 或撤銷原本可用的來源編輯。
-2. 原生 owner 建立包含必填 binding 及輸出預算的 preparing，透過既有同步／原子 selector 出版；完成不可變 LegacyBackup 與 staging、whole-graph 驗證後出版 prepared。
-3. 使用者確認僅在本程序當前 proposal／source／backup／target generation 下有效。進入提交前先停止 producer、等待實際工作排空，再重驗來源、備份及目的帳號。
-4. 原生 install 執行 source spend（若目的原本 absent）、live→Original、staged→live、installed。來源 legacy 本體與原成功備份不參與搬移。
+2. 目的帳號原生 owner 必須在 plan／preparing 前已持有有效 target epoch／freeze，並在 prepare／install／commit 全程重驗；不是只填入 freeze UUID。建立包含必填 binding 及輸出預算的 preparing，透過既有同步／原子 selector 出版；完成不可變 LegacyBackup 與 staging、whole-graph 驗證後出版 prepared。此目的端凍結不等於提前永久撤銷來源 legacy store。
+3. 使用者確認僅在本程序當前 proposal／source／backup／target generation 下有效。進入提交前對 legacy 來源停止 producer、等待實際工作排空，再重驗來源、備份及仍有效的目的帳號凍結。來源改變則不安裝，不因目的已 prepared 而跳過重新確認。
+4. 原生 install 執行 source spend（若目的原本 absent）、live→Displaced、staged→live、installed。Original 是準備時已建立的不可變副本，不是 live rename 目的地；回復由 Displaced 還原 live。來源 legacy 本體與原成功備份不參與搬移。
 5. 原生 commit 在既有 native lock 下執行 journal program。receipt 的新版本必須含 manifest 的 binding digest，並保留原 transaction/account/sourceProof 對應；舊 receipt decoder 不得把它當舊格式成功讀取。完整 prefix 和持久 phase 同時驗證後才是 committed。
 6. 原生 handoff 再驗證 committed manifest、binding、LegacyBackup、receipt、canonical、journal、附件與 source-control/history。當前帳號仍有效才發布新 session。
 
-receipt 新 wire 版本固定 3，新增必填 `legacyImportSHA256`，值為 canonical encoded legacyImport object 的 SHA-256。無此欄位的版本 3、額外欄位、錯誤摘要或與 V4 不匹配均拒絕。歷史 receipt 版本 1/2 僅供既有非 V4 路徑。binding canonical encoding 沿用 OwnedBootstrapCodec 的 sorted-key JSON 規則；digest 是完整性關聯，不是簽章或認證。
+receipt 新 wire 明確使用必填 `formatVersion: 3`（不是 `version`），根欄位只有 `formatVersion`、`transactionID`、`accountIDHash`、`sourceProof`、`legacyImportSHA256`。`sourceProof` 使用與 manifest 相同的 tagged object：archive 為 `kind: "archive"` 加 `sha256`；missingArchive 為 `kind: "missingArchive"` 加 `treeSHA256`，不混用舊 receipt 的扁平欄位。`legacyImportSHA256` 為 32 bytes，值為 canonical encoded legacyImport object 的 SHA-256。所有欄位必填，未知／缺失／null 欄位、錯誤摘要或與 V4 不匹配均拒絕。歷史 receipt 版本 1/2 僅供既有非 V4 路徑，保持其現有格式：版本 1 沒有 formatVersion，版本 2 才明寫 formatVersion。binding canonical encoding 沿用 OwnedBootstrapCodec 的 sorted-key JSON 規則，Data 為 base64、UUID 為標準 UUID 編碼；digest 是完整性關聯，不是簽章或認證。
 
 ## 7. 中斷、取消與重開
 

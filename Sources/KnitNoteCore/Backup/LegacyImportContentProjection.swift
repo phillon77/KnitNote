@@ -13,6 +13,7 @@ enum LegacyImportContentProjection {
         + MemoryLayout<UInt64>.size
 
     static func digest(_ entries: [LegacyImportContentEntry]) throws -> Data {
+        let entryCount = try preflight(entries)
         var aliases: Set<String> = []
         for entry in entries {
             try validate(entry)
@@ -28,7 +29,7 @@ enum LegacyImportContentProjection {
 
         var encoded = Data()
         try append(Data("KnitNote.LegacyImportContent.v1\0".utf8), to: &encoded)
-        try appendWord(UInt64(entries.count), to: &encoded)
+        try appendWord(entryCount, to: &encoded)
         for entry in entries.sorted(by: utf8LessThan) {
             let pathByteCount = entry.relativePath.utf8.count
             try appendWord(UInt64(pathByteCount), to: &encoded)
@@ -37,6 +38,31 @@ enum LegacyImportContentProjection {
             try append(entry.sha256, to: &encoded)
         }
         return Data(SHA256.hash(data: encoded))
+    }
+
+    private static func preflight(_ entries: [LegacyImportContentEntry]) throws -> UInt64 {
+        guard let entryCount = UInt64(exactly: entries.count) else {
+            throw KnitNoteBackupError.fileTooLarge
+        }
+        var encodedByteCount = 0
+        func charge(_ byteCount: Int) throws {
+            guard byteCount >= 0,
+                  encodedByteCount <= maximumEncodedBytes,
+                  byteCount <= maximumEncodedBytes - encodedByteCount else {
+                throw KnitNoteBackupError.fileTooLarge
+            }
+            encodedByteCount += byteCount
+        }
+
+        try charge("KnitNote.LegacyImportContent.v1\0".utf8.count)
+        try charge(MemoryLayout<UInt64>.size)
+        for entry in entries {
+            try charge(MemoryLayout<UInt64>.size)
+            try charge(entry.relativePath.utf8.count)
+            try charge(MemoryLayout<UInt64>.size)
+            try charge(32)
+        }
+        return entryCount
     }
 
     static func projectedEntryByteCount(forRelativePath relativePath: String) throws -> Int {

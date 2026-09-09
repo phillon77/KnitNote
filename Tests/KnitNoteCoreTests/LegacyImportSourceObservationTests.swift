@@ -43,6 +43,11 @@ private func sourceFixture() throws -> (KnitNoteBackupService, URL, URL) {
             try? FileManager.default.removeItem(at: first.2)
             try? FileManager.default.removeItem(at: second.2)
         }
+        let archiveName = "projects-v1.json"
+        let identicalArchive = try Data(
+            contentsOf: first.1.appendingPathComponent(archiveName)
+        )
+        try identicalArchive.write(to: second.1.appendingPathComponent(archiveName))
 
         let firstSnapshot = try first.0.observeLegacyImportSource()
         let secondSnapshot = try second.0.observeLegacyImportSource()
@@ -224,6 +229,34 @@ private func sourceFixture() throws -> (KnitNoteBackupService, URL, URL) {
         _ = try LegacyImportContentProjection.digest([archiveEntry(), entry(exactPath)])
         #expect(throws: KnitNoteBackupError.fileTooLarge) {
             try LegacyImportContentProjection.digest([archiveEntry(), entry(oversizedPath)])
+        }
+    }
+
+    @Test func aggregateManyEntryBudgetAcceptsExactCapAndRejectsOneMoreByte() throws {
+        let many = (0..<18_000).map { index in
+            entry(String(format: "f%05d", index))
+        }
+        let exactFiller = String(repeating: "z", count: 27_848)
+        let exact = [archiveEntry()] + many + [entry(exactFiller)]
+
+        _ = try LegacyImportContentProjection.digest(exact)
+        #expect(throws: KnitNoteBackupError.fileTooLarge) {
+            try LegacyImportContentProjection.digest(
+                [archiveEntry()] + many + [entry(exactFiller + "z")]
+            )
+        }
+    }
+
+    @Test func oversizedCardinalityFailsBudgetBeforePathOrAliasWork() {
+        let invalidDuplicate = LegacyImportContentEntry(
+            relativePath: "",
+            byteCount: 0,
+            sha256: hash()
+        )
+        let oversized = Array(repeating: invalidDuplicate, count: 20_834)
+
+        #expect(throws: KnitNoteBackupError.fileTooLarge) {
+            try LegacyImportContentProjection.digest(oversized)
         }
     }
 

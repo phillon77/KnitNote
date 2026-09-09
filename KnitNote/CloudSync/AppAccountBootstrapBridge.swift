@@ -42,29 +42,9 @@ import Foundation
                         try boundary(point)
                         try scope.requireCurrent()
                     })
-                let recovered: SyncCanonicalBootstrapHandoff?
-                switch try tx.selectedRecoveryFormat() {
-                case .none: recovered = nil
-                case .owned: recovered = try scope.withCurrent { try tx.recover() }
-                case .legacy:
-                    // Legacy helpers own their synchronous IO. Their ownership
-                    // callback must never execute inside a native storage owner.
-                    let legacy = try SyncBootstrapTransaction(liveRoot: context.paths.workingSet, context: scope.context,
-                        validateContext: { [scope, context] value in
-                            guard value == scope.context else { throw SyncBootstrapError.contextChanged }
-                            try scope.requireCurrent(); try context.validateOwnership()
-                        })
-                    recovered = try scope.withCurrent { try legacy.recoverUnderCurrentContext() }
-                    _ = try validate()
-                    if recovered == nil { _ = try scope.withCurrent { try tx.recover() } }
-                    else {
-                        // Committed legacy (including v2) already has archive
-                        // authority; validate native inventory without reissuing
-                        // the missing-source rollback control.
-                        _ = try SyncAccountRecoveryInventory.capture(storage: storage, paths: context.paths,
-                            account: context.account.identity, journal: context.journal,
-                            archiveURL: context.paths.workingSet.appendingPathComponent("projects-v1.json"))
-                    }
+                let recovered = try scope.withCurrent {
+                    try AppBootstrapRecovery.recover(context: context, captured: scope.context, transaction: tx,
+                        validateNative: { [scope] in try scope.requireCurrent() })
                 }
                 _ = try validate()
                 if let recovered { try recovered.revalidate(); return recovered }
@@ -114,5 +94,41 @@ import Foundation
     func waitUntilStopped() async {
         if let drain { await drain.value }
         if installing { await withCheckedContinuation { waiters.append($0) } }
+    }
+}
+
+/// Shares verified native format routing. App ownership callbacks reacquire the
+/// storage owner, so only validateNative may run inside native transactions.
+@MainActor enum AppBootstrapRecovery {
+    static func recover(context: AppAccountDomainContext, captured: SyncBootstrapContext,
+        transaction: SyncBootstrapOwnedTransaction, validateNative: @escaping () throws -> Void) throws -> SyncCanonicalBootstrapHandoff? {
+        try validateNative(); try context.validateOwnership()
+        guard let storage = context.storage, captured.accountIDHash == context.account.identity.accountIDHash,
+              context.journal.recoveryLocation == context.paths.mutationJournalURL else {
+            throw CloudAccountTransitionCoordinator.Failure.wrongAccount
+        }
+        let recovered: SyncCanonicalBootstrapHandoff?
+        switch try transaction.selectedRecoveryFormat() {
+        case .none: recovered = nil
+        case .owned: recovered = try transaction.recover()
+        case .legacy:
+            let legacy = try SyncBootstrapTransaction(liveRoot: context.paths.workingSet, context: captured,
+                validateContext: { value in
+                    guard value == captured else { throw SyncBootstrapError.contextChanged }
+                    try validateNative(); try context.validateOwnership()
+                })
+            recovered = try legacy.recoverUnderCurrentContext()
+            try validateNative(); try context.validateOwnership()
+            if recovered == nil { _ = try transaction.recover() }
+            else {
+                // Actual committed legacy, including missing-archive v2, uses
+                // native inventory validation, never rollback control reissue.
+                _ = try SyncAccountRecoveryInventory.capture(storage: storage, paths: context.paths,
+                    account: context.account.identity, journal: context.journal,
+                    archiveURL: context.paths.workingSet.appendingPathComponent("projects-v1.json"))
+            }
+        }
+        try validateNative(); try context.validateOwnership()
+        return recovered
     }
 }

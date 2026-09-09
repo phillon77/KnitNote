@@ -233,6 +233,14 @@ import Testing
         let keys = TransitionMemoryKeys()
         let a = try CloudAccountBinding(containerIdentifier: "test", userRecordName: "A")
         let b = try CloudAccountBinding(containerIdentifier: "test", userRecordName: "B")
+        // This legacy adapter only exercises journal roundtrip and ordinary
+        // receipts. Real absent-source bootstrap is covered by lifecycle tests;
+        // it cannot fabricate an archive over native fresh-allocation control.
+        let bStorage = SyncAccountStorage(baseURL: root)
+        let bPaths = try bStorage.open(identity: b.identity)
+        try JSONEncoder().encode(ProjectArchive(version: ProjectArchive.currentVersion, projects: []))
+            .write(to: bPaths.workingSet.appendingPathComponent("projects-v1.json"))
+        try bStorage.close()
         let storage = SyncAccountStorage(baseURL: root)
         let paths = try storage.open(identity: a.identity)
         let journal = FileSyncMutationJournal(url: paths.mutationJournalURL)

@@ -31,6 +31,52 @@ struct SyncBootstrapOwnedTerminalEvidence {
     static func read(account: SyncAccountIdentity, accountRoot: URL, liveRoot: URL, journalURL: URL,
         entries: [SyncAccountRecoveryInventory.Entry], maximumBytes: Int,
         read: (String) throws -> Data) throws -> Self? {
+        try readTerminal(account: account, accountRoot: accountRoot, liveRoot: liveRoot, journalURL: journalURL,
+            entries: entries, maximumBytes: maximumBytes, runtimeArchiveProof: nil, read: read)
+    }
+
+    /// Daily canonical state is separate from initial bootstrap issuance. This
+    /// read-only admission derives its archive proof exclusively from actual
+    /// validated canonical bytes under the native account owner. It returns no
+    /// handoff, and does not relax capture, backup or initial recovery checks.
+    static func validateRuntimeAdmission(storage: SyncAccountStorage, paths: SyncAccountStorage.Paths,
+        account: SyncAccountIdentity, validateContext: () throws -> Void) throws {
+        try validateContext()
+        try storage.withRecoveryOwnership(paths: paths, account: account, maximumBytes: 100_000_000) { access in
+            let observer = SyncAccountRecoveryControlFile(synchronize: { _ in })
+            let control = try observer.observe(access: access), entries = try access.entries()
+            guard let canonical = try SyncCanonicalCheckpointStore.loadIfPresent(liveRoot: paths.workingSet,
+                account: account, validateOwnership: { try validateContext(); try access.validate() }),
+                  let archive = entries.first(where: { $0.relativePath == "working-set/projects-v1.json" && !$0.isDirectory }) else {
+                throw SyncBootstrapError.invalidPhase
+            }
+            func readEntry(_ path: String) throws -> Data {
+                guard let entry = entries.first(where: { $0.relativePath == path && !$0.isDirectory }) else { throw SyncBootstrapError.corrupt }
+                let value = try SyncRegularFileReader().read(paths.accountRoot.appendingPathComponent(path),
+                    maximumBytes: 100_000_000, expected: .init(byteCount: entry.byteCount, sha256: entry.sha256))
+                guard value.device == entry.device, value.inode == entry.inode else { throw SyncBootstrapError.sourceChanged }
+                return value.data
+            }
+            guard archive.sha256 == canonical.archiveSHA256 else { throw SyncBootstrapError.sourceChanged }
+            _ = try JSONDecoder().decode(ProjectArchive.self, from: readEntry(archive.relativePath))
+            guard let terminal = try readTerminal(account: account, accountRoot: paths.accountRoot, liveRoot: paths.workingSet,
+                journalURL: paths.mutationJournalURL, entries: entries, maximumBytes: 100_000_000,
+                runtimeArchiveProof: .init(bytes: archive.byteCount, digest: archive.sha256), read: readEntry),
+                  case let .committed(body) = terminal.manifest.body,
+                  let checkpoint = entries.first(where: { $0.relativePath == "working-set/SyncMetadata/bootstrap-canonical.json" && !$0.isDirectory }),
+                  body.installed["SyncMetadata/bootstrap-canonical.json"] == .init(bytes: checkpoint.byteCount, digest: checkpoint.sha256) else {
+                throw SyncBootstrapError.corrupt
+            }
+            try SyncAccountRecoveryInventory.validateOwnedControl(control, terminal: terminal, account: account, paths: paths)
+            try validateContext(); try access.validate()
+            guard try access.entries() == entries, try observer.observe(access: access) == control else { throw SyncBootstrapError.sourceChanged }
+        }
+        try validateContext()
+    }
+
+    private static func readTerminal(account: SyncAccountIdentity, accountRoot: URL, liveRoot: URL, journalURL: URL,
+        entries: [SyncAccountRecoveryInventory.Entry], maximumBytes: Int,
+        runtimeArchiveProof: BootstrapManifestV3.FileProof?, read: (String) throws -> Data) throws -> Self? {
         let live = liveRoot.deletingLastPathComponent().standardizedFileURL
             .appendingPathComponent(liveRoot.lastPathComponent, isDirectory: true)
         let namespace = ".KnitNote-SyncBootstrap/" + account.accountIDHash + "/"
@@ -103,7 +149,7 @@ struct SyncBootstrapOwnedTerminalEvidence {
             guard original == manifest.original,
                   let liveEntry = entries.first(where: { $0.relativePath == "working-set" && $0.isDirectory }),
                   liveEntry.device == body.stagedRoot.device, liveEntry.inode == body.stagedRoot.inode,
-                  liveProofs["projects-v1.json"] == body.installed["projects-v1.json"] else { throw SyncBootstrapError.sourceChanged }
+                  liveProofs["projects-v1.json"] == (runtimeArchiveProof ?? body.installed["projects-v1.json"]) else { throw SyncBootstrapError.sourceChanged }
             let receiptPath = "SyncMetadata/bootstrap-receipt.json"
             let receipts = body.commitProgram.operations.compactMap { operation -> Data? in
                 if case let .replace(path, _, bytes, _) = operation, path == receiptPath { return bytes }; return nil

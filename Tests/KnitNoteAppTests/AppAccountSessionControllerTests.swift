@@ -5,6 +5,67 @@ import Testing
 @testable import KnitNote
 
 @MainActor @Suite struct AppAccountSessionControllerTests {
+    @Test(arguments: [false, true])
+    func bootstrapInvalidationJoinsActualOperationBeforeStopOrUnknownIdentity(stop: Bool) async throws {
+        let bootstrap = AccountLifecycleBootstrapProbe()
+        try await withControllerFixture(phase: "absent", bootstrap: bootstrap) { f, q, c in
+            c.start(); try await q.waitForStatus(1); await q.resolve(account: "A")
+            try await f.waitUntil { bootstrap.fetchCalls.value == 1 || c.state == .blocked }
+            try #require(bootstrap.fetchCalls.value == 1)
+            let op = await bootstrap.next(), context = try #require(bootstrap.context)
+            let scope = try #require(bootstrap.scope), storage = try #require(context.storage)
+            let before = try storage.withRecoveryOwnership(paths: context.paths, account: f.a.identity,
+                maximumBytes: 100_000_000) { try $0.entries() }
+            if stop { c.stop() } else { c.accountDidChange() }
+            #expect(throws: (any Error).self) { try scope.requireCurrent() }
+            var joined = false
+            let waiter = f.operation { if stop { await c.waitUntilStopped() } else { try await f.lifecycle.waitForStoppedOperations() }; joined = true }
+            if stop { waiter.cancel() }
+            try await f.waitUntil { op.isCancelled }
+            #expect(!joined && f.owner.visibleSession == nil && f.engineCalls.value == 0)
+            #expect(await q.statusCount == 1)
+            #expect(try storage.withRecoveryOwnership(paths: context.paths, account: f.a.identity,
+                maximumBytes: 100_000_000) { try $0.entries() } == before)
+            bootstrap.complete(op)
+            try await waiter.value
+            #expect(joined)
+            if !stop {
+                try await q.waitForStatus(2); await q.resolveStatus(.couldNotDetermine)
+                try await f.waitUntil { c.state == .unknown }
+                #expect(f.coordinator.retainedAccount == f.a && f.owner.visibleSession == nil)
+            }
+            #expect(bootstrap.calls == 1 && f.engineCalls.value == 0)
+        }
+    }
+
+    @Test func repeatedForegroundDuringBootstrapAndOrdinaryFetchCannotCreateSecondBridgeOrEngine() async throws {
+        let bootstrap = AccountLifecycleBootstrapProbe()
+        try await withControllerFixture(phase: "absent", bootstrap: bootstrap) { f, q, c in
+            await f.driver.suspendNextFetch()
+            c.start(); try await q.waitForStatus(1); await q.resolve(account: "A")
+            try await f.waitUntil { bootstrap.fetchCalls.value == 1 || c.state == .blocked }
+            try #require(bootstrap.fetchCalls.value == 1)
+            let op = await bootstrap.next()
+            c.retry(); c.foreground(); c.foreground()
+            #expect(bootstrap.calls == 1 && f.engineCalls.value == 0 && f.owner.visibleSession == nil)
+            BootstrapControlledOperations.emitSuccessfulEmptyZone(op); bootstrap.complete(op)
+            try await f.waitForSuspendedFetch()
+            c.retry(); c.foreground(); c.foreground()
+            #expect(bootstrap.calls == 1 && f.engineCalls.value == 1)
+            #expect(c.state == .localReady && !f.coordinator.completed)
+            #expect(await q.statusCount == 1 && f.recording.committer?.acknowledged.isEmpty == true)
+            await f.driver.resumeFetch()
+            try await f.waitUntil { f.coordinator.completed }
+            #expect(bootstrap.calls == 1 && f.engineCalls.value == 1)
+            let store = try #require(f.owner.visibleSession).store
+            await f.coordinator.currentTransport?.receiveAccountChange(previous: "A", current: "untrusted")
+            try await q.waitForStatus(2)
+            #expect(f.owner.visibleSession == nil && store.isSessionWriteRevoked)
+            await q.resolveStatus(.couldNotDetermine)
+            try await f.waitUntil { c.state == .unknown }
+            #expect(!f.coordinator.localAccessReady && !f.coordinator.completed)
+        }
+    }
     @Test func nestedStopDuringVisibilityHideCannotRestoreCheckingOrScheduleQuery() async throws {
         try await withControllerFixture { f, q, c in
             try await openA(f, q, c)
@@ -424,13 +485,15 @@ import Testing
     #expect(c.state == .localReady)
 }
 
-@MainActor private func withControllerFixture(_ body: (AccountLifecycleFixture, AccountControllerQuery, AppAccountSessionController) async throws -> Void) async throws {
-    try await withAccountLifecycleFixture { f in
+@MainActor private func withControllerFixture(phase: String = "committed", bootstrap: AccountLifecycleBootstrapProbe? = nil,
+    _ body: (AccountLifecycleFixture, AccountControllerQuery, AppAccountSessionController) async throws -> Void) async throws {
+    try await withAccountLifecycleFixture(phase: phase, bootstrap: bootstrap) { f in
         let q = AccountControllerQuery()
         var controller: AppAccountSessionController? = AppAccountSessionController(query: q.query, lifecycle: f.lifecycle, coordinator: f.coordinator, now: { f.now })
         let result: Result<Void, any Error>
         do { result = .success(try await body(f, q, controller!)) } catch { result = .failure(error) }
         controller?.stop()
+        bootstrap?.finish()
         await q.finish()
         for drain in f.drains { drain.release() }
         for gate in f.attachmentGates { gate.release() }

@@ -18,6 +18,12 @@ struct CloudAccountDomainInstallation {
     let recordProvider: any SyncRecordProvider
     let fetchedBatchCommitter: any SyncFetchedBatchCommitting
     var localAccessReady = false
+    let runtimeAssets: CloudAssetStagingService?
+    init(recordProvider: any SyncRecordProvider, fetchedBatchCommitter: any SyncFetchedBatchCommitting,
+        localAccessReady: Bool = false, runtimeAssets: CloudAssetStagingService? = nil) {
+        self.recordProvider = recordProvider; self.fetchedBatchCommitter = fetchedBatchCommitter
+        self.localAccessReady = localAccessReady; self.runtimeAssets = runtimeAssets
+    }
 }
 
 /// Stops publication and drains the old domain before recovery. A concrete
@@ -135,7 +141,7 @@ struct CloudAccountDomainInstallation {
             phase = .opening
             let destination: Session
             if reusingRetainedAccount, let retained = session { destination = retained }
-            else { destination = try open(new); session = destination }
+            else { destination = try open(new, validateConfirmedAccount: validateTransition); session = destination }
             try await openDestination(destination, now: now, validateTransition: validateTransition)
         } catch {
             if case let CloudSyncIssueError.issue(issue) = error, issue.preservesLocalAccess,
@@ -176,12 +182,17 @@ struct CloudAccountDomainInstallation {
         destination.transport = nil; destination.sync = nil; destination.transportTeardown = nil
         try await lifecycle.freeze(account: new, paths: destination.paths, journal: destination.journal)
         try destination.storage.validateRuntimeJournalNamespace(paths: destination.paths, account: new.identity, validateBootstrap: false)
+        let validateRuntimeGeneration: () throws -> Void = { [weak self, weak destination] in
+            guard let self, let destination, self.session === destination, destination.runtimeGeneration == runtimeGeneration, destination.isCurrent else {
+                throw Failure.wrongAccount
+            }
+            try validateTransition()
+        }
         let context = AppAccountDomainContext(account: new, paths: destination.paths, journal: destination.journal,
+            storage: destination.storage,
             validateOwnership: { [weak self, weak destination] in
-                guard let self, let destination, self.session === destination, destination.runtimeGeneration == runtimeGeneration, destination.isCurrent else {
-                    throw Failure.wrongAccount
-                }
-                try validateTransition()
+                try validateRuntimeGeneration()
+                guard let self, let destination else { throw Failure.wrongAccount }
                 try destination.storage.withRecoveryOwnership(paths: destination.paths, account: new.identity,
                     maximumBytes: self.maximumRecoveryBytes) { try $0.validate() }
             })
@@ -199,17 +210,58 @@ struct CloudAccountDomainInstallation {
         } else {
             try destination.transaction.synchronizeSelectionAbsence(now: now)
         }
-        do {
-            try destination.storage.validateRuntimeJournalNamespace(paths: destination.paths,
-                account: new.identity, validateBootstrap: true)
-        } catch SyncBootstrapError.invalidPhase {
-            try lifecycle.recoverBootstrap(context: context)
-            try destination.storage.validateRuntimeJournalNamespace(paths: destination.paths,
-                account: new.identity, validateBootstrap: true)
+        let routingContext = SyncBootstrapContext(accountIDHash: new.identity.accountIDHash, epoch: runtimeGeneration, freezeID: UUID())
+        let routing = try SyncBootstrapOwnedTransaction(storage: destination.storage, paths: destination.paths,
+            account: new.identity, context: routingContext, validateContext: { value in
+                guard value == routingContext else { throw SyncBootstrapError.contextChanged }
+                try validateRuntimeGeneration()
+            })
+        switch try routing.selectedRecoveryFormat() {
+        case .owned:
+            // The native initial-recovery issuer and ordinary canonical reopen
+            // have distinct authority. A format query alone admits neither.
+            let hasWorkingSet = try destination.storage.withRecoveryOwnership(paths: destination.paths,
+                account: new.identity, maximumBytes: maximumRecoveryBytes) { access in
+                let entries = try access.entries()
+                guard !entries.contains(where: { !$0.relativePath.contains("/") && $0.relativePath != "working-set"
+                    && OwnedBootstrapCodec.alias($0.relativePath) == OwnedBootstrapCodec.alias("working-set") }) else {
+                    throw SyncBootstrapError.unsafePath
+                }
+                guard let live = entries.first(where: { $0.relativePath == "working-set" }) else { return false }
+                guard live.isDirectory else { throw SyncBootstrapError.unsafePath }
+                return true
+            }
+            // Verified open already admitted the native missing-live placement.
+            // Complete its real recovery before asking the canonical root to open.
+            if !hasWorkingSet { try lifecycle.recoverBootstrap(context: context) }
+            let canonical = try SyncCanonicalCheckpointStore.loadIfPresent(liveRoot: destination.paths.workingSet,
+                account: new.identity, validateOwnership: context.validateOwnership)
+            if canonical == nil {
+                if hasWorkingSet { try lifecycle.recoverBootstrap(context: context) }
+            }
+            else {
+                try SyncBootstrapOwnedTerminalEvidence.validateRuntimeAdmission(storage: destination.storage,
+                    paths: destination.paths, account: new.identity, validateContext: validateRuntimeGeneration)
+            }
+        case .none, .legacy:
+            do {
+                try destination.storage.validateRuntimeJournalNamespace(paths: destination.paths,
+                    account: new.identity, validateBootstrap: true)
+            } catch SyncBootstrapError.invalidPhase {
+                try lifecycle.recoverBootstrap(context: context)
+                try destination.storage.validateRuntimeJournalNamespace(paths: destination.paths,
+                    account: new.identity, validateBootstrap: true)
+            }
         }
         // Only after restore/verified consumption (or synchronized fresh
         // absence) may domain initialization or normal asset stores write.
-        let assets = try CloudAssetStagingService(rootURL: destination.paths.staging.appendingPathComponent("cloud-assets"), accountIdentifier: new.userRecordName)
+        let hasCanonical = try SyncCanonicalCheckpointStore.loadIfPresent(liveRoot: destination.paths.workingSet,
+            account: new.identity, validateOwnership: context.validateOwnership) != nil
+        let assetRoot = destination.paths.staging.appendingPathComponent("cloud-assets")
+        let assets = try hasCanonical
+            ? CloudAssetStagingService(rootURL: assetRoot, accountIdentifier: new.userRecordName)
+            : CloudAssetStagingService.makeForBootstrap(rootURL: assetRoot, accountIdentifier: new.userRecordName,
+                maximumAssetBytes: maximumRecoveryBytes)
         let state = FileCloudSyncEngineStateStore(url: destination.paths.engineState.appendingPathComponent("engine.json"))
         let fields = FileCloudRecordSystemFieldsStore(url: destination.paths.engineState.appendingPathComponent("system-fields.json"), zoneID: zoneID)
         let incoming = FileCloudIncomingBatchStore(url: state.relatedURL(pathExtension: "incoming-batches"))
@@ -219,7 +271,7 @@ struct CloudAccountDomainInstallation {
         try Task.checkCancellation()
         try context.validateOwnership()
         let transport = CKSyncEngineTransport(zoneID: zoneID, stateStore: state, incomingBatchStore: incoming, systemFieldsStore: fields,
-            initialAccountIdentifier: new.userRecordName, assetStaging: assets,
+            initialAccountIdentifier: new.userRecordName, assetStaging: installation.runtimeAssets ?? assets,
             requiresInitialFetchReceipt: true, containerIdentifier: new.containerIdentifier, engineFactory: engineFactory)
         destination.transport = transport
         try await transport.validateRecoveryBinding(account: new, paths: destination.paths)
@@ -310,9 +362,12 @@ struct CloudAccountDomainInstallation {
         }
     }
 
-    private func open(_ account: CloudAccountBinding) throws -> Session {
+    private func open(_ account: CloudAccountBinding, validateConfirmedAccount: (() throws -> Void)? = nil) throws -> Session {
         let storage = SyncAccountStorage(baseURL: baseURL)
-        let paths = try storage.open(identity: account.identity)
+        let paths: SyncAccountStorage.Paths
+        if let validateConfirmedAccount {
+            paths = try storage.openForVerifiedAccount(identity: account.identity, validateAccount: validateConfirmedAccount)
+        } else { paths = try storage.open(identity: account.identity) }
         let journal = FileSyncMutationJournal(url: paths.mutationJournalURL)
         let vault = SyncRecoveryVault(directory: paths.vault, keychain: keychain)
         return Session(account: account, storage: storage, paths: paths, journal: journal,

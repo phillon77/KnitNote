@@ -1,6 +1,6 @@
 # Owned receipt / commit crash verification
 
-Date: 2026-09-10. Status: implementation, task review, focused/combined regression and fresh root checks passed; final candidate review in progress.
+Date: 2026-09-10. Status: bounded prerequisite complete; implementation, task/final review, focused/combined regression and fresh root checks passed. Full V4 import integration and release remain incomplete.
 
 Plan: `../plans/2026-09-10-owned-commit-crash-boundary.md`.
 Spec: `../specs/2026-09-10-legacy-import-durable-transaction-design.md`, section 10.
@@ -38,7 +38,9 @@ Source/test candidate: `1c9a1e4e666e9063bdf77722c0549cd29b508997`, containing on
 
 Fresh root run on this committed SHA used the focused command above: 3 test functions / 1 suite passed, EXIT 0, 15.869 s test / 18.597 s bounded command. Log `/tmp/owned-commit-root-final-1c9a1e4.log` records both cuts with childExit=86, sameRootTwice=yes, nonempty before/installed files, and all four receipt damage cases rejected as SyncBootstrapError.corrupt with evidenceUnchanged=yes. This is six behavioral cases plus a worker entry, not seven independent safety cases.
 
-Independent task review: spec compliant and quality Approved, no Critical/Important findings. Exact version/floors were rechecked by root from the unchanged project file. One Minor: successful fixture cleanup is best-effort `try?`, so a cleanup failure may silently leave temporary files. This does not alter native recovery assertions; the implementer's contrary report wording was corrected. Final candidate review will triage this deferred diagnostic improvement.
+Independent task review: spec compliant and quality Approved, no Critical/Important findings. Exact version/floors were rechecked by root from the unchanged project file. One Minor: successful fixture cleanup is best-effort `try?`, so a cleanup failure may silently leave temporary files. This does not alter native recovery assertions; the implementer's contrary report wording was corrected.
+
+Final independent review of `378478c4..014c559`: Approved to keep locally, no Critical/Important findings. Reviewer checked complete candidate diff/spec/plan/reports/ledger, native paths and fixture, and verified evidence hashes. The cleanup diagnostic remains an accepted deferred Minor, not a source/data-recovery defect. No additional tests were rerun by the reviewers. Final documentation status/checklist updates do not change the tested source candidate.
 
 ## Evidence hashes
 
@@ -60,3 +62,5 @@ No warnings/errors appeared in the combined and root incremental logs. This is n
 ## Release boundary
 
 Version remains 1.7.0 (13), iOS 18 / macOS 15 / watchOS 11. No new authority, V4 issuer, native import installation, App/Watch/Share activation, real CloudKit/Keychain, schema mutation, merge/push, signed export, upload, submission or automation change is established. Original unrelated untracked files remain untouched.
+
+Next implementation work is the cohesive native V4/legacy source-lease/retained-backup/readers plan described by the architecture audit. This completed test prerequisite must not be reopened as if it were unfinished or presented as completion of that integration.

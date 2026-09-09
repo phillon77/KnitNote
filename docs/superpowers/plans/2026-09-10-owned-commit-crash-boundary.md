@@ -76,9 +76,9 @@ git commit -m "test: verify owned receipt and commit crash recovery"
 
 ## Controller completion
 
-- [ ] Task spec/quality review, fix if necessary; final review of this bounded candidate from documentation base, not a release/whole historical branch sign-off.
+- [x] Task spec/quality review, fix if necessary; final review of this bounded candidate from documentation base, not a release/whole historical branch sign-off.
 - [x] Fresh root targeted verification on final source SHA; record report and update plan status.
-- [ ] Keep local branch/worktree and review evidence. No merge, push, upload or submission.
+- [x] Keep local branch/worktree and review evidence. No merge, push, upload or submission.
 
 ## Plan self-review
 

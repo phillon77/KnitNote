@@ -364,6 +364,56 @@ private func sourceFixture() throws -> (KnitNoteBackupService, URL, URL) {
         #expect(!tracker.didReadTarget)
         #expect(FileManager.default.fileExists(atPath: package.path))
     }
+
+    @Test func grownPreparedAssetIsRejectedBeforePayloadOpen() throws {
+        let fixture = try sourcePhotoFixture(data: Data(repeating: 0xa1, count: 32))
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let prepared = try fixture.service.prepareLegacyImportBackup(appVersion: "1.7.0")
+        let packageAsset = prepared.packageURL.appendingPathComponent(
+            "Data/\(fixture.relativePath)"
+        )
+        let handle = try FileHandle(forWritingTo: packageAsset)
+        try handle.truncate(atOffset: 100_000_001)
+        try handle.close()
+        try FileManager.default.setAttributes(
+            [.posixPermissions: NSNumber(value: 0)],
+            ofItemAtPath: packageAsset.path
+        )
+
+        #expect(throws: KnitNoteBackupError.fileTooLarge) {
+            try fixture.service.revalidateLegacyImportBackup(prepared)
+        }
+        #expect(FileManager.default.fileExists(atPath: prepared.packageURL.path))
+        #expect(try Data(contentsOf: fixture.photoURL) == Data(repeating: 0xa1, count: 32))
+    }
+
+    @Test func persistentRootRelationshipReplacementDuringScanIsRejected() throws {
+        for relationship in LegacyPackagePathRelationship.allCases {
+            let (base, live, root) = try sourceFixture()
+            defer { try? FileManager.default.removeItem(at: root) }
+            let prepared = try base.prepareLegacyImportBackup(appVersion: "1.7.0")
+            let replacement = LegacyPersistentPackageReplacement(
+                relationship: relationship,
+                root: root
+            )
+            let service = KnitNoteBackupService(
+                liveRoot: base.liveRoot,
+                workRoot: base.workRoot,
+                beforeLegacyImportPackageFinalPathValidation: replacement.run
+            )
+
+            #expect(throws: KnitNoteBackupError.unsafePackageEntry) {
+                try service.revalidateLegacyImportBackup(prepared)
+            }
+            #expect(replacement.didRun)
+            let preservedURL = try #require(replacement.preservedURL)
+            #expect(preservedURL.path.contains(root.path))
+            #expect(FileManager.default.fileExists(atPath: preservedURL.path))
+            #expect(FileManager.default.fileExists(
+                atPath: live.appendingPathComponent("projects-v1.json").path
+            ))
+        }
+    }
 }
 
 @Suite struct LegacyImportContentProjectionTests {
@@ -682,4 +732,52 @@ private func sparseSourcePhotoFixture(byteCount: UInt64) throws -> SourcePhotoFi
     try handle.truncate(atOffset: byteCount)
     try handle.close()
     return fixture
+}
+
+private enum LegacyPackagePathRelationship: CaseIterable {
+    case workRoot
+    case packageRoot
+    case dataRoot
+}
+
+private final class LegacyPersistentPackageReplacement: @unchecked Sendable {
+    private let relationship: LegacyPackagePathRelationship
+    private let root: URL
+    private let lock = NSLock()
+    private var hasRun = false
+    private var retainedURL: URL?
+
+    init(relationship: LegacyPackagePathRelationship, root: URL) {
+        self.relationship = relationship
+        self.root = root
+    }
+
+    var didRun: Bool { lock.withLock { hasRun } }
+    var preservedURL: URL? { lock.withLock { retainedURL } }
+
+    func run(packageURL: URL) throws {
+        let shouldRun = lock.withLock {
+            guard !hasRun else { return false }
+            hasRun = true
+            return true
+        }
+        guard shouldRun else { return }
+
+        let source: URL
+        let moved: URL
+        switch relationship {
+        case .workRoot:
+            source = packageURL.deletingLastPathComponent()
+            moved = root.appendingPathComponent("Preserved-Work")
+        case .packageRoot:
+            source = packageURL
+            moved = root.appendingPathComponent("Preserved-Package")
+        case .dataRoot:
+            source = packageURL.appendingPathComponent("Data")
+            moved = root.appendingPathComponent("Preserved-Data")
+        }
+        try FileManager.default.moveItem(at: source, to: moved)
+        try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
+        lock.withLock { retainedURL = moved }
+    }
 }

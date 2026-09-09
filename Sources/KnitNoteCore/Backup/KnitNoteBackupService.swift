@@ -240,6 +240,8 @@ public struct KnitNoteBackupService: Sendable {
     private var legacyImportMaximumFileBytes: Int64 = 100_000_000
     private var legacyImportPreparationStepHook:
         @Sendable (LegacyImportPreparationStep) throws -> Void = { _ in }
+    private var beforeLegacyImportPackageFinalPathValidation:
+        @Sendable (URL) throws -> Void = { _ in }
 
     public init(
         liveRoot: URL,
@@ -408,6 +410,17 @@ public struct KnitNoteBackupService: Sendable {
         self.legacyImportPreparationStepHook = legacyImportPreparationStepHook
     }
 
+    init(
+        liveRoot: URL,
+        workRoot: URL,
+        beforeLegacyImportPackageFinalPathValidation:
+            @escaping @Sendable (URL) throws -> Void
+    ) {
+        self.init(liveRoot: liveRoot, workRoot: workRoot)
+        self.beforeLegacyImportPackageFinalPathValidation =
+            beforeLegacyImportPackageFinalPathValidation
+    }
+
     func observeLegacyImportSource() throws -> LegacyImportSourceObservation {
         let rootIdentity = try liveRootIdentity()
 
@@ -525,8 +538,6 @@ public struct KnitNoteBackupService: Sendable {
         at packageURL: URL,
         expectedWorkRootIdentity: SyncRegularFileIdentity
     ) throws -> LegacyImportPackageObservation {
-        _ = try inspectPackage(at: packageURL)
-
         let standardizedWorkRoot = workRoot.standardizedFileURL
         let standardizedPackageURL = packageURL.standardizedFileURL
         guard standardizedPackageURL.deletingLastPathComponent() == standardizedWorkRoot,
@@ -587,27 +598,6 @@ public struct KnitNoteBackupService: Sendable {
             expectedInfo: manifestInfo
         )
         defer { Darwin.close(manifestDescriptor) }
-        let manifestObserved = try observeRegularFile(
-            descriptor: manifestDescriptor,
-            initialInfo: manifestInfo,
-            relativePath: "manifest.json",
-            limit: KnitNoteBackupLimits.maximumManifestBytes,
-            retainsData: true
-        )
-        guard let manifestData = manifestObserved.data else {
-            throw KnitNoteBackupError.invalidManifest
-        }
-        let manifest: KnitNoteBackupManifest
-        do {
-            manifest = try JSONDecoder().decode(KnitNoteBackupManifest.self, from: manifestData)
-        } catch {
-            throw KnitNoteBackupError.invalidManifest
-        }
-        guard manifest.formatVersion == KnitNoteBackupManifest.currentFormatVersion,
-              manifest.criticalFeatures == [KnitNoteBackupManifest.fileIntegrityFeature],
-              !manifest.files.isEmpty else {
-            throw KnitNoteBackupError.invalidManifest
-        }
 
         var dataInfo = stat()
         let dataStatus = "Data".withCString {
@@ -642,6 +632,30 @@ public struct KnitNoteBackupService: Sendable {
                 )
             }
         )
+
+        _ = try inspectPackage(at: standardizedPackageURL)
+
+        let manifestObserved = try observeRegularFile(
+            descriptor: manifestDescriptor,
+            initialInfo: manifestInfo,
+            relativePath: "manifest.json",
+            limit: KnitNoteBackupLimits.maximumManifestBytes,
+            retainsData: true
+        )
+        guard let manifestData = manifestObserved.data else {
+            throw KnitNoteBackupError.invalidManifest
+        }
+        let manifest: KnitNoteBackupManifest
+        do {
+            manifest = try JSONDecoder().decode(KnitNoteBackupManifest.self, from: manifestData)
+        } catch {
+            throw KnitNoteBackupError.invalidManifest
+        }
+        guard manifest.formatVersion == KnitNoteBackupManifest.currentFormatVersion,
+              manifest.criticalFeatures == [KnitNoteBackupManifest.fileIntegrityFeature],
+              !manifest.files.isEmpty else {
+            throw KnitNoteBackupError.invalidManifest
+        }
 
         var expectedByPath: [String: KnitNoteBackupManifestFile] = [:]
         var foldedPaths: Set<String> = []
@@ -709,6 +723,14 @@ public struct KnitNoteBackupService: Sendable {
             initialInfo: manifestInfo,
             copiedBytes: manifestObserved.entry.byteCount
         )
+        try beforeLegacyImportPackageFinalPathValidation(standardizedPackageURL)
+        try validateFreshLegacyImportPackagePathBindings(
+            packageURL: standardizedPackageURL,
+            workRootIdentity: expectedWorkRootIdentity,
+            packageRootIdentity: packageRootIdentity,
+            dataRootIdentity: dataRootIdentity,
+            manifestIdentity: manifestObserved.identity
+        )
 
         return LegacyImportPackageObservation(
             contentDigest: try LegacyImportContentProjection.digest(entries),
@@ -744,6 +766,76 @@ public struct KnitNoteBackupService: Sendable {
             throw KnitNoteBackupError.unsafePackageEntry
         }
         return Self.regularFileIdentity(info)
+    }
+
+    private func validateFreshLegacyImportPackagePathBindings(
+        packageURL: URL,
+        workRootIdentity: SyncRegularFileIdentity,
+        packageRootIdentity: SyncRegularFileIdentity,
+        dataRootIdentity: SyncRegularFileIdentity,
+        manifestIdentity: SyncRegularFileIdentity
+    ) throws {
+        let standardizedWorkRoot = workRoot.standardizedFileURL
+        guard packageURL.deletingLastPathComponent() == standardizedWorkRoot else {
+            throw KnitNoteBackupError.unsafePackageEntry
+        }
+        let workDescriptor = standardizedWorkRoot.path.withCString {
+            Darwin.open($0, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        }
+        guard workDescriptor >= 0 else {
+            throw KnitNoteBackupError.unsafePackageEntry
+        }
+        defer { Darwin.close(workDescriptor) }
+        var workInfo = stat()
+        guard Darwin.fstat(workDescriptor, &workInfo) == 0,
+              (workInfo.st_mode & S_IFMT) == S_IFDIR,
+              Self.regularFileIdentity(workInfo) == workRootIdentity else {
+            throw KnitNoteBackupError.unsafePackageEntry
+        }
+
+        let packageName = packageURL.lastPathComponent
+        var packageInfo = stat()
+        let packageStatus = packageName.withCString {
+            Darwin.fstatat(workDescriptor, $0, &packageInfo, AT_SYMLINK_NOFOLLOW)
+        }
+        guard packageStatus == 0,
+              (packageInfo.st_mode & S_IFMT) == S_IFDIR,
+              Self.regularFileIdentity(packageInfo) == packageRootIdentity else {
+            throw KnitNoteBackupError.unsafePackageEntry
+        }
+        let packageDescriptor = try openChildDirectory(
+            named: packageName,
+            relativeTo: workDescriptor,
+            expectedInfo: packageInfo
+        )
+        defer { Darwin.close(packageDescriptor) }
+
+        var dataInfo = stat()
+        let dataStatus = "Data".withCString {
+            Darwin.fstatat(packageDescriptor, $0, &dataInfo, AT_SYMLINK_NOFOLLOW)
+        }
+        guard dataStatus == 0,
+              (dataInfo.st_mode & S_IFMT) == S_IFDIR,
+              Self.regularFileIdentity(dataInfo) == dataRootIdentity else {
+            throw KnitNoteBackupError.unsafePackageEntry
+        }
+        let dataDescriptor = try openChildDirectory(
+            named: "Data",
+            relativeTo: packageDescriptor,
+            expectedInfo: dataInfo
+        )
+        defer { Darwin.close(dataDescriptor) }
+
+        var manifestInfo = stat()
+        let manifestStatus = "manifest.json".withCString {
+            Darwin.fstatat(packageDescriptor, $0, &manifestInfo, AT_SYMLINK_NOFOLLOW)
+        }
+        guard manifestStatus == 0,
+              (manifestInfo.st_mode & S_IFMT) == S_IFREG,
+              manifestInfo.st_nlink == 1,
+              Self.regularFileIdentity(manifestInfo) == manifestIdentity else {
+            throw KnitNoteBackupError.unsafePackageEntry
+        }
     }
 
     private func preflightLegacyImportPackageDirectory(

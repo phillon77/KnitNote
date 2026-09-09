@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		B39090930000000000000002 /* CloudBootstrapPageDriver.swift in Sources */ = {isa = PBXBuildFile; fileRef = B39090930000000000000001 /* CloudBootstrapPageDriver.swift */; };
+		B39090930000000000000004 /* CloudBootstrapSnapshotReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B39090930000000000000003 /* CloudBootstrapSnapshotReader.swift */; };
+		B39090930000000000000006 /* CloudBootstrapPageDriverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B39090930000000000000005 /* CloudBootstrapPageDriverTests.swift */; };
+		B39090930000000000000008 /* CloudBootstrapSnapshotReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B39090930000000000000007 /* CloudBootstrapSnapshotReaderTests.swift */; };
 		B39090920000000000000002 /* CloudBootstrapDownloadStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B39090920000000000000001 /* CloudBootstrapDownloadStore.swift */; };
 		B39090920000000000000004 /* CloudBootstrapDownloadStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B39090920000000000000003 /* CloudBootstrapDownloadStoreTests.swift */; };
 		B39090920000000000000006 /* CloudBootstrapFixture.swift in Sources */ = {isa = PBXBuildFile; fileRef = B39090920000000000000005 /* CloudBootstrapFixture.swift */; };
@@ -562,6 +566,10 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		B39090930000000000000001 /* CloudBootstrapPageDriver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudBootstrapPageDriver.swift; sourceTree = "<group>"; };
+		B39090930000000000000003 /* CloudBootstrapSnapshotReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudBootstrapSnapshotReader.swift; sourceTree = "<group>"; };
+		B39090930000000000000005 /* CloudBootstrapPageDriverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudBootstrapPageDriverTests.swift; sourceTree = "<group>"; };
+		B39090930000000000000007 /* CloudBootstrapSnapshotReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudBootstrapSnapshotReaderTests.swift; sourceTree = "<group>"; };
 		B39090920000000000000001 /* CloudBootstrapDownloadStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudBootstrapDownloadStore.swift; sourceTree = "<group>"; };
 		B39090920000000000000003 /* CloudBootstrapDownloadStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudBootstrapDownloadStoreTests.swift; sourceTree = "<group>"; };
 		B39090920000000000000005 /* CloudBootstrapFixture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudBootstrapFixture.swift; sourceTree = "<group>"; };
@@ -1091,6 +1099,8 @@
 				CA868BA403CC9D70C96E744E /* CloudAssetManifestStore.swift */,
 				C1BCC437F437DBF1C8C27D40 /* CloudAssetStagingService.swift */,
 				B39090920000000000000001 /* CloudBootstrapDownloadStore.swift */,
+				B39090930000000000000001 /* CloudBootstrapPageDriver.swift */,
+				B39090930000000000000003 /* CloudBootstrapSnapshotReader.swift */,
 				932195DE8057B24F95F8171C /* CloudRecordCodec.swift */,
 				74311719DB8969B5A448F0B7 /* CloudRecordSystemFieldsStore.swift */,
 				D63EEDC87D1700429BC81348 /* CloudSyncEngineStateStore.swift */,
@@ -1138,6 +1148,8 @@
 				551111111111111111111112 /* CloudAccountTransitionCoordinatorTests.swift */,
 				BC4ED73108C3002C14F305FB /* CloudAssetDownloadStagingTests.swift */,
 				B39090920000000000000003 /* CloudBootstrapDownloadStoreTests.swift */,
+				B39090930000000000000005 /* CloudBootstrapPageDriverTests.swift */,
+				B39090930000000000000007 /* CloudBootstrapSnapshotReaderTests.swift */,
 				B39090920000000000000005 /* CloudBootstrapFixture.swift */,
 				900C0FC5920D203F4AC599B6 /* CloudAssetFileStoreTests.swift */,
 				5E1C904636D06C5F9F3085E1 /* CloudAssetManifestStoreTests.swift */,
@@ -1884,6 +1896,8 @@
 				E10250765127315332D6B3C8 /* CloudAssetManifestStore.swift in Sources */,
 				2B19A81BB4B13AFB29174753 /* CloudAssetStagingService.swift in Sources */,
 				B39090920000000000000002 /* CloudBootstrapDownloadStore.swift in Sources */,
+				B39090930000000000000002 /* CloudBootstrapPageDriver.swift in Sources */,
+				B39090930000000000000004 /* CloudBootstrapSnapshotReader.swift in Sources */,
 				DC489CE9A9732D5FBC3ECB64 /* CloudRecordCodec.swift in Sources */,
 				15197003C9CF7A37A5D6C0B6 /* CloudRecordSystemFieldsStore.swift in Sources */,
 				0AE7EF17BCE4C8F24B393223 /* CloudSyncEngineStateStore.swift in Sources */,
@@ -2272,6 +2286,8 @@
 				551111111111111111111111 /* CloudAccountTransitionCoordinatorTests.swift in Sources */,
 				D441E394F6FDEFAEA92674F9 /* CloudAssetDownloadStagingTests.swift in Sources */,
 				B39090920000000000000004 /* CloudBootstrapDownloadStoreTests.swift in Sources */,
+				B39090930000000000000006 /* CloudBootstrapPageDriverTests.swift in Sources */,
+				B39090930000000000000008 /* CloudBootstrapSnapshotReaderTests.swift in Sources */,
 				B39090920000000000000006 /* CloudBootstrapFixture.swift in Sources */,
 				0939455BBB049947CF911E2F /* CloudAssetFileStoreTests.swift in Sources */,
 				985412EA06A42B2247DAD9C4 /* CloudAssetManifestStoreTests.swift in Sources */,

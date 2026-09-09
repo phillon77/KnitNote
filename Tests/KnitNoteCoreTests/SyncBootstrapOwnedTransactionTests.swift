@@ -4,6 +4,42 @@ import Testing
 @testable import KnitNoteCore
 
 struct SyncBootstrapOwnedTransactionTests {
+    @Test(arguments: [false, true]) func legacyRemoteReminderUsesLocalCounterDuringOwnedPreparation(invalidGraph: Bool) throws {
+        let f = try RecoveryInventoryFixture(); defer { f.remove() }
+        let projectID = UUID(), counterID = UUID()
+        let localReminder = try #require(KnittingReminder(id: UUID(), counterID: counterID,
+            draft: .oneTime(kind: .cable, target: 4, text: nil), createdAt: Date(timeIntervalSince1970: 1)))
+        let project = try StoredProject(id: projectID, name: "Local counter", counters: [.init(id: counterID, defaultOrdinal: 1)],
+            knittingReminders: [localReminder], now: Date(timeIntervalSince1970: 1))
+        let archive = ProjectArchive(version: ProjectArchive.currentVersion, projects: [project])
+        try JSONEncoder().encode(archive).write(to: f.archiveURL)
+        let local = try ProjectArchiveSyncMapper.export(archive: archive, liveRoot: f.paths.workingSet, deviceID: "local")
+        let base = try #require(KnittingReminder(id: localReminder.id, counterID: invalidGraph ? UUID() : counterID,
+            draft: .oneTime(kind: .cable, target: 4, text: nil), createdAt: Date(timeIntervalSince1970: 1)))
+        let reminder = try base.applying(.trigger(through: 0))
+        let stamp = SyncMutationStamp(logicalRevision: reminder.mutationRevision, modifiedAt: Date(timeIntervalSince1970: 2), deviceID: "legacy")
+        let legacy = SyncRecord(schemaVersion: 1, id: .init(kind: .knittingReminder, uuid: reminder.id), createdAt: reminder.createdAt,
+            entityRevision: reminder.mutationRevision, payload: .init(fields: [:], atomicDomain: .init(value: .knittingReminder(reminder), stamp: stamp)),
+            relationships: [.init(role: "project", target: .init(kind: .project, uuid: projectID)),
+                .init(role: "counter", target: .init(kind: .projectCounter, uuid: reminder.counterID))], deletedAt: .init(value: nil, stamp: stamp))
+        let context = SyncBootstrapContext(accountIDHash: f.account.accountIDHash, epoch: UUID(), freezeID: UUID())
+        let tx = try SyncBootstrapOwnedTransaction(storage: f.storage, paths: f.paths, account: f.account, context: context, validateContext: { _ in })
+        let input = SyncBootstrapOwnedInput(local: local, sourceArchive: archive,
+            remote: .init(context: context, records: [legacy], attachments: [:], isComplete: true), pending: nil, counterReminderContext: .init())
+        let before = try f.diskBytes(), originalArchive = try Data(contentsOf: f.archiveURL)
+        if invalidGraph {
+            #expect(throws: SyncRecordValidationError.illegalAtomicDomain(legacy.id)) { try tx.prepare(input) }
+            #expect(try f.diskBytes() == before)
+        } else {
+            let prepared = try tx.prepare(input)
+            let staged = prepared.originalBackupRoot.deletingLastPathComponent().appendingPathComponent("Staged/projects-v1.json")
+            let result = try JSONDecoder().decode(ProjectArchive.self, from: Data(contentsOf: staged))
+            #expect(result.projects.first?.knittingReminders == [reminder])
+            #expect(try Data(contentsOf: f.archiveURL) == originalArchive)
+        }
+        // Existing publication/durable default remains decode-only for legacy.
+        #expect(throws: (any Error).self) { try JSONEncoder().encode(legacy) }
+    }
     @Test(arguments: [false, true], ["epoch", "freeze"])
     func staleForwardTokenRejectsBeforeEffectsButHistoricalRecoveryRemainsAllowed(installed: Bool, change: String) throws {
         let f = try OwnedBootstrapFixture(); defer { f.remove() }

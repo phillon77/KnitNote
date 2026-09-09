@@ -292,7 +292,10 @@ final class SyncBootstrapOwnedTransaction {
             }
             sources[id] = source
         }
-        var sourceAllowance = try OwnedBootstrapCodec.encode(input.remote.records).count
+        // Count already-received legacy input before combined migration, using
+        // the existing migration encoder; durable output encoders stay strict.
+        var sourceAllowance = try SyncRecordVersion.deterministicEncoder(allowingLegacyStandaloneReminder: true)
+            .encode(input.remote.records).count
         for source in sources.values {
             _ = try source.validated()
             sourceAllowance = try SyncBootstrapRecoveryBudget.add(sourceAllowance,

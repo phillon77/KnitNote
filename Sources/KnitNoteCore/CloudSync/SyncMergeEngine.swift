@@ -493,6 +493,26 @@ public struct SyncMergeEngine: Sendable {
         )
     }
 
+    /// Reduces transport observations, not a complete local/remote graph. The
+    /// owner must still call ordinary merge with local records and pending
+    /// mutations before preparing. Legacy reminders retain an actual winning
+    /// input for that combined migration, with no synthesized field overlays.
+    func reduceBootstrapRemoteRecords(_ records: [SyncRecord],
+        counterReminderContext: SyncCounterReminderMergeContext) throws -> [SyncRecord] {
+        var groups = try groupedRecords(records.filter { $0.id.kind != .knittingReminder })
+        for record in records where record.id.kind == .knittingReminder {
+            let validated = try validator.validateLegacyStandaloneReminderForMigration(record)
+            groups[validated.id, default: []].append(validated)
+        }
+        return try groups.keys.sorted(by: Self.entityIDLess).map { id in
+            let candidates = groups[id]!
+            if id.kind == .knittingReminder {
+                return try newestLegacyReminderCandidate(candidates.map(legacyReminderCandidate), reminderID: id.uuid).record
+            }
+            return try merge(candidates, counterReminderContext: counterReminderContext)
+        }
+    }
+
     public func merge(
         local: some Sequence<SyncRecord>,
         remote: some Sequence<SyncRecord>,
@@ -627,30 +647,14 @@ public struct SyncMergeEngine: Sendable {
         let counterRecords = records.filter { $0.id.kind == .projectCounter }
         var candidatesByReminderID: [UUID: [LegacyReminderCandidate]] = [:]
         for record in records where record.id.kind == .knittingReminder {
-            guard case let .knittingReminder(reminder)? = record.payload.atomicDomain?.value,
-                  reminder.id == record.id.uuid,
-                  reminder.mutationRevision == record.entityRevision,
-                  record.payload.atomicDomain?.stamp.logicalRevision == record.entityRevision,
-                  record.relationships.filter({ $0.role == "counter" }).count == 1,
-                  record.relationships.contains(where: {
-                      $0.role == "counter"
-                          && $0.target == .init(kind: .projectCounter, uuid: reminder.counterID)
-                  }) else {
-                throw SyncRecordValidationError.illegalAtomicDomain(record.id)
-            }
-            let counterID = SyncEntityID(kind: .projectCounter, uuid: reminder.counterID)
+            let candidate = try legacyReminderCandidate(record)
             guard counterRecords.contains(where: {
-                $0.id == counterID
+                $0.id == candidate.counterID
                     && $0.payload.atomicDomain?.value.projectCounterState != nil
             }) else {
                 throw SyncRecordValidationError.illegalAtomicDomain(record.id)
             }
-            candidatesByReminderID[reminder.id, default: []].append(.init(
-                reminder: reminder,
-                counterID: counterID,
-                stamp: max(record.payload.atomicDomain!.stamp, record.deletedAt.stamp),
-                isDeleted: record.deletedAt.value != nil
-            ))
+            candidatesByReminderID[candidate.reminder.id, default: []].append(candidate)
         }
 
         var counterByReminderID: [UUID: SyncEntityID] = [:]
@@ -671,27 +675,11 @@ public struct SyncMergeEngine: Sendable {
 
         var resolutionsByCounter: [SyncEntityID: [LegacyReminderResolution]] = [:]
         for (reminderID, candidates) in candidatesByReminderID {
-            guard let firstCounterID = candidates.first?.counterID,
-                  candidates.allSatisfy({ $0.counterID == firstCounterID }) else {
-                throw SyncRecordValidationError.illegalAtomicDomain(
-                    .init(kind: .knittingReminder, uuid: reminderID)
-                )
-            }
-            let newestStamp = candidates.map(\.stamp).max()!
-            let newest = candidates.filter { $0.stamp == newestStamp }
-            guard let first = newest.first,
-                  newest.allSatisfy({
-                      $0.reminder == first.reminder && $0.isDeleted == first.isDeleted
-                  }) else {
-                throw SyncMergeError.corruptEqualStamp(
-                    entity: .init(kind: .knittingReminder, uuid: reminderID),
-                    field: "counterReminderState"
-                )
-            }
-            counterByReminderID[reminderID] = firstCounterID
-            resolutionsByCounter[firstCounterID, default: []].append(.init(
+            let first = try newestLegacyReminderCandidate(candidates, reminderID: reminderID)
+            counterByReminderID[reminderID] = first.counterID
+            resolutionsByCounter[first.counterID, default: []].append(.init(
                 reminder: first.reminder,
-                stamp: newestStamp,
+                stamp: first.stamp,
                 isDeleted: first.isDeleted
             ))
         }
@@ -703,6 +691,37 @@ public struct SyncMergeEngine: Sendable {
                 $0.id.kind == .knittingReminder ? $0.id : nil
             })
         )
+    }
+
+    private func legacyReminderCandidate(_ record: SyncRecord) throws -> LegacyReminderCandidate {
+        guard case let .knittingReminder(reminder)? = record.payload.atomicDomain?.value,
+              reminder.id == record.id.uuid,
+              reminder.mutationRevision == record.entityRevision,
+              record.payload.atomicDomain?.stamp.logicalRevision == record.entityRevision,
+              record.relationships.filter({ $0.role == "counter" }).count == 1,
+              record.relationships.contains(where: {
+                  $0.role == "counter" && $0.target == .init(kind: .projectCounter, uuid: reminder.counterID)
+              }) else {
+            throw SyncRecordValidationError.illegalAtomicDomain(record.id)
+        }
+        return .init(record: record, reminder: reminder,
+            counterID: .init(kind: .projectCounter, uuid: reminder.counterID),
+            stamp: max(record.payload.atomicDomain!.stamp, record.deletedAt.stamp),
+            isDeleted: record.deletedAt.value != nil)
+    }
+
+    private func newestLegacyReminderCandidate(_ candidates: [LegacyReminderCandidate], reminderID: UUID) throws -> LegacyReminderCandidate {
+        guard let firstCounterID = candidates.first?.counterID,
+              candidates.allSatisfy({ $0.counterID == firstCounterID }) else {
+            throw SyncRecordValidationError.illegalAtomicDomain(.init(kind: .knittingReminder, uuid: reminderID))
+        }
+        let newestStamp = candidates.map(\.stamp).max()!
+        let newest = candidates.filter { $0.stamp == newestStamp }
+        guard let first = newest.first,
+              newest.allSatisfy({ $0.reminder == first.reminder && $0.isDeleted == first.isDeleted }) else {
+            throw SyncMergeError.corruptEqualStamp(entity: .init(kind: .knittingReminder, uuid: reminderID), field: "counterReminderState")
+        }
+        return first
     }
 
     private func applyingLegacyReminderResolutions(
@@ -1392,6 +1411,7 @@ public struct SyncMergeEngine: Sendable {
 }
 
 private struct LegacyReminderCandidate {
+    let record: SyncRecord
     let reminder: KnittingReminder
     let counterID: SyncEntityID
     let stamp: SyncMutationStamp

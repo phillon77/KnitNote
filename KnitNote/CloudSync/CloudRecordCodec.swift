@@ -65,6 +65,23 @@ struct CloudRecordCodec {
     }
 
     func decode(_ record: CKRecord) throws -> SyncRecord {
+        try decode(record, validate: SyncRecordValidator().validate)
+    }
+
+    /// Initialization may retain historical standalone reminders until the
+    /// owned combined merge migrates them. Ordinary decoding/publication stays
+    /// strict; the shared parser still checks complete wire size and identity.
+    func decodeBootstrapRecord(_ record: CKRecord) throws -> SyncRecord {
+        try decode(record) { decoded in
+            let validator = SyncRecordValidator()
+            if decoded.id.kind == .knittingReminder {
+                return try validator.validateLegacyStandaloneReminderForMigration(decoded)
+            }
+            return try validator.validate(decoded)
+        }
+    }
+
+    private func decode(_ record: CKRecord, validate: (SyncRecord) throws -> SyncRecord) throws -> SyncRecord {
         try Self.validateIncomingNonAssetPayloadSize(record)
         let kind = try Self.kind(forRecordType: record.recordType)
         let schemaVersion = try Self.requiredInt(record, field: Field.schemaVersion)
@@ -125,7 +142,7 @@ struct CloudRecordCodec {
                 stamp: try Self.decodeJSON(SyncMutationStamp.self, from: wirePayload.deletedStamp)
             )
         )
-        return try SyncRecordValidator().validate(decoded)
+        return try validate(decoded)
     }
 
     static func recordType(for kind: SyncEntityKind) -> String {

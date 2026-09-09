@@ -4,6 +4,69 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite struct SyncCounterReminderMergeTests {
+    @Test func bootstrapReductionUsesFreshContextForAtomicVersionsWithoutRequiringLocalGraph() throws {
+        let projectID = SyncEntityID(kind: .project, uuid: UUID()), counterID = UUID()
+        let command = WatchCounterCommand(id: UUID(), projectID: projectID.uuid, counterID: counterID,
+            operation: .increment, createdAt: Date(timeIntervalSince1970: 1))
+        let prepared = PreparedWatchCommand(command: command, expectedCounterRevision: 4, expectedCounterValue: 9)
+        let olderState = state(counterID: counterID, value: 10, counterRevision: 5, processedCommandIDs: [command.id])
+        let older = record(state: olderState, projectID: projectID, stamp: stamp(revision: 5, deviceID: "old"))
+        let newer = record(state: state(counterID: counterID, value: 11, counterRevision: 6), projectID: projectID,
+            stamp: stamp(revision: 6, deviceID: "new"))
+        var ledger = ProcessedWatchCommandLedger()
+        ledger.record(command.id, preparedCommand: prepared, effectProof: .init(counter: olderState.counter), at: Date(timeIntervalSince1970: 2))
+        let context = SyncCounterReminderMergeContext(processedLedger: ledger), engine = SyncMergeEngine()
+        #expect(try engine.reduceBootstrapRemoteRecords([], counterReminderContext: context).isEmpty)
+        #expect(throws: SyncMergeError.processedWatchCommandWouldRegress(command.id)) {
+            try engine.reduceBootstrapRemoteRecords([older, newer], counterReminderContext: .init())
+        }
+        let reduced = try engine.reduceBootstrapRemoteRecords([older, newer], counterReminderContext: context)
+        #expect(reduced.count == 1)
+        #expect(reduced.first?.counterReminderState?.counter.value == 11)
+        #expect(reduced.first?.counterReminderState?.processedCommandIDs == [command.id])
+    }
+
+    @Test(arguments: [false, true]) func bootstrapLegacyWinnerPreservesDeletedOverlayAndNativeMigrationParity(tied: Bool) throws {
+        let projectID = SyncEntityID(kind: .project, uuid: UUID()), counterID = UUID()
+        let base = try #require(KnittingReminder(id: UUID(), counterID: counterID,
+            draft: .oneTime(kind: .cable, target: 4, text: nil), createdAt: Date(timeIntervalSince1970: 1)))
+        let triggered = try base.applying(.trigger(through: 0))
+        let winning = bootstrapLegacy(reminder: base, projectID: projectID, stamp: stamp(revision: 0, deviceID: "old"),
+            deletedAt: .init(value: Date(timeIntervalSince1970: 4), stamp: stamp(revision: 4, deviceID: "deleted")))
+        let live = bootstrapLegacy(reminder: triggered, projectID: projectID,
+            stamp: stamp(revision: triggered.mutationRevision, deviceID: "live"))
+        let candidates = tied ? [live, winning, winning] : [winning, live]
+        let local = record(state: state(counterID: counterID, value: 0, counterRevision: 0), projectID: projectID,
+            stamp: stamp(revision: 0, deviceID: "aggregate"))
+        let engine = SyncMergeEngine(), reduced = try engine.reduceBootstrapRemoteRecords(candidates, counterReminderContext: .init())
+        #expect(reduced == [winning])
+        let before = try engine.merge(local: [local], remote: candidates, pendingLocal: [])
+        let after = try engine.merge(local: [local], remote: reduced, pendingLocal: [])
+        #expect(after == before)
+        #expect(after.records.first?.counterReminderState?.reminders.isEmpty == true)
+        #expect(throws: SyncRecordValidationError.illegalAtomicDomain(winning.id)) {
+            try engine.merge(local: [SyncRecord](), remote: reduced, pendingLocal: [])
+        }
+    }
+
+    @Test func bootstrapLegacyTieRejectionPreservesOrdinaryGraphErrorOrder() throws {
+        let projectID = SyncEntityID(kind: .project, uuid: UUID()), counterID = UUID()
+        let reminder = try #require(KnittingReminder(id: UUID(), counterID: counterID,
+            draft: .oneTime(kind: .cable, target: 4, text: nil), createdAt: Date(timeIntervalSince1970: 1)))
+        let effective = stamp(revision: 4, deviceID: "overlay")
+        let live = bootstrapLegacy(reminder: reminder, projectID: projectID, stamp: stamp(revision: 0, deviceID: "legacy"),
+            deletedAt: .init(value: nil, stamp: effective))
+        let deleted = bootstrapLegacy(reminder: reminder, projectID: projectID, stamp: stamp(revision: 0, deviceID: "legacy"),
+            deletedAt: .init(value: Date(timeIntervalSince1970: 4), stamp: effective))
+        let local = record(state: state(counterID: counterID, value: 0, counterRevision: 0), projectID: projectID,
+            stamp: stamp(revision: 0, deviceID: "aggregate"))
+        let expected = SyncMergeError.corruptEqualStamp(entity: live.id, field: "counterReminderState")
+        #expect(throws: expected) { try SyncMergeEngine().reduceBootstrapRemoteRecords([live, deleted], counterReminderContext: .init()) }
+        #expect(throws: expected) { try SyncMergeEngine().merge(local: [local], remote: [live, deleted], pendingLocal: []) }
+        #expect(throws: SyncRecordValidationError.illegalAtomicDomain(live.id)) {
+            try SyncMergeEngine().merge(local: [SyncRecord](), remote: [live, deleted], pendingLocal: [])
+        }
+    }
     @Test func legacyCounterOnlyAtomicPayloadDecodesIntoAggregate() throws {
         let counter = ProjectCounter(
             id: UUID(),
@@ -1952,6 +2015,13 @@ import Testing
         #expect(!aggregate.processedCommandIDs.contains(command.id))
         #expect(!stopped.progress.pending.contains { $0.id == occurrence.id })
     }
+}
+
+private func bootstrapLegacy(reminder: KnittingReminder, projectID: SyncEntityID, stamp: SyncMutationStamp,
+    deletedAt: SyncFieldVersion<Date?>? = nil) -> SyncRecord {
+    let legacy = legacyReminderRecord(reminder: reminder, stamp: stamp, deletedAt: deletedAt)
+    return .init(schemaVersion: legacy.schemaVersion, id: legacy.id, createdAt: legacy.createdAt, entityRevision: legacy.entityRevision,
+        payload: legacy.payload, relationships: legacy.relationships + [.init(role: "project", target: projectID)], deletedAt: legacy.deletedAt)
 }
 
 private func state(

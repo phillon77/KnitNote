@@ -161,6 +161,209 @@ private func sourceFixture() throws -> (KnitNoteBackupService, URL, URL) {
         #expect(mutation.didRun)
         #expect(try Data(contentsOf: fixture.photoURL) == replacement)
     }
+
+    @Test func backupMatchesAndLaterSourceChangeIsRejected() throws {
+        let (service, live, root) = try sourceFixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let prepared = try service.prepareLegacyImportBackup(appVersion: "1.7.0")
+        #expect(prepared.contentDigest == prepared.source.contentDigest)
+        try service.revalidateLegacyImportBackup(prepared)
+        let archive = ProjectArchive(
+            version: ProjectArchive.currentVersion,
+            projects: [try StoredProject(name: "new edit")]
+        )
+        try JSONEncoder().encode(archive).write(
+            to: live.appendingPathComponent("projects-v1.json"),
+            options: .atomic
+        )
+        #expect(throws: (any Error).self) {
+            try service.revalidateLegacyImportBackup(prepared)
+        }
+        #expect(FileManager.default.fileExists(atPath: prepared.packageURL.path))
+    }
+
+    @Test func manifestCreatedAtDoesNotAffectObservedContent() throws {
+        let (service, _, root) = try sourceFixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let first = try service.prepareLegacyImportBackup(appVersion: "1.7.0")
+        let second = try service.prepareLegacyImportBackup(appVersion: "1.7.0")
+        let firstManifest = try manifest(at: first.packageURL)
+        let secondManifest = try manifest(at: second.packageURL)
+
+        #expect(firstManifest.createdAt != secondManifest.createdAt)
+        #expect(first.contentDigest == second.contentDigest)
+    }
+
+    @Test func packageContentAndManifestTamperingAreRejectedWithoutCleanup() throws {
+        for fault in LegacyPreparedBackupFault.allCases {
+            let fixture = try sourcePhotoFixture(data: Data(repeating: 0x71, count: 32))
+            defer { try? FileManager.default.removeItem(at: fixture.root) }
+            let prepared = try fixture.service.prepareLegacyImportBackup(appVersion: "1.7.0")
+
+            switch fault {
+            case .content:
+                try Data(repeating: 0x72, count: 32).write(
+                    to: prepared.packageURL.appendingPathComponent("Data/\(fixture.relativePath)"),
+                    options: .atomic
+                )
+            case .manifestHash:
+                try rewriteManifest(at: prepared.packageURL) { current in
+                    let files = current.files.map { file in
+                        KnitNoteBackupManifestFile(
+                            relativePath: file.relativePath,
+                            byteCount: file.byteCount,
+                            sha256: file.relativePath == fixture.relativePath
+                                ? String(repeating: "0", count: 64)
+                                : file.sha256
+                        )
+                    }
+                    return KnitNoteBackupManifest(
+                        formatVersion: current.formatVersion,
+                        createdAt: current.createdAt,
+                        appVersion: current.appVersion,
+                        projectCount: current.projectCount,
+                        yarnCount: current.yarnCount,
+                        patternCount: current.patternCount,
+                        files: files,
+                        criticalFeatures: current.criticalFeatures
+                    )
+                }
+            }
+
+            #expect(throws: (any Error).self) {
+                try fixture.service.revalidateLegacyImportBackup(prepared)
+            }
+            #expect(FileManager.default.fileExists(atPath: prepared.packageURL.path))
+            #expect(FileManager.default.fileExists(atPath: fixture.photoURL.path))
+        }
+    }
+
+    @Test func sameContentPackageRootReplacementIsRejected() throws {
+        let (service, _, root) = try sourceFixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let prepared = try service.prepareLegacyImportBackup(appVersion: "1.7.0")
+        let moved = root.appendingPathComponent("moved-package")
+
+        try FileManager.default.moveItem(at: prepared.packageURL, to: moved)
+        try FileManager.default.copyItem(at: moved, to: prepared.packageURL)
+
+        #expect(throws: (any Error).self) {
+            try service.revalidateLegacyImportBackup(prepared)
+        }
+        #expect(FileManager.default.fileExists(atPath: prepared.packageURL.path))
+        #expect(FileManager.default.fileExists(atPath: moved.path))
+    }
+
+    @Test func equivalentServiceCanRevalidateButDifferentRootsCannot() throws {
+        let first = try sourceFixture()
+        let second = try sourceFixture()
+        defer {
+            try? FileManager.default.removeItem(at: first.2)
+            try? FileManager.default.removeItem(at: second.2)
+        }
+        let prepared = try first.0.prepareLegacyImportBackup(appVersion: "1.7.0")
+        let equivalent = KnitNoteBackupService(
+            liveRoot: first.1,
+            workRoot: first.2.appendingPathComponent("Work")
+        )
+
+        try equivalent.revalidateLegacyImportBackup(prepared)
+        #expect(throws: (any Error).self) {
+            try second.0.revalidateLegacyImportBackup(prepared)
+        }
+    }
+
+    @Test func sourceChangesAfterInitialObservationAndBeforeFinalObservationAreRejected() throws {
+        for step in [
+            LegacyImportPreparationStep.afterInitialSourceObservation,
+            .afterBackupObservation,
+        ] {
+            let (base, live, root) = try sourceFixture()
+            defer { try? FileManager.default.removeItem(at: root) }
+            let mutation = LegacyPreparationMutation(
+                targetStep: step,
+                archiveURL: live.appendingPathComponent("projects-v1.json")
+            )
+            let service = KnitNoteBackupService(
+                liveRoot: base.liveRoot,
+                workRoot: base.workRoot,
+                legacyImportPreparationStepHook: mutation.run
+            )
+
+            #expect(throws: KnitNoteBackupError.integrityMismatch("projects-v1.json")) {
+                _ = try service.prepareLegacyImportBackup(appVersion: "1.7.0")
+            }
+            #expect(mutation.didRun)
+            #expect(try !FileManager.default.contentsOfDirectory(atPath: base.workRoot.path).isEmpty)
+        }
+    }
+
+    @Test func sourceMutationDuringBackupCopyIsRejected() throws {
+        let fixture = try sourcePhotoFixture(data: Data(repeating: 0x81, count: 70_000))
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let mutation = LegacyNthSourceContentMutation(
+            target: fixture.photoURL,
+            replacement: Data(repeating: 0x82, count: 70_000),
+            targetRead: 3
+        )
+        let service = KnitNoteBackupService(
+            liveRoot: fixture.live,
+            workRoot: fixture.root.appendingPathComponent("Work"),
+            copyChunkHook: mutation.run
+        )
+
+        #expect(throws: KnitNoteBackupError.unsafePackageEntry) {
+            _ = try service.prepareLegacyImportBackup(appVersion: "1.7.0")
+        }
+        #expect(mutation.didRun)
+        #expect(try Data(contentsOf: fixture.photoURL) == Data(repeating: 0x82, count: 70_000))
+    }
+
+    @Test func injectedLegacyFileBudgetAcceptsBoundaryAndRejectsOneMore() throws {
+        let exact = try sourcePhotoFixture(data: Data(repeating: 0x91, count: 10_000))
+        let oversized = try sourcePhotoFixture(data: Data(repeating: 0x92, count: 10_001))
+        defer {
+            try? FileManager.default.removeItem(at: exact.root)
+            try? FileManager.default.removeItem(at: oversized.root)
+        }
+        let exactService = KnitNoteBackupService(
+            liveRoot: exact.live,
+            workRoot: exact.root.appendingPathComponent("Work"),
+            legacyImportMaximumFileBytes: 10_000
+        )
+        let oversizedService = KnitNoteBackupService(
+            liveRoot: oversized.live,
+            workRoot: oversized.root.appendingPathComponent("Work"),
+            legacyImportMaximumFileBytes: 10_000
+        )
+
+        _ = try exactService.prepareLegacyImportBackup(appVersion: "1.7.0")
+        #expect(throws: KnitNoteBackupError.fileTooLarge) {
+            _ = try oversizedService.prepareLegacyImportBackup(appVersion: "1.7.0")
+        }
+    }
+
+    @Test func portableBackupOverLegacyCapStillInspectsButPreparationRejectsBeforeReadingIt() throws {
+        let fixture = try sparseSourcePhotoFixture(
+            byteCount: UInt64(100_000_001)
+        )
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let package = try fixture.service.createPackage(appVersion: "1.7.0")
+        _ = try fixture.service.inspectPackage(at: package)
+        let tracker = LegacySourceReadTracker(target: fixture.photoURL)
+        let legacyService = KnitNoteBackupService(
+            liveRoot: fixture.live,
+            workRoot: fixture.root.appendingPathComponent("Work"),
+            copyChunkHook: tracker.run
+        )
+
+        #expect(throws: KnitNoteBackupError.fileTooLarge) {
+            _ = try legacyService.prepareLegacyImportBackup(appVersion: "1.7.0")
+        }
+        #expect(!tracker.didReadTarget)
+        #expect(FileManager.default.fileExists(atPath: package.path))
+    }
 }
 
 @Suite struct LegacyImportContentProjectionTests {
@@ -373,4 +576,110 @@ private final class LegacySourceContentMutation: @unchecked Sendable {
         guard shouldRun else { return }
         try replacement.write(to: target)
     }
+}
+
+private enum LegacyPreparedBackupFault: CaseIterable {
+    case content
+    case manifestHash
+}
+
+private func manifest(at packageURL: URL) throws -> KnitNoteBackupManifest {
+    try JSONDecoder().decode(
+        KnitNoteBackupManifest.self,
+        from: Data(contentsOf: packageURL.appendingPathComponent("manifest.json"))
+    )
+}
+
+private func rewriteManifest(
+    at packageURL: URL,
+    transform: (KnitNoteBackupManifest) throws -> KnitNoteBackupManifest
+) throws {
+    let url = packageURL.appendingPathComponent("manifest.json")
+    try JSONEncoder().encode(try transform(manifest(at: packageURL))).write(
+        to: url,
+        options: .atomic
+    )
+}
+
+private final class LegacyPreparationMutation: @unchecked Sendable {
+    private let targetStep: LegacyImportPreparationStep
+    private let archiveURL: URL
+    private let lock = NSLock()
+    private var hasRun = false
+
+    init(targetStep: LegacyImportPreparationStep, archiveURL: URL) {
+        self.targetStep = targetStep
+        self.archiveURL = archiveURL
+    }
+
+    var didRun: Bool { lock.withLock { hasRun } }
+
+    func run(_ step: LegacyImportPreparationStep) throws {
+        guard step == targetStep else { return }
+        let shouldRun = lock.withLock {
+            guard !hasRun else { return false }
+            hasRun = true
+            return true
+        }
+        guard shouldRun else { return }
+        let archive = ProjectArchive(
+            version: ProjectArchive.currentVersion,
+            projects: [try StoredProject(name: "changed during preparation")]
+        )
+        try JSONEncoder().encode(archive).write(to: archiveURL, options: .atomic)
+    }
+}
+
+private final class LegacyNthSourceContentMutation: @unchecked Sendable {
+    private let target: URL
+    private let replacement: Data
+    private let targetRead: Int
+    private let lock = NSLock()
+    private var readCount = 0
+    private var hasRun = false
+
+    init(target: URL, replacement: Data, targetRead: Int) {
+        self.target = target.standardizedFileURL
+        self.replacement = replacement
+        self.targetRead = targetRead
+    }
+
+    var didRun: Bool { lock.withLock { hasRun } }
+
+    func run(source: URL, copiedBytes: Int64) throws {
+        guard source.standardizedFileURL == target, copiedBytes > 0 else { return }
+        let shouldRun = lock.withLock {
+            readCount += 1
+            guard readCount == targetRead, !hasRun else { return false }
+            hasRun = true
+            return true
+        }
+        guard shouldRun else { return }
+        try replacement.write(to: target)
+    }
+}
+
+private final class LegacySourceReadTracker: @unchecked Sendable {
+    private let target: URL
+    private let lock = NSLock()
+    private var readTarget = false
+
+    init(target: URL) {
+        self.target = target.standardizedFileURL
+    }
+
+    var didReadTarget: Bool { lock.withLock { readTarget } }
+
+    func run(source: URL, copiedBytes: Int64) {
+        guard source.standardizedFileURL == target, copiedBytes > 0 else { return }
+        lock.withLock { readTarget = true }
+    }
+}
+
+private func sparseSourcePhotoFixture(byteCount: UInt64) throws -> SourcePhotoFixture {
+    let fixture = try sourcePhotoFixture(data: Data())
+    let handle = try FileHandle(forWritingTo: fixture.photoURL)
+    try handle.truncate(atOffset: byteCount)
+    try handle.close()
+    return fixture
 }

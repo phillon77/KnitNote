@@ -132,18 +132,64 @@ struct LegacyImportSourceObservation: Equatable, Sendable {
     let entries: [LegacyImportContentEntry]
     let rootIdentity: SyncRegularFileIdentity
     let fileIdentities: [String: SyncRegularFileIdentity]
+    fileprivate let liveRootURL: URL
 
     fileprivate init(
         contentDigest: Data,
         entries: [LegacyImportContentEntry],
         rootIdentity: SyncRegularFileIdentity,
-        fileIdentities: [String: SyncRegularFileIdentity]
+        fileIdentities: [String: SyncRegularFileIdentity],
+        liveRootURL: URL
     ) {
         self.contentDigest = contentDigest
         self.entries = entries
         self.rootIdentity = rootIdentity
         self.fileIdentities = fileIdentities
+        self.liveRootURL = liveRootURL
     }
+}
+
+fileprivate struct LegacyImportPackageObservation: Equatable, Sendable {
+    let contentDigest: Data
+    let packageRootIdentity: SyncRegularFileIdentity
+    let dataRootIdentity: SyncRegularFileIdentity
+    let manifestIdentity: SyncRegularFileIdentity
+    let manifestDigest: Data
+    let directoryIdentities: [String: SyncRegularFileIdentity]
+    let fileIdentities: [String: SyncRegularFileIdentity]
+}
+
+struct LegacyImportBackupObservation: Sendable {
+    let packageURL: URL
+    let contentDigest: Data
+    let source: LegacyImportSourceObservation
+    fileprivate let package: LegacyImportPackageObservation
+    fileprivate let workRootIdentity: SyncRegularFileIdentity
+    fileprivate let liveRootURL: URL
+    fileprivate let workRootURL: URL
+
+    fileprivate init(
+        packageURL: URL,
+        contentDigest: Data,
+        source: LegacyImportSourceObservation,
+        package: LegacyImportPackageObservation,
+        workRootIdentity: SyncRegularFileIdentity,
+        liveRootURL: URL,
+        workRootURL: URL
+    ) {
+        self.packageURL = packageURL
+        self.contentDigest = contentDigest
+        self.source = source
+        self.package = package
+        self.workRootIdentity = workRootIdentity
+        self.liveRootURL = liveRootURL
+        self.workRootURL = workRootURL
+    }
+}
+
+enum LegacyImportPreparationStep: Sendable {
+    case afterInitialSourceObservation
+    case afterBackupObservation
 }
 
 private struct LegacyImportReferenceAccumulator {
@@ -173,6 +219,12 @@ private struct LegacyImportReferenceAccumulator {
     }
 }
 
+private struct LegacyImportPackagePreflight {
+    var fileSizes: [String: Int64] = [:]
+    var fileIdentities: [String: SyncRegularFileIdentity] = [:]
+    var directoryIdentities: [String: SyncRegularFileIdentity] = [:]
+}
+
 public struct KnitNoteBackupService: Sendable {
     public let liveRoot: URL
     public let workRoot: URL
@@ -185,6 +237,9 @@ public struct KnitNoteBackupService: Sendable {
     private var beforeSourceEntryOpen: @Sendable (String) throws -> Void = { _ in }
     private var synchronizeDirectory: @Sendable (URL) throws -> Void =
         Self.defaultSynchronizeDirectory
+    private var legacyImportMaximumFileBytes: Int64 = 100_000_000
+    private var legacyImportPreparationStepHook:
+        @Sendable (LegacyImportPreparationStep) throws -> Void = { _ in }
 
     public init(
         liveRoot: URL,
@@ -334,6 +389,25 @@ public struct KnitNoteBackupService: Sendable {
         self.synchronizeDirectory = synchronizeDirectory
     }
 
+    init(
+        liveRoot: URL,
+        workRoot: URL,
+        legacyImportMaximumFileBytes: Int64
+    ) {
+        self.init(liveRoot: liveRoot, workRoot: workRoot)
+        self.legacyImportMaximumFileBytes = legacyImportMaximumFileBytes
+    }
+
+    init(
+        liveRoot: URL,
+        workRoot: URL,
+        legacyImportPreparationStepHook:
+            @escaping @Sendable (LegacyImportPreparationStep) throws -> Void
+    ) {
+        self.init(liveRoot: liveRoot, workRoot: workRoot)
+        self.legacyImportPreparationStepHook = legacyImportPreparationStepHook
+    }
+
     func observeLegacyImportSource() throws -> LegacyImportSourceObservation {
         let rootIdentity = try liveRootIdentity()
 
@@ -368,7 +442,7 @@ public struct KnitNoteBackupService: Sendable {
         for path in orderedPaths where path != "projects-v1.json" {
             let observed = try observeLiveRegularFile(
                 relativePath: path,
-                limit: min(copyFileLimit(for: path), 100_000_000),
+                limit: try legacyImportFileLimit(for: path),
                 retainsData: false
             )
             entries.append(observed.entry)
@@ -388,7 +462,481 @@ public struct KnitNoteBackupService: Sendable {
             contentDigest: try LegacyImportContentProjection.digest(entries),
             entries: entries,
             rootIdentity: rootIdentity,
-            fileIdentities: fileIdentities
+            fileIdentities: fileIdentities,
+            liveRootURL: liveRoot.standardizedFileURL
+        )
+    }
+
+    func prepareLegacyImportBackup(appVersion: String) throws -> LegacyImportBackupObservation {
+        let before = try observeLegacyImportSource()
+        try legacyImportPreparationStepHook(.afterInitialSourceObservation)
+        try ensureOwnedWorkRoot()
+        let packageURL = try createPackage(appVersion: appVersion).standardizedFileURL
+        let workRootIdentity = try directoryIdentity(at: workRoot)
+        let package = try observeValidatedLegacyPackage(
+            at: packageURL,
+            expectedWorkRootIdentity: workRootIdentity
+        )
+        try legacyImportPreparationStepHook(.afterBackupObservation)
+        let after = try observeLegacyImportSource()
+        guard before == after,
+              package.contentDigest == after.contentDigest else {
+            throw KnitNoteBackupError.integrityMismatch("projects-v1.json")
+        }
+        return LegacyImportBackupObservation(
+            packageURL: packageURL,
+            contentDigest: package.contentDigest,
+            source: after,
+            package: package,
+            workRootIdentity: workRootIdentity,
+            liveRootURL: liveRoot.standardizedFileURL,
+            workRootURL: workRoot.standardizedFileURL
+        )
+    }
+
+    func revalidateLegacyImportBackup(
+        _ prepared: LegacyImportBackupObservation
+    ) throws {
+        let standardizedLiveRoot = liveRoot.standardizedFileURL
+        let standardizedWorkRoot = workRoot.standardizedFileURL
+        guard standardizedLiveRoot == prepared.liveRootURL,
+              standardizedWorkRoot == prepared.workRootURL,
+              prepared.source.liveRootURL == standardizedLiveRoot,
+              try directoryIdentity(at: liveRoot) == prepared.source.rootIdentity,
+              try directoryIdentity(at: workRoot) == prepared.workRootIdentity else {
+            throw KnitNoteBackupError.unsafePackageEntry
+        }
+        let source = try observeLegacyImportSource()
+        guard source == prepared.source else {
+            throw KnitNoteBackupError.integrityMismatch("projects-v1.json")
+        }
+        let package = try observeValidatedLegacyPackage(
+            at: prepared.packageURL,
+            expectedWorkRootIdentity: prepared.workRootIdentity
+        )
+        guard package == prepared.package,
+              package.contentDigest == source.contentDigest,
+              prepared.contentDigest == source.contentDigest else {
+            throw KnitNoteBackupError.integrityMismatch("projects-v1.json")
+        }
+    }
+
+    private func observeValidatedLegacyPackage(
+        at packageURL: URL,
+        expectedWorkRootIdentity: SyncRegularFileIdentity
+    ) throws -> LegacyImportPackageObservation {
+        _ = try inspectPackage(at: packageURL)
+
+        let standardizedWorkRoot = workRoot.standardizedFileURL
+        let standardizedPackageURL = packageURL.standardizedFileURL
+        guard standardizedPackageURL.deletingLastPathComponent() == standardizedWorkRoot,
+              standardizedPackageURL.pathExtension == "knitnote-backup",
+              isSafeFileComponent(standardizedPackageURL.lastPathComponent) else {
+            throw KnitNoteBackupError.unsafePackageEntry
+        }
+
+        let workDescriptor = standardizedWorkRoot.path.withCString {
+            Darwin.open($0, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        }
+        guard workDescriptor >= 0 else {
+            throw KnitNoteBackupError.unsafePackageEntry
+        }
+        defer { Darwin.close(workDescriptor) }
+        var workInfo = stat()
+        guard Darwin.fstat(workDescriptor, &workInfo) == 0,
+              (workInfo.st_mode & S_IFMT) == S_IFDIR,
+              Self.regularFileIdentity(workInfo) == expectedWorkRootIdentity else {
+            throw KnitNoteBackupError.unsafePackageEntry
+        }
+
+        var packageInfo = stat()
+        let packageStatus = standardizedPackageURL.lastPathComponent.withCString {
+            Darwin.fstatat(workDescriptor, $0, &packageInfo, AT_SYMLINK_NOFOLLOW)
+        }
+        guard packageStatus == 0,
+              (packageInfo.st_mode & S_IFMT) == S_IFDIR else {
+            throw KnitNoteBackupError.unsafePackageEntry
+        }
+        let packageDescriptor = try openChildDirectory(
+            named: standardizedPackageURL.lastPathComponent,
+            relativeTo: workDescriptor,
+            expectedInfo: packageInfo
+        )
+        defer { Darwin.close(packageDescriptor) }
+        let packageRootIdentity = Self.regularFileIdentity(packageInfo)
+        guard try directoryEntryNames(packageDescriptor) == ["Data", "manifest.json"] else {
+            throw KnitNoteBackupError.unknownPackageEntry
+        }
+
+        var manifestInfo = stat()
+        let manifestStatus = "manifest.json".withCString {
+            Darwin.fstatat(packageDescriptor, $0, &manifestInfo, AT_SYMLINK_NOFOLLOW)
+        }
+        guard manifestStatus == 0,
+              (manifestInfo.st_mode & S_IFMT) == S_IFREG,
+              manifestInfo.st_nlink == 1,
+              manifestInfo.st_size >= 0 else {
+            throw KnitNoteBackupError.unsafePackageEntry
+        }
+        guard manifestInfo.st_size <= KnitNoteBackupLimits.maximumManifestBytes else {
+            throw KnitNoteBackupError.fileTooLarge
+        }
+        let manifestDescriptor = try openChildRegularFile(
+            named: "manifest.json",
+            relativeTo: packageDescriptor,
+            expectedInfo: manifestInfo
+        )
+        defer { Darwin.close(manifestDescriptor) }
+        let manifestObserved = try observeRegularFile(
+            descriptor: manifestDescriptor,
+            initialInfo: manifestInfo,
+            relativePath: "manifest.json",
+            limit: KnitNoteBackupLimits.maximumManifestBytes,
+            retainsData: true
+        )
+        guard let manifestData = manifestObserved.data else {
+            throw KnitNoteBackupError.invalidManifest
+        }
+        let manifest: KnitNoteBackupManifest
+        do {
+            manifest = try JSONDecoder().decode(KnitNoteBackupManifest.self, from: manifestData)
+        } catch {
+            throw KnitNoteBackupError.invalidManifest
+        }
+        guard manifest.formatVersion == KnitNoteBackupManifest.currentFormatVersion,
+              manifest.criticalFeatures == [KnitNoteBackupManifest.fileIntegrityFeature],
+              !manifest.files.isEmpty else {
+            throw KnitNoteBackupError.invalidManifest
+        }
+
+        var dataInfo = stat()
+        let dataStatus = "Data".withCString {
+            Darwin.fstatat(packageDescriptor, $0, &dataInfo, AT_SYMLINK_NOFOLLOW)
+        }
+        guard dataStatus == 0,
+              (dataInfo.st_mode & S_IFMT) == S_IFDIR else {
+            throw KnitNoteBackupError.unsafePackageEntry
+        }
+        let dataDescriptor = try openChildDirectory(
+            named: "Data",
+            relativeTo: packageDescriptor,
+            expectedInfo: dataInfo
+        )
+        defer { Darwin.close(dataDescriptor) }
+        let dataRootIdentity = Self.regularFileIdentity(dataInfo)
+
+        var totalBytes = manifestInfo.st_size
+        var preflight = LegacyImportPackagePreflight()
+        try preflightLegacyImportPackageDirectory(
+            descriptor: dataDescriptor,
+            relativeDirectory: "",
+            totalBytes: &totalBytes,
+            result: &preflight
+        )
+        _ = try LegacyImportContentProjection.digest(
+            preflight.fileSizes.map { relativePath, byteCount in
+                LegacyImportContentEntry(
+                    relativePath: relativePath,
+                    byteCount: byteCount,
+                    sha256: Data(repeating: 0, count: 32)
+                )
+            }
+        )
+
+        var expectedByPath: [String: KnitNoteBackupManifestFile] = [:]
+        var foldedPaths: Set<String> = []
+        for file in manifest.files {
+            guard isSafeManifestRelativePath(file.relativePath),
+                  file.byteCount >= 0,
+                  file.byteCount <= (try legacyImportFileLimit(for: file.relativePath)),
+                  isSHA256(file.sha256),
+                  expectedByPath.updateValue(file, forKey: file.relativePath) == nil,
+                  foldedPaths.insert(foldedPath(file.relativePath)).inserted else {
+                throw KnitNoteBackupError.unsafePackageEntry
+            }
+        }
+        guard Set(expectedByPath.keys) == Set(preflight.fileSizes.keys),
+              expectedByPath["projects-v1.json"] != nil else {
+            throw KnitNoteBackupError.unknownPackageEntry
+        }
+
+        var entries: [LegacyImportContentEntry] = []
+        entries.reserveCapacity(preflight.fileSizes.count)
+        for relativePath in preflight.fileSizes.keys.sorted(by: {
+            $0.utf8.lexicographicallyPrecedes($1.utf8)
+        }) {
+            let observed = try observePackageRegularFile(
+                dataDescriptor: dataDescriptor,
+                relativePath: relativePath,
+                expectedSize: preflight.fileSizes[relativePath]!,
+                expectedIdentity: preflight.fileIdentities[relativePath]!,
+                expectedDirectoryIdentities: preflight.directoryIdentities
+            )
+            guard let expected = expectedByPath[relativePath],
+                  observed.entry.byteCount == expected.byteCount,
+                  observed.entry.sha256.map({ String(format: "%02x", $0) }).joined()
+                    == expected.sha256 else {
+                throw KnitNoteBackupError.integrityMismatch(relativePath)
+            }
+            entries.append(observed.entry)
+        }
+
+        var finalTotalBytes = manifestInfo.st_size
+        var finalPreflight = LegacyImportPackagePreflight()
+        try preflightLegacyImportPackageDirectory(
+            descriptor: dataDescriptor,
+            relativeDirectory: "",
+            totalBytes: &finalTotalBytes,
+            result: &finalPreflight
+        )
+        var finalPackageInfo = stat()
+        var finalDataInfo = stat()
+        var finalWorkInfo = stat()
+        guard preflight.fileSizes == finalPreflight.fileSizes,
+              preflight.fileIdentities == finalPreflight.fileIdentities,
+              preflight.directoryIdentities == finalPreflight.directoryIdentities,
+              totalBytes == finalTotalBytes,
+              Darwin.fstat(workDescriptor, &finalWorkInfo) == 0,
+              Darwin.fstat(packageDescriptor, &finalPackageInfo) == 0,
+              Darwin.fstat(dataDescriptor, &finalDataInfo) == 0,
+              Self.regularFileIdentity(finalWorkInfo) == expectedWorkRootIdentity,
+              Self.regularFileIdentity(finalPackageInfo) == packageRootIdentity,
+              Self.regularFileIdentity(finalDataInfo) == dataRootIdentity else {
+            throw KnitNoteBackupError.unsafePackageEntry
+        }
+        try validateUnchangedSource(
+            descriptor: manifestDescriptor,
+            initialInfo: manifestInfo,
+            copiedBytes: manifestObserved.entry.byteCount
+        )
+
+        return LegacyImportPackageObservation(
+            contentDigest: try LegacyImportContentProjection.digest(entries),
+            packageRootIdentity: packageRootIdentity,
+            dataRootIdentity: dataRootIdentity,
+            manifestIdentity: manifestObserved.identity,
+            manifestDigest: manifestObserved.entry.sha256,
+            directoryIdentities: preflight.directoryIdentities,
+            fileIdentities: preflight.fileIdentities
+        )
+    }
+
+    private func legacyImportFileLimit(for relativePath: String) throws -> Int64 {
+        guard legacyImportMaximumFileBytes >= 0,
+              legacyImportMaximumFileBytes <= 100_000_000 else {
+            throw KnitNoteBackupError.fileTooLarge
+        }
+        return min(copyFileLimit(for: relativePath), legacyImportMaximumFileBytes)
+    }
+
+    private func directoryIdentity(at directory: URL) throws -> SyncRegularFileIdentity {
+        let descriptor = directory.standardizedFileURL.path.withCString {
+            Darwin.open($0, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        }
+        guard descriptor >= 0 else {
+            throw KnitNoteBackupError.unsafePackageEntry
+        }
+        defer { Darwin.close(descriptor) }
+        var info = stat()
+        guard Darwin.fstat(descriptor, &info) == 0,
+              (info.st_mode & S_IFMT) == S_IFDIR,
+              info.st_nlink >= 1 else {
+            throw KnitNoteBackupError.unsafePackageEntry
+        }
+        return Self.regularFileIdentity(info)
+    }
+
+    private func preflightLegacyImportPackageDirectory(
+        descriptor: Int32,
+        relativeDirectory: String,
+        totalBytes: inout Int64,
+        result: inout LegacyImportPackagePreflight
+    ) throws {
+        for name in try directoryEntryNames(descriptor) {
+            guard !name.hasPrefix("."), isSafeFileComponent(name) else {
+                throw KnitNoteBackupError.unsafePackageEntry
+            }
+            let relativePath = relativeDirectory.isEmpty
+                ? name
+                : "\(relativeDirectory)/\(name)"
+            var info = stat()
+            let status = name.withCString {
+                Darwin.fstatat(descriptor, $0, &info, AT_SYMLINK_NOFOLLOW)
+            }
+            guard status == 0 else {
+                throw KnitNoteBackupError.unsafePackageEntry
+            }
+            switch info.st_mode & S_IFMT {
+            case S_IFDIR:
+                guard info.st_nlink >= 1,
+                      result.directoryIdentities.updateValue(
+                        Self.regularFileIdentity(info),
+                        forKey: relativePath
+                      ) == nil else {
+                    throw KnitNoteBackupError.unsafePackageEntry
+                }
+                let child = try openChildDirectory(
+                    named: name,
+                    relativeTo: descriptor,
+                    expectedInfo: info
+                )
+                do {
+                    defer { Darwin.close(child) }
+                    try preflightLegacyImportPackageDirectory(
+                        descriptor: child,
+                        relativeDirectory: relativePath,
+                        totalBytes: &totalBytes,
+                        result: &result
+                    )
+                }
+            case S_IFREG:
+                guard info.st_nlink == 1,
+                      info.st_size >= 0,
+                      result.fileSizes[relativePath] == nil,
+                      result.fileIdentities[relativePath] == nil else {
+                    throw KnitNoteBackupError.unsafePackageEntry
+                }
+                guard info.st_size <= (try legacyImportFileLimit(for: relativePath)) else {
+                    throw KnitNoteBackupError.fileTooLarge
+                }
+                guard totalBytes >= 0,
+                      totalBytes <= KnitNoteBackupLimits.maximumPackageBytes,
+                      info.st_size <= KnitNoteBackupLimits.maximumPackageBytes - totalBytes else {
+                    throw KnitNoteBackupError.packageTooLarge
+                }
+                totalBytes += info.st_size
+                result.fileSizes[relativePath] = info.st_size
+                result.fileIdentities[relativePath] = Self.regularFileIdentity(info)
+            default:
+                throw KnitNoteBackupError.unsafePackageEntry
+            }
+        }
+    }
+
+    private func observePackageRegularFile(
+        dataDescriptor: Int32,
+        relativePath: String,
+        expectedSize: Int64,
+        expectedIdentity: SyncRegularFileIdentity,
+        expectedDirectoryIdentities: [String: SyncRegularFileIdentity]
+    ) throws -> (
+        entry: LegacyImportContentEntry,
+        identity: SyncRegularFileIdentity,
+        data: Data?
+    ) {
+        let components = relativePath.split(separator: "/", omittingEmptySubsequences: false)
+            .map(String.init)
+        guard !components.isEmpty,
+              components.allSatisfy(isSafeFileComponent) else {
+            throw KnitNoteBackupError.unsafePackageEntry
+        }
+        var parentDescriptor = dataDescriptor
+        var ownedDescriptors: [Int32] = []
+        defer { ownedDescriptors.reversed().forEach { Darwin.close($0) } }
+        var traversed: [String] = []
+        for component in components.dropLast() {
+            traversed.append(component)
+            let directoryPath = traversed.joined(separator: "/")
+            var info = stat()
+            let status = component.withCString {
+                Darwin.fstatat(parentDescriptor, $0, &info, AT_SYMLINK_NOFOLLOW)
+            }
+            guard status == 0,
+                  Self.regularFileIdentity(info) == expectedDirectoryIdentities[directoryPath] else {
+                throw KnitNoteBackupError.unsafePackageEntry
+            }
+            let child = try openChildDirectory(
+                named: component,
+                relativeTo: parentDescriptor,
+                expectedInfo: info
+            )
+            ownedDescriptors.append(child)
+            parentDescriptor = child
+        }
+
+        let filename = components[components.count - 1]
+        var info = stat()
+        let status = filename.withCString {
+            Darwin.fstatat(parentDescriptor, $0, &info, AT_SYMLINK_NOFOLLOW)
+        }
+        guard status == 0,
+              (info.st_mode & S_IFMT) == S_IFREG,
+              info.st_nlink == 1,
+              info.st_size == expectedSize,
+              Self.regularFileIdentity(info) == expectedIdentity else {
+            throw KnitNoteBackupError.unsafePackageEntry
+        }
+        let descriptor = try openChildRegularFile(
+            named: filename,
+            relativeTo: parentDescriptor,
+            expectedInfo: info
+        )
+        defer { Darwin.close(descriptor) }
+        return try observeRegularFile(
+            descriptor: descriptor,
+            initialInfo: info,
+            relativePath: relativePath,
+            limit: try legacyImportFileLimit(for: relativePath),
+            retainsData: false
+        )
+    }
+
+    private func observeRegularFile(
+        descriptor: Int32,
+        initialInfo: stat,
+        relativePath: String,
+        limit: Int64,
+        retainsData: Bool,
+        sourceURL: URL? = nil
+    ) throws -> (
+        entry: LegacyImportContentEntry,
+        identity: SyncRegularFileIdentity,
+        data: Data?
+    ) {
+        guard initialInfo.st_size >= 0,
+              initialInfo.st_nlink == 1 else {
+            throw KnitNoteBackupError.unsafePackageEntry
+        }
+        guard initialInfo.st_size <= limit else {
+            throw KnitNoteBackupError.fileTooLarge
+        }
+        var retained = retainsData ? Data() : nil
+        retained?.reserveCapacity(Int(initialInfo.st_size))
+        var hasher = SHA256()
+        var readBytes: Int64 = 0
+        var buffer = [UInt8](repeating: 0, count: 64 * 1024)
+        while true {
+            let request = Int(min(Int64(buffer.count), limit - readBytes + 1))
+            let count = buffer.withUnsafeMutableBytes {
+                Darwin.read(descriptor, $0.baseAddress, request)
+            }
+            guard count >= 0 else {
+                throw KnitNoteBackupError.unsafePackageEntry
+            }
+            if count == 0 { break }
+            guard Int64(count) <= limit - readBytes else {
+                throw KnitNoteBackupError.fileTooLarge
+            }
+            readBytes += Int64(count)
+            hasher.update(data: Data(buffer.prefix(count)))
+            retained?.append(contentsOf: buffer.prefix(count))
+            if let sourceURL {
+                try copyChunkHook(sourceURL, readBytes)
+            }
+        }
+        try validateUnchangedSource(
+            descriptor: descriptor,
+            initialInfo: initialInfo,
+            copiedBytes: readBytes
+        )
+        return (
+            LegacyImportContentEntry(
+                relativePath: relativePath,
+                byteCount: readBytes,
+                sha256: Data(hasher.finalize())
+            ),
+            Self.regularFileIdentity(initialInfo),
+            retained
         )
     }
 
@@ -1251,50 +1799,13 @@ public struct KnitNoteBackupService: Sendable {
             descriptor,
             initialInfo,
             source in
-            guard initialInfo.st_size >= 0,
-                  initialInfo.st_nlink == 1 else {
-                throw KnitNoteBackupError.unsafePackageEntry
-            }
-            guard initialInfo.st_size <= limit else {
-                throw KnitNoteBackupError.fileTooLarge
-            }
-
-            var retained = retainsData ? Data() : nil
-            retained?.reserveCapacity(Int(initialInfo.st_size))
-            var hasher = SHA256()
-            var readBytes: Int64 = 0
-            var buffer = [UInt8](repeating: 0, count: 64 * 1024)
-            while true {
-                let request = Int(min(Int64(buffer.count), limit - readBytes + 1))
-                let count = buffer.withUnsafeMutableBytes {
-                    Darwin.read(descriptor, $0.baseAddress, request)
-                }
-                guard count >= 0 else {
-                    throw KnitNoteBackupError.unsafePackageEntry
-                }
-                if count == 0 { break }
-                guard Int64(count) <= limit - readBytes else {
-                    throw KnitNoteBackupError.fileTooLarge
-                }
-                readBytes += Int64(count)
-                let chunk = Data(buffer.prefix(count))
-                hasher.update(data: chunk)
-                retained?.append(chunk)
-                try copyChunkHook(source, readBytes)
-            }
-            try validateUnchangedSource(
+            try observeRegularFile(
                 descriptor: descriptor,
                 initialInfo: initialInfo,
-                copiedBytes: readBytes
-            )
-            return (
-                LegacyImportContentEntry(
-                    relativePath: relativePath,
-                    byteCount: readBytes,
-                    sha256: Data(hasher.finalize())
-                ),
-                Self.regularFileIdentity(initialInfo),
-                retained
+                relativePath: relativePath,
+                limit: limit,
+                retainsData: retainsData,
+                sourceURL: source
             )
         }
     }
@@ -1684,7 +2195,13 @@ public struct KnitNoteBackupService: Sendable {
     }
 
     private func directoryEntryNames(_ descriptor: Int32) throws -> [String] {
-        let duplicateDescriptor = Darwin.dup(descriptor)
+        let duplicateDescriptor = ".".withCString {
+            Darwin.openat(
+                descriptor,
+                $0,
+                O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC
+            )
+        }
         guard duplicateDescriptor >= 0 else { throw KnitNoteBackupError.unsafePackageEntry }
         guard let stream = Darwin.fdopendir(duplicateDescriptor) else {
             Darwin.close(duplicateDescriptor)

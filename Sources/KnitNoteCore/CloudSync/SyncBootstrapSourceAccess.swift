@@ -20,6 +20,10 @@ final class SyncBootstrapSourceAccess {
         self.storage = storage; self.paths = paths; self.account = account; self.maximumBytes = maximumBytes
     }
 
+    func requireBinding(storage: SyncAccountStorage, paths: SyncAccountStorage.Paths, account: SyncAccountIdentity) throws {
+        guard self.storage === storage, self.paths == paths, self.account == account else { throw SyncBootstrapError.contextChanged }
+    }
+
     func capture(deviceID: String) throws -> SyncBootstrapSourceSnapshot {
         guard (0...100_000_000).contains(maximumBytes) else { throw SyncAccountRecoveryInventory.Error.tooLarge }
         return try storage.withRecoveryOwnership(paths: paths, account: account, maximumBytes: maximumBytes) { access in

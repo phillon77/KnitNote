@@ -5,7 +5,14 @@ import Foundation
     let account: CloudAccountBinding
     let paths: SyncAccountStorage.Paths
     let journal: FileSyncMutationJournal
+    let storage: SyncAccountStorage?
     let validateOwnership: () throws -> Void
+
+    init(account: CloudAccountBinding, paths: SyncAccountStorage.Paths, journal: FileSyncMutationJournal,
+        storage: SyncAccountStorage? = nil, validateOwnership: @escaping () throws -> Void) {
+        self.account = account; self.paths = paths; self.journal = journal
+        self.storage = storage; self.validateOwnership = validateOwnership
+    }
 }
 
 @MainActor struct AppAccountDomainRuntime {

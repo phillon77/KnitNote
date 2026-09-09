@@ -83,6 +83,11 @@ final class CloudBootstrapSnapshotReader: @unchecked Sendable {
     init(scope: CloudBootstrapSessionScope, driver: any CloudBootstrapPageDriving, downloads: CloudBootstrapDownloadStore) {
         self.scope = scope; self.driver = driver; self.downloads = downloads
     }
+    func requireBinding(storage: SyncAccountStorage, paths: SyncAccountStorage.Paths, scope: CloudBootstrapSessionScope) throws {
+        guard self.scope === scope else { throw SyncBootstrapError.contextChanged }
+        try driver.requireScope(scope)
+        try downloads.requireBinding(storage: storage, paths: paths, scope: scope)
+    }
     func read() async throws -> CloudBootstrapSnapshotLease {
         guard lock.withLock({ if used { return false }; used = true; return true }) else { throw CloudBootstrapReadError.reused }
         do {

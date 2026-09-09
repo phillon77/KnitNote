@@ -91,6 +91,10 @@ final class CloudBootstrapDownloadStore: @unchecked Sendable {
             }
         }
     }
+    func requireBinding(storage: SyncAccountStorage, paths: SyncAccountStorage.Paths, scope: CloudBootstrapSessionScope) throws {
+        guard self.storage === storage, self.paths == paths, self.scope === scope else { throw SyncBootstrapError.contextChanged }
+        try scope.requireCurrent()
+    }
     func revalidate(version: SyncAttachmentVersion, source: SyncAttachmentSource) throws {
         try scope.withCurrent {
             guard let prior = issued[version.versionID], prior.0 == source else { throw SyncBootstrapError.sourceChanged }

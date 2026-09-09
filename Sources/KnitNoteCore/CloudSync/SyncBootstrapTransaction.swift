@@ -171,6 +171,16 @@ public struct SyncCanonicalBootstrapHandoff {
         self.revalidate = revalidate
         self.stagedAttachmentSource = stagedAttachmentSource
     }
+
+    /// The only owned issuer accepts native verified evidence, never a snapshot
+    /// or caller-supplied readiness flag. Keep the general initializer private.
+    static func recoveredOwned(_ evidence: SyncBootstrapOwnedHandoffEvidence) throws -> Self {
+        try evidence.revalidate()
+        return .init(accountIDHash: evidence.manifest.context.accountIDHash, liveRoot: evidence.liveRoot,
+            liveRootIdentity: evidence.liveRootIdentity, transactionID: evidence.manifest.id,
+            checkpoint: evidence.checkpoint, revalidate: evidence.revalidate,
+            stagedAttachmentSource: evidence.stagedAttachmentSource)
+    }
 }
 
 public struct SyncBootstrapPreparation: Sendable {

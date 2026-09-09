@@ -11,6 +11,7 @@ struct CloudBootstrapPageResult: Sendable {
     let moreComing: Bool
 }
 protocol CloudBootstrapPageDriving: Sendable {
+    func requireScope(_ scope: CloudBootstrapSessionScope) throws
     func fetchPage(zoneID: CKRecordZone.ID, previousToken: CKServerChangeToken?,
         receive: @escaping @Sendable (CloudBootstrapPageEvent) throws -> Void) async throws -> CloudBootstrapPageResult
     func cancelAndWait() async
@@ -26,6 +27,11 @@ final class CloudBootstrapPageDriver: CloudBootstrapPageDriving, @unchecked Send
     init(scope: CloudBootstrapSessionScope,
          schedule: @escaping @Sendable (CKFetchRecordZoneChangesOperation, @escaping @Sendable () -> Void) -> Void) {
         self.scope = scope; self.schedule = schedule
+    }
+
+    func requireScope(_ scope: CloudBootstrapSessionScope) throws {
+        guard self.scope === scope else { throw SyncBootstrapError.contextChanged }
+        try scope.requireCurrent()
     }
 
     /// Not called by normal startup. No consumer can choose another database.

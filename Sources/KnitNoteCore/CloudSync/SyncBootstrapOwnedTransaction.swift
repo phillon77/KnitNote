@@ -574,6 +574,35 @@ extension SyncBootstrapOwnedTransaction {
             + OwnedBootstrapCodec.hex(OwnedBootstrapCodec.hash(Data(livePath.utf8)))
     }
 
+    enum SelectedRecoveryFormat { case none, legacy, owned }
+
+    /// Routing information only. Parsing never grants a bootstrap capability;
+    /// the selected native recovery implementation validates its full evidence.
+    func selectedRecoveryFormat() throws -> SelectedRecoveryFormat {
+        try validateContext(context)
+        return try storage.withRecoveryOwnership(paths: paths, account: account, maximumBytes: maximumBytes) { access in
+            let entries = try access.entries()
+            guard entries.contains(where: { $0.relativePath == namespace + "/active.json" }) else {
+                guard !entries.contains(where: { $0.relativePath == namespace || $0.relativePath.hasPrefix(namespace + "/") }) else {
+                    throw SyncBootstrapError.sourceChanged
+                }
+                return .none
+            }
+            let directory = try POSIX.directory(namespace, from: access.accountDescriptor)
+            guard let bytes = try POSIX.read("active.json", parent: directory.value, maximumBytes: maximumBytes) else {
+                throw SyncBootstrapError.sourceChanged
+            }
+            struct Binding: Decodable { let version: Int; let context: SyncBootstrapContext; let livePath: String; let journalPath: String }
+            let binding = try JSONDecoder().decode(Binding.self, from: OwnedBootstrapCodec.envelopePayload(bytes, maximumBytes: maximumBytes))
+            guard binding.context.accountIDHash == account.accountIDHash, OwnedBootstrapCodec.samePath(binding.livePath, livePath),
+                  OwnedBootstrapCodec.samePath(binding.journalPath, journalRelativePath), [1, 2, 3].contains(binding.version) else {
+                throw SyncBootstrapError.corrupt
+            }
+            try validateContext(context); try access.validate()
+            return binding.version == 3 ? .owned : .legacy
+        }
+    }
+
     func install(_ prepared: SyncBootstrapPreparation) throws {
         try validateContext(context)
         try storage.withRecoveryOwnership(paths: paths, account: account, maximumBytes: maximumBytes) { access in
@@ -1033,14 +1062,14 @@ extension SyncBootstrapOwnedTransaction {
     /// Installed states use the shared rollback and committed receipt validators.
     func recover() throws -> SyncCanonicalBootstrapHandoff? {
         try validateContext(context)
-        return try storage.withRecoveryOwnership(paths: paths, account: account, maximumBytes: maximumBytes,
+        let committed: Bool = try storage.withRecoveryOwnership(paths: paths, account: account, maximumBytes: maximumBytes,
             createControl: true) { access in
             let entries = try access.entries()
             guard entries.contains(where: { $0.relativePath == namespace + "/active.json" }) else {
                 guard !entries.contains(where: { $0.relativePath == namespace || $0.relativePath.hasPrefix(namespace + "/") }) else {
                     throw SyncBootstrapError.sourceChanged
                 }
-                return nil
+                return false
             }
             let directory = try POSIX.directory(namespace, from: access.accountDescriptor)
             guard let bytes = try POSIX.read("active.json", parent: directory.value, maximumBytes: maximumBytes) else {
@@ -1069,7 +1098,7 @@ extension SyncBootstrapOwnedTransaction {
                         try control.synchronize(observed, access: access)
                     }
                 } else { try recoverLegacyDerivative(bytes, entries: entries, access: access) }
-                return nil
+                return false
             }
             let manifest = try BootstrapManifestV3.decodeEnvelope(bytes, maximumBytes: maximumBytes)
             switch manifest.body {
@@ -1099,13 +1128,15 @@ extension SyncBootstrapOwnedTransaction {
                     journal: FileSyncMutationJournal(url: paths.workingSet.appendingPathComponent(journalRelativePath)),
                     archiveURL: paths.workingSet.appendingPathComponent("projects-v1.json"),
                     control: SyncAccountRecoveryControlFile(synchronize: POSIX.synchronize).observe(access: access), maximumBytes: maximumBytes)
-                // Canonical App capability issuance remains separately gated.
-                return nil
+                return true
             }
             let terminal = try POSIX.read("active.json", parent: directory.value, maximumBytes: maximumBytes)
             if let terminal { try handoffTerminal(terminal, access: access) }
-            return nil
+            return false
         }
+        guard committed else { return nil }
+        return try .recoveredOwned(.capture(storage: storage, paths: paths, account: account,
+            maximumBytes: maximumBytes, validateContext: { try self.validateContext(self.context) }))
     }
 
     private func recoverLegacyDerivative(_ bytes: Data, entries: [SyncAccountRecoveryInventory.Entry],

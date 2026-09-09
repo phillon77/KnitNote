@@ -485,7 +485,7 @@ public struct SyncAccountRecoveryInventory: Sendable {
     private static func encoder() -> JSONEncoder {
         let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]; return encoder
     }
-    private static func relative(_ url: URL, root: URL) throws -> String {
+    static func relative(_ url: URL, root: URL) throws -> String {
         guard url.isFileURL, url.query == nil, url.fragment == nil, url.host == nil || url.host == "",
               url.path.hasPrefix(root.path + "/") else { throw Error.unsafeBinding }
         let path = String(url.path.dropFirst(root.path.count + 1))

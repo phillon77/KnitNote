@@ -206,14 +206,8 @@ final class SyncBootstrapOwnedTransaction {
                 account: account, journal: journal, archiveURL: paths.workingSet.appendingPathComponent("projects-v1.json"),
                 control: control, maximumBytes: maximumBytes)
             let original = Self.liveProofs(inventory.entries)
-            let fingerprint = OwnedBootstrapCodec.hash(try OwnedBootstrapCodec.encode(original))
-            let prefix = "working-set/" + journalRelativePath
-            let journalParent = OwnedBootstrapCodec.parent(prefix)
-            let journalName = String(prefix.split(separator: "/").last!)
-            let hidden = journalParent + "/." + journalName
-            let hasJournal = inventory.entries.contains {
-                $0.relativePath == prefix || $0.relativePath.hasPrefix(prefix + ".") || $0.relativePath.hasPrefix(hidden)
-            }
+            let fingerprint = try Self.sourceTreeFingerprint(inventory.entries)
+            let hasJournal = Self.hasSourceJournal(inventory.entries, journalRelativePath: journalRelativePath)
             if let pending = input.pending {
                 guard pending.sourceTreeFingerprint == fingerprint,
                       pending.mutations == inventory.packet.mutations else { throw SyncBootstrapError.sourceChanged }
@@ -540,6 +534,18 @@ final class SyncBootstrapOwnedTransaction {
             (String($0.relativePath.dropFirst("working-set/".count)) + ($0.isDirectory ? "/" : ""),
              .init(bytes: $0.isDirectory ? -1 : $0.byteCount, digest: $0.sha256))
         })
+    }
+
+    static func sourceTreeFingerprint(_ entries: [SyncAccountRecoveryInventory.Entry]) throws -> Data {
+        OwnedBootstrapCodec.hash(try OwnedBootstrapCodec.encode(liveProofs(entries)))
+    }
+
+    static func hasSourceJournal(_ entries: [SyncAccountRecoveryInventory.Entry], journalRelativePath: String) -> Bool {
+        let prefix = "working-set/" + journalRelativePath
+        let hidden = OwnedBootstrapCodec.parent(prefix) + "/." + String(prefix.split(separator: "/").last!)
+        return entries.contains {
+            $0.relativePath == prefix || $0.relativePath.hasPrefix(prefix + ".") || $0.relativePath.hasPrefix(hidden)
+        }
     }
 
     private func read(_ path: String, inventory: SyncAccountRecoveryInventory) throws -> Data {

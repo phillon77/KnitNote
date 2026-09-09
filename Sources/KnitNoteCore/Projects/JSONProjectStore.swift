@@ -671,77 +671,87 @@ struct SyncAttachmentPublicationEvidenceFile {
     func load() throws -> SyncAttachmentPublicationEvidence {
         try mappedOperation {
             try SyncDurableFile.withExclusiveFileLock(for: url) {
-                let head = try loadHeadForReadUnlocked()
-                var authorityByVersionID: [UUID: SyncStoredAttachmentVersionAuthority] = [:]
-                var historicalDeletedVersionIDs: Set<UUID> = []
-                for authorityURL in try immutableFileURLs(
-                    in: attachmentAuthoritiesRootURL,
-                    countingWatchProofs: false
-                ) {
-                    let authority = try readAttachmentAuthority(at: authorityURL)
-                    guard authorityByVersionID.updateValue(
-                        authority,
-                        forKey: authority.version.versionID
-                    ) == nil else {
-                        throw SyncPublicationTransactionFileError.corrupt
-                    }
-                }
-                var tombstoneByVersionID: [UUID: SyncStoredAttachmentTombstoneAuthority] = [:]
-                for tombstoneURL in try immutableFileURLs(
-                    in: attachmentTombstonesRootURL,
-                    countingWatchProofs: false
-                ) {
-                    let tombstone = try readAttachmentTombstone(at: tombstoneURL)
-                    guard tombstoneByVersionID.updateValue(
-                        tombstone,
-                        forKey: tombstone.versionID
-                    ) == nil else {
-                        throw SyncPublicationTransactionFileError.corrupt
-                    }
-                }
-                var historicalRecords: [SyncRecord] = []
-                for authority in authorityByVersionID.values {
-                    if let tombstone = tombstoneByVersionID[authority.version.versionID] {
-                        historicalDeletedVersionIDs.insert(authority.version.versionID)
-                        if let tombstoneRecord = tombstone.record {
-                            guard let issuedRecord = authority.record,
-                                  try SyncAttachmentImmutableSnapshot(record: issuedRecord).sha256
-                                    == SyncAttachmentImmutableSnapshot(record: tombstoneRecord)
-                                        .sha256 else {
-                                throw SyncPublicationTransactionFileError.corrupt
-                            }
-                            historicalRecords.append(tombstoneRecord)
-                        } else if let record = authority.record {
-                            historicalRecords.append(record)
-                        }
-                    } else if let record = authority.record {
-                        historicalRecords.append(record)
-                        if record.deletedAt.value != nil {
-                            throw SyncPublicationTransactionFileError.corrupt
-                        }
-                    }
-                }
-                guard tombstoneByVersionID.keys.allSatisfy({
-                    authorityByVersionID[$0] != nil
-                }) else {
-                    throw SyncPublicationTransactionFileError.corrupt
-                }
-                let history = SyncAttachmentPublicationEvidence(
-                    versions: authorityByVersionID.values.map(\.version),
-                    deletedVersionIDs: historicalDeletedVersionIDs,
-                    attachmentRecords: historicalRecords,
-                    storageVersion: 2
-                )
-                var complete = try head.merged(with: history)
-                for proofURL in try immutableFileURLs(
-                    in: watchProofsRootURL,
-                    countingWatchProofs: true
-                ) {
-                    try complete.retainWatchCommandProof(readWatchProof(at: proofURL))
-                }
-                return try complete.canonicalized().validated()
+                try loadUnlocked()
             }
         }
+    }
+
+    /// The bootstrap caller retains storage ownership and a producer freeze,
+    /// then revalidates its exact inventory after export. No lock file is created.
+    func loadFrozenSource() throws -> SyncAttachmentPublicationEvidence {
+        try mappedOperation { try loadUnlocked() }
+    }
+
+    private func loadUnlocked() throws -> SyncAttachmentPublicationEvidence {
+        let head = try loadHeadForReadUnlocked()
+        var authorityByVersionID: [UUID: SyncStoredAttachmentVersionAuthority] = [:]
+        var historicalDeletedVersionIDs: Set<UUID> = []
+        for authorityURL in try immutableFileURLs(
+            in: attachmentAuthoritiesRootURL,
+            countingWatchProofs: false
+        ) {
+            let authority = try readAttachmentAuthority(at: authorityURL)
+            guard authorityByVersionID.updateValue(
+                authority,
+                forKey: authority.version.versionID
+            ) == nil else {
+                throw SyncPublicationTransactionFileError.corrupt
+            }
+        }
+        var tombstoneByVersionID: [UUID: SyncStoredAttachmentTombstoneAuthority] = [:]
+        for tombstoneURL in try immutableFileURLs(
+            in: attachmentTombstonesRootURL,
+            countingWatchProofs: false
+        ) {
+            let tombstone = try readAttachmentTombstone(at: tombstoneURL)
+            guard tombstoneByVersionID.updateValue(
+                tombstone,
+                forKey: tombstone.versionID
+            ) == nil else {
+                throw SyncPublicationTransactionFileError.corrupt
+            }
+        }
+        var historicalRecords: [SyncRecord] = []
+        for authority in authorityByVersionID.values {
+            if let tombstone = tombstoneByVersionID[authority.version.versionID] {
+                historicalDeletedVersionIDs.insert(authority.version.versionID)
+                if let tombstoneRecord = tombstone.record {
+                    guard let issuedRecord = authority.record,
+                          try SyncAttachmentImmutableSnapshot(record: issuedRecord).sha256
+                            == SyncAttachmentImmutableSnapshot(record: tombstoneRecord)
+                                .sha256 else {
+                        throw SyncPublicationTransactionFileError.corrupt
+                    }
+                    historicalRecords.append(tombstoneRecord)
+                } else if let record = authority.record {
+                    historicalRecords.append(record)
+                }
+            } else if let record = authority.record {
+                historicalRecords.append(record)
+                if record.deletedAt.value != nil {
+                    throw SyncPublicationTransactionFileError.corrupt
+                }
+            }
+        }
+        guard tombstoneByVersionID.keys.allSatisfy({
+            authorityByVersionID[$0] != nil
+        }) else {
+            throw SyncPublicationTransactionFileError.corrupt
+        }
+        let history = SyncAttachmentPublicationEvidence(
+            versions: authorityByVersionID.values.map(\.version),
+            deletedVersionIDs: historicalDeletedVersionIDs,
+            attachmentRecords: historicalRecords,
+            storageVersion: 2
+        )
+        var complete = try head.merged(with: history)
+        for proofURL in try immutableFileURLs(
+            in: watchProofsRootURL,
+            countingWatchProofs: true
+        ) {
+            try complete.retainWatchCommandProof(readWatchProof(at: proofURL))
+        }
+        return try complete.canonicalized().validated()
     }
 
     func watchCommandProof(

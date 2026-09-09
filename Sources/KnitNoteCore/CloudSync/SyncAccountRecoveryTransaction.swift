@@ -85,15 +85,16 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
         }
     }
 
-    /// Future lifetime accounting through the actual EnvelopeV2 codec. It emits
+    /// Future lifetime accounting through the actual legacy/v2 codecs. It emits
     /// a size only, never a prepared recovery envelope or root authority.
     static func projectedEnvelopeByteCount(inventoryByteCount: Int, captureID: UUID,
         accountDevice: UInt64, accountInode: UInt64, temporarySession: String,
-        control: SyncAccountControlObservation) throws -> Int {
-        let empty = Envelope(formatVersion: 2, captureID: captureID, accountDevice: accountDevice,
+        control: SyncAccountControlObservation, legacy: Bool = false) throws -> Int {
+        let empty = Envelope(formatVersion: legacy ? 1 : 2, captureID: captureID, accountDevice: accountDevice,
             accountInode: accountInode, temporarySession: temporarySession,
             packetSHA256: Data(repeating: 0, count: 32), inventory: Data())
-        let overhead = try encode(EnvelopeV2(empty, sourceControl: SourceControlSnapshot(control))).count
+        let overhead = try legacy ? encode(empty).count
+            : encode(EnvelopeV2(empty, sourceControl: SourceControlSnapshot(control))).count
         return try SyncBootstrapRecoveryBudget.add(overhead,
             SyncBootstrapRecoveryBudget.base64Bytes(inventoryByteCount))
     }
@@ -165,7 +166,8 @@ public final class SyncAccountRecoveryTransaction: @unchecked Sendable {
             let budget: Int
             if legacy { budget = maximumBytes }
             else {
-                let overhead = try Self.encode(EnvelopeV2(empty, sourceControl: snapshot)).count
+                let overhead = try Self.projectedEnvelopeByteCount(inventoryByteCount: 0, captureID: captureID,
+                    accountDevice: root.0, accountInode: root.1, temporarySession: session, control: observation)
                 budget = try SyncBootstrapRecoveryBudget.inventoryAllowance(
                     maximumEnvelopeBytes: maximumBytes, fixedOverheadBytes: overhead)
             }

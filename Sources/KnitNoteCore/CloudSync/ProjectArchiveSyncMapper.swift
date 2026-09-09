@@ -83,6 +83,26 @@ public enum ProjectArchiveSyncMapper {
         processedWatchProofs: [SyncProcessedWatchCommandProof] = [],
         issuedAttachmentRecords: [SyncRecord]? = nil
     ) throws -> SyncExportPackage {
+        try exportReadingEvidence(archive: archive, liveRoot: liveRoot, deviceID: deviceID, reusing: cache,
+            preparedWatchCommand: preparedWatchCommand, processedWatchLedger: processedWatchLedger,
+            processedWatchProofs: processedWatchProofs, issuedAttachmentRecords: issuedAttachmentRecords,
+            frozenEvidence: nil)
+    }
+
+    /// Internal bootstrap seam: the evidence comes from the native read-only
+    /// loader under the same storage ownership as the frozen source inventory.
+    static func exportFrozenSource(archive: ProjectArchive, liveRoot: URL, deviceID: String,
+        preparedWatchCommand: PreparedWatchCommand?, processedWatchLedger: ProcessedWatchCommandLedger,
+        evidence: SyncAttachmentPublicationEvidence) throws -> SyncExportPackage {
+        try exportReadingEvidence(archive: archive, liveRoot: liveRoot, deviceID: deviceID, reusing: nil,
+            preparedWatchCommand: preparedWatchCommand, processedWatchLedger: processedWatchLedger,
+            processedWatchProofs: [], issuedAttachmentRecords: nil, frozenEvidence: evidence)
+    }
+
+    private static func exportReadingEvidence(archive: ProjectArchive, liveRoot: URL, deviceID: String,
+        reusing cache: SyncPublicationProjectionCache?, preparedWatchCommand: PreparedWatchCommand?,
+        processedWatchLedger: ProcessedWatchCommandLedger, processedWatchProofs: [SyncProcessedWatchCommandProof],
+        issuedAttachmentRecords: [SyncRecord]?, frozenEvidence: SyncAttachmentPublicationEvidence?) throws -> SyncExportPackage {
         guard ProjectArchive.isSupported(version: archive.version) else {
             throw ProjectArchiveSyncMappingError.unsupportedArchive(archive.version)
         }
@@ -92,7 +112,8 @@ public enum ProjectArchiveSyncMapper {
         for reference in references { _ = try relativePath(reference.sourceURL, root: root) }
         let evidenceURL = root.appendingPathComponent("SyncMetadata/attachment-versions.json")
         let evidence: SyncAttachmentPublicationEvidence
-        if issuedAttachmentRecords == nil && FileManager.default.fileExists(atPath: evidenceURL.path) {
+        if let frozenEvidence { evidence = frozenEvidence }
+        else if issuedAttachmentRecords == nil && FileManager.default.fileExists(atPath: evidenceURL.path) {
             evidence = try SyncAttachmentPublicationEvidenceFile(url: evidenceURL).load()
         } else { evidence = .init() }
         let issued = issuedAttachmentRecords ?? evidence.retainedAttachmentRecords

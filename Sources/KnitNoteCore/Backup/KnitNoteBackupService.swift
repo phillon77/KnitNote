@@ -127,6 +127,52 @@ enum KnitNoteBackupReplacementStep: Sendable {
     case beforeCommitCleanup
 }
 
+struct LegacyImportSourceObservation: Equatable, Sendable {
+    let contentDigest: Data
+    let entries: [LegacyImportContentEntry]
+    let rootIdentity: SyncRegularFileIdentity
+    let fileIdentities: [String: SyncRegularFileIdentity]
+
+    fileprivate init(
+        contentDigest: Data,
+        entries: [LegacyImportContentEntry],
+        rootIdentity: SyncRegularFileIdentity,
+        fileIdentities: [String: SyncRegularFileIdentity]
+    ) {
+        self.contentDigest = contentDigest
+        self.entries = entries
+        self.rootIdentity = rootIdentity
+        self.fileIdentities = fileIdentities
+    }
+}
+
+private struct LegacyImportReferenceAccumulator {
+    private(set) var paths: Set<String> = []
+    private var aliases: [String: String] = [:]
+    private var projectedBytes = LegacyImportContentProjection.initialEncodedByteCount
+
+    mutating func insert(_ path: String) throws {
+        if paths.contains(where: { $0.utf8.elementsEqual(path.utf8) }) {
+            return
+        }
+        let alias = LegacyImportContentProjection.alias(for: path)
+        if let existing = aliases[alias],
+           !existing.utf8.elementsEqual(path.utf8) {
+            throw KnitNoteBackupError.unsafePackageEntry
+        }
+        let entryBytes = try LegacyImportContentProjection.projectedEntryByteCount(
+            forRelativePath: path
+        )
+        guard projectedBytes <= LegacyImportContentProjection.maximumEncodedBytes,
+              entryBytes <= LegacyImportContentProjection.maximumEncodedBytes - projectedBytes else {
+            throw KnitNoteBackupError.fileTooLarge
+        }
+        projectedBytes += entryBytes
+        aliases[alias] = path
+        paths.insert(path)
+    }
+}
+
 public struct KnitNoteBackupService: Sendable {
     public let liveRoot: URL
     public let workRoot: URL
@@ -286,6 +332,166 @@ public struct KnitNoteBackupService: Sendable {
         cleanupItem = { try FileManager.default.removeItem(at: $0) }
         copyChunkHook = { _, _ in }
         self.synchronizeDirectory = synchronizeDirectory
+    }
+
+    func observeLegacyImportSource() throws -> LegacyImportSourceObservation {
+        let rootIdentity = try liveRootIdentity()
+
+        let archive = try observeLiveRegularFile(
+            relativePath: "projects-v1.json",
+            limit: KnitNoteBackupLimits.maximumArchiveBytes,
+            retainsData: true
+        )
+        guard let archiveData = archive.data else {
+            throw KnitNoteBackupError.invalidArchive
+        }
+        let decoded: ProjectArchive
+        do {
+            decoded = try JSONDecoder().decode(ProjectArchive.self, from: archiveData)
+        } catch {
+            throw KnitNoteBackupError.invalidArchive
+        }
+        try validateArchive(decoded)
+
+        var references = LegacyImportReferenceAccumulator()
+        try references.insert("projects-v1.json")
+        try collectLegacyImportReferences(from: decoded, into: &references)
+        let orderedPaths = references.paths.sorted {
+            $0.utf8.lexicographicallyPrecedes($1.utf8)
+        }
+        var entries: [LegacyImportContentEntry] = []
+        var fileIdentities: [String: SyncRegularFileIdentity] = [:]
+        entries.reserveCapacity(orderedPaths.count)
+        fileIdentities.reserveCapacity(orderedPaths.count)
+        entries.append(archive.entry)
+        fileIdentities[archive.entry.relativePath] = archive.identity
+        for path in orderedPaths where path != "projects-v1.json" {
+            let observed = try observeLiveRegularFile(
+                relativePath: path,
+                limit: min(copyFileLimit(for: path), 100_000_000),
+                retainsData: false
+            )
+            entries.append(observed.entry)
+            fileIdentities[path] = observed.identity
+        }
+        entries.sort {
+            $0.relativePath.utf8.lexicographicallyPrecedes($1.relativePath.utf8)
+        }
+
+        try revalidateLegacyImportSource(
+            archiveData: archiveData,
+            entries: entries,
+            fileIdentities: fileIdentities,
+            rootIdentity: rootIdentity
+        )
+        return LegacyImportSourceObservation(
+            contentDigest: try LegacyImportContentProjection.digest(entries),
+            entries: entries,
+            rootIdentity: rootIdentity,
+            fileIdentities: fileIdentities
+        )
+    }
+
+    private func collectLegacyImportReferences(
+        from archive: ProjectArchive,
+        into references: inout LegacyImportReferenceAccumulator
+    ) throws {
+        for project in archive.projects {
+            if let filename = project.photoFilename {
+                try references.insert("ProjectPhotos/\(filename)")
+            }
+            for entry in project.journalEntries {
+                try references.insert("ProjectJournalPhotos/\(entry.photoFilename)")
+                try references.insert("ProjectJournalPhotos/\(entry.thumbnailFilename)")
+            }
+            for pattern in project.patterns {
+                try references.insert("Patterns/\(project.id.uuidString)/\(pattern.storedFilename)")
+                let owner = "Patterns/\(project.id.uuidString)/Markup/\(pattern.id.uuidString)"
+                for path in try descriptorMarkupPaths(ownerPath: owner) {
+                    try references.insert(path)
+                }
+            }
+        }
+        for yarn in archive.yarns {
+            if let filename = yarn.photoFilename {
+                try references.insert("YarnPhotos/\(filename)")
+            }
+            for filename in yarn.labelPhotoFilenames {
+                try references.insert("YarnLabelPhotos/\(filename)")
+            }
+        }
+        for asset in archive.patternAssets {
+            try references.insert("Patterns/Assets/\(asset.storedFilename)")
+        }
+        for usage in archive.patternUsages {
+            let owner = "Patterns/UsageMarkup/\(usage.id.uuidString)"
+            for path in try descriptorMarkupPaths(ownerPath: owner) {
+                try references.insert(path)
+            }
+        }
+    }
+
+    private func revalidateLegacyImportSource(
+        archiveData: Data,
+        entries: [LegacyImportContentEntry],
+        fileIdentities: [String: SyncRegularFileIdentity],
+        rootIdentity: SyncRegularFileIdentity
+    ) throws {
+        guard try liveRootIdentity() == rootIdentity else {
+            throw KnitNoteBackupError.unsafePackageEntry
+        }
+        let finalArchive = try observeLiveRegularFile(
+            relativePath: "projects-v1.json",
+            limit: KnitNoteBackupLimits.maximumArchiveBytes,
+            retainsData: true
+        )
+        guard finalArchive.data == archiveData,
+              finalArchive.identity == fileIdentities["projects-v1.json"] else {
+            throw KnitNoteBackupError.unsafePackageEntry
+        }
+        let decoded: ProjectArchive
+        do {
+            decoded = try JSONDecoder().decode(ProjectArchive.self, from: archiveData)
+        } catch {
+            throw KnitNoteBackupError.invalidArchive
+        }
+        try validateArchive(decoded)
+        var finalReferences = LegacyImportReferenceAccumulator()
+        try finalReferences.insert("projects-v1.json")
+        try collectLegacyImportReferences(from: decoded, into: &finalReferences)
+        guard finalReferences.paths == Set(entries.map(\.relativePath)) else {
+            throw KnitNoteBackupError.unsafePackageEntry
+        }
+        for entry in entries {
+            try withLiveRegularFile(relativePath: entry.relativePath) {
+                _, info, _ in
+                guard info.st_nlink == 1,
+                      info.st_size == entry.byteCount,
+                      Self.regularFileIdentity(info) == fileIdentities[entry.relativePath] else {
+                    throw KnitNoteBackupError.unsafePackageEntry
+                }
+            }
+        }
+        guard try liveRootIdentity() == rootIdentity else {
+            throw KnitNoteBackupError.unsafePackageEntry
+        }
+    }
+
+    private func liveRootIdentity() throws -> SyncRegularFileIdentity {
+        let descriptor = liveRoot.path.withCString {
+            Darwin.open($0, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        }
+        guard descriptor >= 0 else {
+            throw KnitNoteBackupError.unsafePackageEntry
+        }
+        defer { Darwin.close(descriptor) }
+        var info = stat()
+        guard Darwin.fstat(descriptor, &info) == 0,
+              (info.st_mode & S_IFMT) == S_IFDIR,
+              info.st_nlink >= 1 else {
+            throw KnitNoteBackupError.unsafePackageEntry
+        }
+        return Self.regularFileIdentity(info)
     }
 
     public func createPackage(appVersion: String, now: Date = .now) throws -> URL {
@@ -1027,6 +1233,77 @@ public struct KnitNoteBackupService: Sendable {
             )
             return result
         }
+    }
+
+    private func observeLiveRegularFile(
+        relativePath: String,
+        limit: Int64,
+        retainsData: Bool
+    ) throws -> (
+        entry: LegacyImportContentEntry,
+        identity: SyncRegularFileIdentity,
+        data: Data?
+    ) {
+        guard limit >= 0, limit <= 100_000_000 else {
+            throw KnitNoteBackupError.fileTooLarge
+        }
+        return try withLiveRegularFile(relativePath: relativePath) {
+            descriptor,
+            initialInfo,
+            source in
+            guard initialInfo.st_size >= 0,
+                  initialInfo.st_nlink == 1 else {
+                throw KnitNoteBackupError.unsafePackageEntry
+            }
+            guard initialInfo.st_size <= limit else {
+                throw KnitNoteBackupError.fileTooLarge
+            }
+
+            var retained = retainsData ? Data() : nil
+            retained?.reserveCapacity(Int(initialInfo.st_size))
+            var hasher = SHA256()
+            var readBytes: Int64 = 0
+            var buffer = [UInt8](repeating: 0, count: 64 * 1024)
+            while true {
+                let request = Int(min(Int64(buffer.count), limit - readBytes + 1))
+                let count = buffer.withUnsafeMutableBytes {
+                    Darwin.read(descriptor, $0.baseAddress, request)
+                }
+                guard count >= 0 else {
+                    throw KnitNoteBackupError.unsafePackageEntry
+                }
+                if count == 0 { break }
+                guard Int64(count) <= limit - readBytes else {
+                    throw KnitNoteBackupError.fileTooLarge
+                }
+                readBytes += Int64(count)
+                let chunk = Data(buffer.prefix(count))
+                hasher.update(data: chunk)
+                retained?.append(chunk)
+                try copyChunkHook(source, readBytes)
+            }
+            try validateUnchangedSource(
+                descriptor: descriptor,
+                initialInfo: initialInfo,
+                copiedBytes: readBytes
+            )
+            return (
+                LegacyImportContentEntry(
+                    relativePath: relativePath,
+                    byteCount: readBytes,
+                    sha256: Data(hasher.finalize())
+                ),
+                Self.regularFileIdentity(initialInfo),
+                retained
+            )
+        }
+    }
+
+    private static func regularFileIdentity(_ info: stat) -> SyncRegularFileIdentity {
+        SyncRegularFileIdentity(
+            device: UInt64(bitPattern: Int64(info.st_dev)),
+            inode: UInt64(bitPattern: Int64(info.st_ino))
+        )
     }
 
     private func preflightLiveExport(

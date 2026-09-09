@@ -7,6 +7,41 @@ import UniformTypeIdentifiers
 @testable import KnitNoteCore
 
 @Suite struct KnitNoteBackupServiceTests {
+    @Test func legacySourceObservationIncludesAllReferencedMediaWithoutTouchingControls() throws {
+        let (service, live, root) = try makeServiceFixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let complete = try BackupFixture.writeCompleteArchive(to: live)
+        let unreferenced = live.appendingPathComponent("PatternCache/unreferenced.bin")
+        let control = live.appendingPathComponent("SyncControl/source-receipt.json")
+        for url in [unreferenced, control] {
+            try FileManager.default.createDirectory(
+                at: url.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+        }
+        let unreferencedBytes = Data("cache".utf8)
+        let controlBytes = Data("control".utf8)
+        try unreferencedBytes.write(to: unreferenced)
+        try controlBytes.write(to: control)
+        let sourceBytes = try Dictionary(uniqueKeysWithValues: complete.referencedRelativePaths.map {
+            ($0, try Data(contentsOf: live.appendingPathComponent($0)))
+        })
+
+        let observation = try service.observeLegacyImportSource()
+        let observedPaths = Set(observation.entries.map(\.relativePath))
+
+        #expect(observedPaths == Set(complete.referencedRelativePaths))
+        #expect(Set(observation.fileIdentities.keys) == observedPaths)
+        #expect(!observedPaths.contains("PatternCache/unreferenced.bin"))
+        #expect(!observedPaths.contains("SyncControl/source-receipt.json"))
+        #expect(try Data(contentsOf: unreferenced) == unreferencedBytes)
+        #expect(try Data(contentsOf: control) == controlBytes)
+        for (path, bytes) in sourceBytes {
+            #expect(try Data(contentsOf: live.appendingPathComponent(path)) == bytes)
+        }
+        #expect(!FileManager.default.fileExists(atPath: service.workRoot.path))
+    }
+
     @Test func versionElevenBackupRoundTripsYarnLabelFieldsAndTwoPhotos() throws {
         let (service, live, root) = try makeServiceFixture()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -2888,6 +2923,7 @@ enum BackupFixture {
         let token = UUID()
         let projectPhoto = "\(projectID.uuidString)-\(UUID().uuidString).jpg"
         let yarnPhoto = "\(yarnID.uuidString)-\(UUID().uuidString).jpg"
+        let labelPhoto = "\(yarnID.uuidString)-label-1-\(UUID().uuidString).jpg"
         let journalStem = "\(projectID.uuidString)-\(entryID.uuidString)-\(token.uuidString)"
         let journalFull = "\(journalStem)-full.jpg"
         let journalThumbnail = "\(journalStem)-thumb.jpg"
@@ -2914,12 +2950,14 @@ enum BackupFixture {
 
         var yarn = try StoredYarn(id: yarnID, name: "Merino")
         yarn.setPhotoFilename(yarnPhoto)
+        try yarn.setLabelPhotoFilenames([labelPhoto])
         yarn.setLinkedProjectIDs([projectID])
 
         let archive = ProjectArchive(version: 9, projects: [project], yarns: [yarn])
         let archivePath = "projects-v1.json"
         let projectPhotoPath = "ProjectPhotos/\(projectPhoto)"
         let yarnPhotoPath = "YarnPhotos/\(yarnPhoto)"
+        let labelPhotoPath = "YarnLabelPhotos/\(labelPhoto)"
         let journalFullPath = "ProjectJournalPhotos/\(journalFull)"
         let journalThumbnailPath = "ProjectJournalPhotos/\(journalThumbnail)"
         let patternPath = "Patterns/\(projectID.uuidString)/\(patternFilename)"
@@ -2929,6 +2967,7 @@ enum BackupFixture {
             (archivePath, try JSONEncoder().encode(archive)),
             (projectPhotoPath, Data("project-photo".utf8)),
             (yarnPhotoPath, Data("yarn-photo".utf8)),
+            (labelPhotoPath, try jpegData(red: 0.6)),
             (journalFullPath, Data("journal-full".utf8)),
             (journalThumbnailPath, Data("journal-thumbnail".utf8)),
             (markupPath, try JSONEncoder().encode(PatternMarkupDocument())),

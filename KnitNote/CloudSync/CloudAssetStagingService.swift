@@ -68,7 +68,7 @@ final class CloudAssetStagingService: CloudAssetStagingBoundary, @unchecked Send
     private let maximumQuarantineBytes: Int64
     private let beforeDownloadBoundary: BeforeDownloadBoundary
 
-    init(
+    convenience init(
         rootURL: URL,
         accountIdentifier: String,
         maximumAssetBytes: Int = CloudAssetStagingService.defaultMaximumAssetBytes,
@@ -77,6 +77,26 @@ final class CloudAssetStagingService: CloudAssetStagingBoundary, @unchecked Send
         maximumQuarantineEntries: Int = 4,
         maximumQuarantineBytes: Int64 = 400_000_000,
         beforeDownloadBoundary: @escaping BeforeDownloadBoundary = { _ in }
+    ) throws {
+        try self.init(rootURL: rootURL, accountIdentifier: accountIdentifier, maximumAssetBytes: maximumAssetBytes,
+            externalReader: externalReader, beforeBoundary: beforeBoundary,
+            maximumQuarantineEntries: maximumQuarantineEntries, maximumQuarantineBytes: maximumQuarantineBytes,
+            beforeDownloadBoundary: beforeDownloadBoundary, initialization: .ordinary)
+    }
+
+    private enum Initialization { case ordinary, bootstrap }
+
+    static func makeForBootstrap(rootURL: URL, accountIdentifier: String, maximumAssetBytes: Int) throws -> CloudAssetStagingService {
+        try .init(rootURL: rootURL, accountIdentifier: accountIdentifier, maximumAssetBytes: maximumAssetBytes,
+            externalReader: SyncRegularFileReader(), beforeBoundary: { _ in }, maximumQuarantineEntries: 4,
+            maximumQuarantineBytes: 400_000_000, beforeDownloadBoundary: { _ in }, initialization: .bootstrap)
+    }
+
+    private init(
+        rootURL: URL, accountIdentifier: String, maximumAssetBytes: Int,
+        externalReader: any SyncRegularFileReading, beforeBoundary: @escaping BeforeBoundary,
+        maximumQuarantineEntries: Int, maximumQuarantineBytes: Int64,
+        beforeDownloadBoundary: @escaping BeforeDownloadBoundary, initialization: Initialization
     ) throws {
         guard rootURL.isFileURL,
               !accountIdentifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -97,13 +117,16 @@ final class CloudAssetStagingService: CloudAssetStagingBoundary, @unchecked Send
             )
             fileStore = store
             manifestStore = CloudAssetManifestStore(fileStore: store)
-            serviceRootURL = rootURL.standardizedFileURL
+            // Foundation may collapse an existing /private/var path to /var,
+            // but leave the same path unchanged before its first mkdir. Owned
+            // bootstrap accounting must retain storage's exact namespace.
+            serviceRootURL = initialization == .bootstrap ? rootURL : rootURL.standardizedFileURL
             self.beforeBoundary = beforeBoundary
             self.maximumQuarantineEntries = maximumQuarantineEntries
             self.maximumQuarantineBytes = maximumQuarantineBytes
             self.beforeDownloadBoundary = beforeDownloadBoundary
 
-            let account = rootURL.standardizedFileURL
+            let account = serviceRootURL
                 .appendingPathComponent("Accounts", isDirectory: true)
                 .appendingPathComponent(store.stableAccountBinding, isDirectory: true)
             accountRootURL = account
@@ -113,7 +136,100 @@ final class CloudAssetStagingService: CloudAssetStagingBoundary, @unchecked Send
         } catch {
             throw Self.map(error)
         }
-        try reconcileIndependentlyOnInitialization()
+        if initialization == .ordinary { try reconcileIndependentlyOnInitialization() }
+    }
+
+    /// Only this native producer chooses publication paths and binding. The
+    /// prospective budget and execution consume the same retained temporary.
+    final class BootstrapPublication {
+        fileprivate let owner: ObjectIdentifier
+        fileprivate let filename: String
+        fileprivate let temporary: String
+        fileprivate let binding: CloudAssetOwnedFileBinding
+        fileprivate let version: SyncAttachmentVersion
+        fileprivate let sourceURL: URL
+        let footprint: SyncBootstrapDownloadFootprint
+        fileprivate var input: SyncRegularFileRead?
+        fileprivate init(owner: ObjectIdentifier, filename: String, temporary: String,
+            binding: CloudAssetOwnedFileBinding, version: SyncAttachmentVersion, sourceURL: URL,
+            footprint: SyncBootstrapDownloadFootprint) {
+            self.owner = owner; self.filename = filename; self.temporary = temporary
+            self.binding = binding; self.version = version; self.sourceURL = sourceURL; self.footprint = footprint
+        }
+    }
+
+    func planBootstrapDownload(version: SyncAttachmentVersion, sourceURL: URL,
+                               accountRoot: URL) throws -> BootstrapPublication {
+        let version = try validate(version)
+        guard sourceURL.isFileURL else { throw CloudAssetStagingError.invalidMetadata }
+        try validateExternalSource(sourceURL)
+        let filename = Self.installedFilename(versionID: version.versionID)
+        let temporary = ".tmp-" + UUID().uuidString.lowercased()
+        let roots = [serviceRootURL, serviceRootURL.appendingPathComponent("Accounts"),
+                     accountRootURL, uploadsRootURL, installedRootURL, quarantineRootURL]
+        let relative = try roots.map { try SyncAccountRecoveryInventory.relative($0, root: accountRoot) }
+        let installed = try SyncAccountRecoveryInventory.relative(installedRootURL, root: accountRoot)
+        let lock = try SyncAccountRecoveryInventory.relative(accountRootURL.appendingPathComponent(CloudAssetAccountFileStore.lockName), root: accountRoot)
+        return .init(owner: ObjectIdentifier(self), filename: filename, temporary: temporary,
+            binding: try installedBinding(for: version), version: version, sourceURL: sourceURL,
+            footprint: .init(directoryPaths: relative, files: [lock: 0,
+                installed + "/" + filename: version.byteCount, installed + "/" + temporary: version.byteCount]))
+    }
+
+    func readBootstrapInput(_ plan: BootstrapPublication) throws {
+        guard plan.owner == ObjectIdentifier(self) else { throw CloudAssetStagingError.invalidAccount }
+        plan.input = try fileStore.readExternalVerified(plan.sourceURL, expectedByteCount: plan.version.byteCount,
+            expectedSHA256: plan.version.contentSHA256)
+    }
+
+    func revalidateBootstrapInput(_ plan: BootstrapPublication) throws {
+        guard plan.owner == ObjectIdentifier(self), let input = plan.input else { throw CloudAssetStagingError.invalidAccount }
+        let current = try fileStore.readExternalVerified(plan.sourceURL, expectedByteCount: plan.version.byteCount,
+            expectedSHA256: plan.version.contentSHA256)
+        guard input.identity == current.identity, input.modificationNanoseconds == current.modificationNanoseconds,
+              input.data == current.data else { throw CloudAssetStagingError.immutableIdentityMismatch }
+    }
+
+    func publishBootstrapDownload(_ plan: BootstrapPublication,
+        requireCurrent: @escaping @Sendable () throws -> Void,
+        insideAssetLock: () throws -> Void = {},
+        publicationFault: @escaping @Sendable (CloudAssetPublicationBoundary) throws -> Void = { _ in }
+    ) throws -> (SyncAttachmentSource, SyncRegularFileIdentity) {
+        guard plan.owner == ObjectIdentifier(self), let input = plan.input else { throw CloudAssetStagingError.invalidAccount }
+        // Must execute before withAccountLock, which can create the native tree.
+        try requireCurrent()
+        return try fileStore.withAccountLock { directories in
+            try insideAssetLock()
+            try requireCurrent()
+            if !(try fileStore.ownedFileExists(named: plan.filename, in: directories.installed)) {
+                try fileStore.publishNoClobber(input.data, named: plan.filename, in: directories.installed,
+                    binding: plan.binding, plannedTemporary: plan.temporary, publicationFault: {
+                        try publicationFault($0)
+                        try requireCurrent()
+                    },
+                    afterTemporaryFileSync: requireCurrent)
+            }
+            try requireCurrent()
+            return try verifiedBootstrapDownload(version: plan.version, in: directories)
+        }
+    }
+
+    func existingBootstrapDownload(version: SyncAttachmentVersion) throws -> (SyncAttachmentSource, SyncRegularFileIdentity) {
+        try fileStore.withExistingAccountLock { try verifiedBootstrapDownload(version: version, in: $0) }
+    }
+
+    private func verifiedBootstrapDownload(version: SyncAttachmentVersion,
+        in directories: CloudAssetAccountDirectories) throws -> (SyncAttachmentSource, SyncRegularFileIdentity) {
+        let version = try validate(version), name = Self.installedFilename(versionID: version.versionID)
+        let identity = try fileStore.ownedFileIdentity(named: name, in: directories.installed)
+        _ = try fileStore.readOwned(named: name, in: directories.installed,
+            expectedByteCount: version.byteCount, expectedSHA256: version.contentSHA256,
+            expectedBinding: installedBinding(for: version))
+        guard try fileStore.ownedFileIdentity(named: name, in: directories.installed) == identity else {
+            throw CloudAssetStagingError.immutableIdentityMismatch
+        }
+        return (try .init(fileURL: installedRootURL.appendingPathComponent(name),
+            contentSHA256: version.contentSHA256, byteCount: version.byteCount), identity)
     }
 
     func stageUpload(

@@ -110,7 +110,7 @@ private final class BootstrapPageGate: @unchecked Sendable {
     private let lock = NSRecursiveLock()
     private let scope: CloudBootstrapSessionScope
     private let nativeCancel: @Sendable () -> Void
-    let receive: @Sendable (CloudBootstrapPageEvent) throws -> Void
+    private var consumer: (@Sendable (CloudBootstrapPageEvent) throws -> Void)?
     private var continuation: CheckedContinuation<CloudBootstrapPageResult, any Error>?
     private var zoneResult: CloudBootstrapPageResult?
     private var hasOperationResult = false
@@ -120,7 +120,13 @@ private final class BootstrapPageGate: @unchecked Sendable {
 
     init(scope: CloudBootstrapSessionScope, continuation: CheckedContinuation<CloudBootstrapPageResult, any Error>,
          receive: @escaping @Sendable (CloudBootstrapPageEvent) throws -> Void, cancel: @escaping @Sendable () -> Void) {
-        self.scope = scope; self.continuation = continuation; self.receive = receive; self.nativeCancel = cancel
+        self.scope = scope; self.continuation = continuation; self.consumer = receive; self.nativeCancel = cancel
+    }
+    func receive(_ event: CloudBootstrapPageEvent) throws {
+        // Called inside callback's gate lock. Native completion cannot release
+        // the collector while an accepted synchronous download is using it.
+        guard let consumer else { throw CloudBootstrapReadError.invalidCallback }
+        try consumer(event)
     }
     private func fail(_ failure: any Error) {
         if error == nil { error = failure }
@@ -155,6 +161,11 @@ private final class BootstrapPageGate: @unchecked Sendable {
             completed = true
             if error == nil, !hasOperationResult || zoneResult == nil { error = CloudBootstrapReadError.incomplete }
             if error == nil { do { try scope.requireCurrent() } catch { self.error = error } }
+            // CloudKit may retain a completed cancelled operation and all of
+            // its callbacks. Those callbacks still reject/revoke late events,
+            // but must no longer own the collector's account storage after the
+            // native completion barrier. The reader retains its own evidence.
+            consumer = nil
             if let error { continuation?.resume(throwing: error) }
             else if let zoneResult { continuation?.resume(returning: zoneResult) }
             continuation = nil

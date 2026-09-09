@@ -182,11 +182,12 @@ import Testing
         let operations = BootstrapControlledOperations(), reader = try reader(f, operations)
         let task = Task { try await reader.read() }, op = await operations.next()
         await #expect(throws: (any Error).self) { try await reader.read() }
+        let nativeCompletion = try #require(operations.capturedCompletion(op))
         BootstrapControlledOperations.emitSuccessfulEmptyZone(op); operations.completeSuccessfully(op)
         let lease = try await task.value
         if mode == "late" { op.recordWithIDWasDeletedBlock?(.init(recordName: "late", zoneID: f.scope.zoneID), "project") }
         if mode == "cancel" { await reader.cancelAndWait() }
-        if mode == "duplicateCompletion" { operations.completeSuccessfully(op) }
+        if mode == "duplicateCompletion" { nativeCompletion() }
         let context = mode == "context" ? SyncBootstrapContext(accountIDHash: f.context.accountIDHash, epoch: UUID(), freezeID: f.context.freezeID) : f.context
         #expect(throws: (any Error).self) {
             try lease.withSnapshot(context: context, counterContext: .init()) { _ in

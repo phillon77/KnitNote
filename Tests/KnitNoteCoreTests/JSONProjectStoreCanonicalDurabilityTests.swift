@@ -13,7 +13,7 @@ struct JSONProjectStoreCanonicalDurabilityTests {
         let handoff = try #require(try tx.recoverUnderCurrentContext())
         var sources: [UUID: SyncAttachmentSource] = [:]
         for version in handoff.checkpoint.records.compactMap(\.payload.attachment) {
-            sources[version.versionID] = try #require(try handoff.stagedAttachmentSource(version))
+            sources[version.versionID] = try handoff.stagedAttachmentSource(version)
         }
         let store = f.store()
         try store.activateSyncCanonicalState(checkpointStore: f.checkpoints, bootstrap: handoff, attachmentSources: sources)

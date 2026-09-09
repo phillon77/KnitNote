@@ -124,19 +124,32 @@ import Testing
         #expect(try OwnedMatrixFixture.files(f.paths.accountRoot) == before)
     }
 
-    @Test(arguments: ["valid", "corrupt", "alias", "head-alias", "root-alias", "missing-record"])
+    @Test(arguments: ["valid", "absent-head-retained-history", "corrupt", "alias", "head-alias", "root-alias", "missing-record"])
     func nativeAttachmentEvidenceWithoutLockNeverCreatesOne(damage: String) throws {
         let f = try OwnedMatrixFixture(media: true); defer { f.remove() }
         let records = try #require(f.local).records.filter { $0.payload.attachment != nil }
         try #require(!records.isEmpty)
         let head = f.paths.workingSet.appendingPathComponent("SyncMetadata/attachment-versions.json")
+        let historicalCommand = WatchCounterCommand(id: UUID(), projectID: UUID(), counterID: UUID(), operation: .increment,
+            createdAt: Date(timeIntervalSince1970: 71))
+        let historicalProof = try SyncProcessedWatchCommandProof(id: historicalCommand.id, rejection: .projectMissing,
+            commandIdentity: .init(historicalCommand), preparedCommand: nil, effectProof: nil,
+            processingStamp: .init(logicalRevision: 0, modifiedAt: Date(timeIntervalSince1970: 72), deviceID: "retained-watch-history"))
         try SyncAttachmentPublicationEvidenceFile(url: head).save(.init(versions: records.compactMap(\.payload.attachment),
+            watchCommandProofs: damage == "absent-head-retained-history" ? [historicalProof] : [],
             attachmentRecords: damage == "missing-record" ? [] : records))
         let lock = head.deletingLastPathComponent().appendingPathComponent(".attachment-versions.json.lock")
         try FileManager.default.removeItem(at: lock)
         let root = head.deletingPathExtension().appendingPathExtension("attachment-records")
         let proof = try #require(FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil)?
             .compactMap { $0 as? URL }.first { $0.pathExtension == "json" })
+        var retainedWatch: ProcessedWatchCommandLedger?
+        if damage == "absent-head-retained-history" {
+            try FileManager.default.removeItem(at: head)
+            let ledger = ProcessedWatchCommandLedger(entries: [.init(id: UUID(), processedAt: Date(timeIntervalSince1970: 73), rejection: nil)], requiresFreshHandshake: true)
+            try AtomicWatchSyncFile<ProcessedWatchCommandLedger>(url: WatchSyncPaths.processedLedger(in: f.paths.workingSet)).save(ledger)
+            retainedWatch = ledger
+        }
         if damage == "corrupt" { try Data("broken authority".utf8).write(to: proof) }
         if damage == "alias" {
             try FileManager.default.moveItem(at: proof, to: proof.deletingLastPathComponent()
@@ -152,10 +165,17 @@ import Testing
         }
         let before = try OwnedMatrixFixture.files(f.paths.accountRoot)
         let access = SyncBootstrapSourceAccess(storage: f.storage, paths: f.paths, account: f.account, maximumBytes: 100_000_000)
-        if damage == "valid" {
+        if damage == "valid" || damage == "absent-head-retained-history" {
             var value: SyncBootstrapSourceSnapshot?
             #expect(throws: Never.self) { value = try access.capture(deviceID: "matrix") }
             #expect(value?.local?.records.filter { $0.payload.attachment != nil } == records)
+            if let retainedWatch {
+                #expect(value?.counterReminderContext.processedLedger == retainedWatch)
+                #expect(value?.local?.records.contains { $0.id.kind == .watchCommandProof && $0.id.uuid == historicalCommand.id } == true)
+                #expect(!FileManager.default.fileExists(atPath: head.path))
+                #expect(FileManager.default.fileExists(atPath: proof.path))
+                #expect(before.keys.contains { $0.contains("attachment-versions.watch-proofs/") && $0.hasSuffix(".json") })
+            }
         } else { #expect(throws: (any Error).self) { try access.capture(deviceID: "matrix") } }
         #expect(!FileManager.default.fileExists(atPath: lock.path))
         #expect(try OwnedMatrixFixture.files(f.paths.accountRoot) == before)

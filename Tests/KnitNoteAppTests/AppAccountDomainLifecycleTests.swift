@@ -458,7 +458,7 @@ import Testing
         let store = try #require(f.owner.visibleSession).store
         try f.rename(store, id: f.aID, name: "Daily advanced")
         let pending = try f.coordinator.currentJournal?.pending()
-        weak var retiredStorage = f.recording.context?.storage
+        weak let retiredStorage = f.recording.context?.storage
         await f.stop()
         #expect(retiredStorage != nil) // The stopped coordinator still owns its session.
         weak let released = f.coordinator
@@ -768,12 +768,25 @@ import Testing
     var operations: [Task<Void, any Error>] = []
     var drains: [AccountLifecycleDrain] = []
     var attachmentGates: [AccountLifecycleAttachmentGate] = []
-    init(phase: String = "committed", bootstrap: AccountLifecycleBootstrapProbe? = nil) throws {
+    init(phase: String = "committed", bootstrap: AccountLifecycleBootstrapProbe? = nil,
+        existingRoot: URL? = nil) throws {
         bootstrapProbe = bootstrap
-        root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("AccountLifecycle-\(UUID())")
+        let rootURL = existingRoot ?? FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("AccountLifecycle-\(UUID())")
+        root = rootURL
         defaults = try #require(UserDefaults(suiteName: suite))
-        aID = try Self.seed(root: root, account: a, name: "A", phase: phase)
-        bID = try Self.seed(root: root, account: b, name: "B")
+        if phase == "existing" {
+            _ = try #require(existingRoot)
+            // Reopen observes the actual prior process bytes. No storage open,
+            // journal load, account seed or handoff construction happens here.
+            func projectID(_ account: CloudAccountBinding) throws -> UUID {
+                let url = rootURL.appendingPathComponent(account.identity.accountIDHash + "/working-set/projects-v1.json")
+                return try JSONDecoder().decode(ProjectArchive.self, from: Data(contentsOf: url)).projects.first?.id ?? UUID()
+            }
+            aID = try projectID(a); bID = try projectID(b)
+        } else {
+            aID = try Self.seed(root: root, account: a, name: "A", phase: phase)
+            bID = try Self.seed(root: root, account: b, name: "B")
+        }
         let makeBootstrap: (@MainActor (AppAccountDomainContext, SyncBootstrapContext, CKRecordZone.ID) throws -> AppAccountBootstrapBridge)?
         if let bootstrap { makeBootstrap = { context, frozen, zone in try bootstrap.make(context, frozen, zone) } }
         else { makeBootstrap = nil }
@@ -886,10 +899,12 @@ import Testing
         operations.removeAll()
         try? await owner.waitForRetiredSessions()
         try? await visible?.waitForStoppedOperations()
+        try? await lifecycle.waitForStoppedOperations()
         // Observations now include the actual native storage owner. Release
         // fixture-only copies after the real drain so coordinator ARC can close.
         recording.context = nil; recording.runtime = nil; recording.selectedAssets = nil
         recording.committer = nil
+        bootstrapProbe?.context = nil; bootstrapProbe?.bridge = nil; bootstrapProbe?.scope = nil
     }
     func operation(_ body: @escaping @MainActor () async throws -> Void) -> Task<Void, any Error> {
         let task = Task { try await body() }; operations.append(task); return task
@@ -925,19 +940,23 @@ final class AccountLifecycleCounter: @unchecked Sendable {
     var scheduled: [CKFetchRecordZoneChangesOperation] = []
     var boundaries: [SyncBootstrapOwnedBoundary] = []
     var boundaryAction: ((SyncBootstrapOwnedBoundary) throws -> Void)?
+    var publicationFault: @Sendable (CloudAssetPublicationBoundary) throws -> Void = { _ in }
+    var completedOperations = 0
     func next() async -> CKFetchRecordZoneChangesOperation {
         let op = await operations.next(); scheduled.append(op); return op
     }
     func complete(_ op: CKFetchRecordZoneChangesOperation) {
         scheduled.removeAll { $0 === op }
         operations.completeSuccessfully(op)
+        completedOperations += 1
     }
     func make(_ context: AppAccountDomainContext, _ frozen: SyncBootstrapContext, _ zone: CKRecordZone.ID) throws -> AppAccountBootstrapBridge {
         calls += 1; self.context = context
         let storage = try #require(context.storage)
         let scope = CloudBootstrapSessionScope(account: context.account, zoneID: zone, context: frozen)
         self.scope = scope
-        let downloads = try CloudBootstrapDownloadStore(storage: storage, paths: context.paths, scope: scope, maximumBytes: 100_000_000)
+        let downloads = try CloudBootstrapDownloadStore(storage: storage, paths: context.paths, scope: scope,
+            maximumBytes: 100_000_000, publicationFault: publicationFault)
         let driver = CloudBootstrapPageDriver(scope: scope, schedule: { [operations, fetchCalls, completeImmediately] op, done in
             fetchCalls.increment()
             if completeImmediately { BootstrapControlledOperations.emitSuccessfulEmptyZone(op); done() }

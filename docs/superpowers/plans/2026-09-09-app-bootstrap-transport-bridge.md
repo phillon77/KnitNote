@@ -194,7 +194,7 @@ The cold construction seam is `CloudAssetStagingService.makeForBootstrap(rootURL
 ```swift
 enum CloudBootstrapPageEvent {
     case record(CKRecord)
-    case deleted(CKRecord.ID)
+    case deleted(CKRecord.ID, recordType: CKRecord.RecordType)
 }
 struct CloudBootstrapPageResult {
     let zoneID: CKRecordZone.ID

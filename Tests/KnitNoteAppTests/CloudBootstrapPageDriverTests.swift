@@ -39,7 +39,10 @@ final class BootstrapControlledOperations: @unchecked Sendable {
         operation.fetchRecordZoneChangesResultBlock?(.success(()))
     }
     func completeSuccessfully(_ operation: CKFetchRecordZoneChangesOperation) {
-        lock.withLock { completions[ObjectIdentifier(operation)] }?()
+        lock.withLock { completions.removeValue(forKey: ObjectIdentifier(operation)) }?()
+    }
+    func capturedCompletion(_ operation: CKFetchRecordZoneChangesOperation) -> (@Sendable () -> Void)? {
+        lock.withLock { completions[ObjectIdentifier(operation)] }
     }
     static func makeToken() -> CKServerChangeToken {
         let archive = NSKeyedArchiver(requiringSecureCoding: true)
@@ -51,6 +54,45 @@ final class BootstrapControlledOperations: @unchecked Sendable {
 }
 
 @Suite(.serialized) @MainActor struct CloudBootstrapPageDriverTests {
+    // Break caught: a completed SDK operation retains the collector/account
+    // through its still-configured callback gate after the real native drain.
+    @Test(arguments: [false, true])
+    func retainedCompletedOperationReleasesConsumerButLateCallbackStillRevokes(cancelled: Bool) async throws {
+        let f = try CloudBootstrapFixture(); defer { f.remove() }
+        let operations = BootstrapControlledOperations()
+        let driver = CloudBootstrapPageDriver(scope: f.scope, schedule: operations.schedule)
+        let consumerRoot = f.root.appendingPathComponent("consumer")
+        let account = f.account.identity
+        var consumer: SyncAccountStorage? = SyncAccountStorage(baseURL: consumerRoot)
+        let paths = try consumer!.openForVerifiedAccount(identity: f.account.identity, validateAccount: {})
+        weak let observed = consumer
+        var run: Task<CloudBootstrapPageResult, any Error>? = Task { [captured = consumer!] in
+            try await driver.fetchPage(zoneID: f.scope.zoneID, previousToken: nil) { _ in
+                try captured.withRecoveryOwnership(paths: paths, account: account, maximumBytes: 100_000_000) { try $0.validate() }
+            }
+        }
+        let op = await operations.next()
+        consumer = nil
+        if cancelled { run?.cancel() }
+        #expect(observed != nil) // Accepted native work still owns its consumer.
+        BootstrapControlledOperations.emitSuccessfulEmptyZone(op)
+        operations.completeSuccessfully(op)
+        let result = await run!.result
+        if cancelled { if case .success = result { Issue.record("cancelled operation returned success") } }
+        else { _ = try result.get() }
+        run = nil
+        #expect(observed == nil)
+        let next = SyncAccountStorage(baseURL: consumerRoot)
+        _ = try next.openExistingAccount(identity: f.account.identity, validateAccount: {})
+        try next.close()
+        if !cancelled { try f.scope.requireCurrent() }
+        // Deliberately keep the actual native operation and its configured
+        // callbacks alive. Late callbacks still revoke without using consumer.
+        op.recordWithIDWasDeletedBlock?(.init(recordName: "late", zoneID: f.scope.zoneID), "project")
+        #expect(throws: (any Error).self) { try f.scope.requireCurrent() }
+        await driver.cancelAndWait()
+    }
+
     @Test func successWaitsForOperationCompletion() async throws {
         let f = try CloudBootstrapFixture(); defer { f.remove() }
         let operations = BootstrapControlledOperations()

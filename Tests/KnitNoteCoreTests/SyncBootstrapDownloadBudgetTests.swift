@@ -5,6 +5,53 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite struct SyncBootstrapDownloadBudgetTests {
+    // Break caught: the admitted owned budget omits full native media, pending
+    // data, or the nested retained-output envelope at a recoverable crash cut.
+    @Test(arguments: ["after-preparing", "prepared", "installed", "committed"])
+    func fullRepresentativeMediaCrashPrefixesFitAdmittedNativeEnvelope(cut: String) throws {
+        let f = try OwnedMatrixFixture(legacyJournal: true, media: true); defer { f.remove() }
+        let initial = try OwnedMatrixFixture.files(f.paths.workingSet)
+        let pending = try f.journal.recoverySnapshot().mutations
+        var reached = false
+        let tx = try f.transaction(boundary: { point in
+            let matches = (cut == "after-preparing" && point == .afterPreparingPublication)
+                || (cut == "prepared" && point == .afterPreparedPublication)
+                || (cut == "installed" && point == .afterInstalled)
+                || (cut == "committed" && point == .selector(.afterSelectedSynchronize)
+                    && { if case .committed? = try? OwnedMatrixFixture.manifest(f.paths, account: f.account).body { return true }; return false }())
+            if !reached && matches { reached = true; throw OwnedFixtureFailure.injected }
+        })
+        let input = try f.input(), plan = try tx.plan(input)
+        #expect(plan.maximumRecoveryEnvelopeBytes <= 100_000_000)
+        #expect(throws: (any Error).self) {
+            let prepared = try tx.prepare(input)
+            try tx.install(prepared); _ = try tx.commit(prepared)
+        }
+        try #require(reached)
+        // Native recovery freezes an interrupted prefix before the inventory
+        // codec can admit it; nonterminal output is never counted as authority.
+        _ = try f.transaction().recover()
+        let inventory = try SyncAccountRecoveryInventory.capture(storage: f.storage, paths: f.paths, account: f.account,
+            journal: f.journal, archiveURL: f.paths.workingSet.appendingPathComponent("projects-v1.json"))
+        let actualInventory = try inventory.encoded()
+        let projectedInventory = try inventory.projectedEncodedByteCount(entries: inventory.entries,
+            packetByteCount: inventory.packet.encoded().count, deletionFiles: inventory.deletionFiles,
+            sourceAuthority: inventory.sourceAuthority, bootstrapEvidence: inventory.bootstrapEvidence)
+        #expect(projectedInventory == actualInventory.count)
+        let vault = SyncRecoveryVault(directory: f.paths.vault, keychain: OwnedBootstrapTestKeys())
+        let recovery = SyncAccountRecoveryTransaction(storage: f.storage, paths: f.paths, account: f.account,
+            vault: vault, journal: f.journal, maximumBytes: plan.maximumRecoveryEnvelopeBytes)
+        let now = Date(), sealed = try recovery.seal(recovery.prepare(now: now), now: now)
+        let payload = try vault.synchronizedRecoveryPayload(sealed.vaultID, account: f.account, now: now)
+        let object = try #require(JSONSerialization.jsonObject(with: payload) as? [String: Any])
+        let encodedInventory = try #require(object["inventory"] as? String)
+        #expect(Data(base64Encoded: encodedInventory) == actualInventory)
+        #expect(payload.count <= plan.maximumRecoveryEnvelopeBytes)
+        #expect(Array(try f.journal.recoverySnapshot().mutations.prefix(pending.count)).map(\.mutationID) == pending.map(\.mutationID))
+        if cut != "committed" { #expect(try OwnedMatrixFixture.files(f.paths.workingSet) == initial) }
+        print("APP-BRIDGE-CAP fullMedia=project,yarn,journalFull,journalThumb,pdf,markup cut=\(cut) sourceFiles=\(initial.count) sourceBytes=\(initial.values.reduce(0) { $0 + $1.count }) inventory=\(actualInventory.count) envelope=\(payload.count) admitted=\(plan.maximumRecoveryEnvelopeBytes)")
+    }
+
     @Test(arguments: [false, true])
     func emptyFootprintMatchesActualSealingWithInclusiveCap(missing: Bool) throws {
         let f = try OwnedMatrixFixture(missing: missing, legacyJournal: !missing, media: false); defer { f.remove() }

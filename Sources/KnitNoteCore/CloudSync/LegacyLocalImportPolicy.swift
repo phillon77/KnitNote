@@ -1,5 +1,5 @@
 // Observation-only policy. Never grants source access or installation authority.
-enum LegacyLocalImportSource: CaseIterable, Sendable {
+enum LegacyLocalImportSource: CaseIterable, Equatable, Sendable {
     case availableLocalHistoryUnknown, provenNeverBound, currentAccount
     case foreignAccount, accountUnknown, unverifiedRecovery
     case invalidContent, unresolvedWatchState

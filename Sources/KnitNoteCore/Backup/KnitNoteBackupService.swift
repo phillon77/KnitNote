@@ -127,6 +127,8 @@ enum KnitNoteBackupReplacementStep: Sendable {
     case beforeCommitCleanup
 }
 
+/// Optimistic native content/identity observation, not an atomic global snapshot.
+/// It proves neither historical account ownership nor read/write or installation authority.
 struct LegacyImportSourceObservation: Equatable, Sendable {
     let contentDigest: Data
     let entries: [LegacyImportContentEntry]
@@ -149,6 +151,8 @@ struct LegacyImportSourceObservation: Equatable, Sendable {
     }
 }
 
+/// Optimistic package observation with the same no-global-snapshot/no-authority
+/// limits as the source observation; it does not authorize installation.
 fileprivate struct LegacyImportPackageObservation: Equatable, Sendable {
     let contentDigest: Data
     let packageRootIdentity: SyncRegularFileIdentity
@@ -159,6 +163,8 @@ fileprivate struct LegacyImportPackageObservation: Equatable, Sendable {
     let fileIdentities: [String: SyncRegularFileIdentity]
 }
 
+/// Optimistic agreement of native observations at preparation time, not an atomic
+/// global snapshot, historical account proof, or read/write/installation authority.
 struct LegacyImportBackupObservation: Sendable {
     let packageURL: URL
     let contentDigest: Data
@@ -220,9 +226,30 @@ private struct LegacyImportReferenceAccumulator {
 }
 
 private struct LegacyImportPackagePreflight {
+    // The deepest supported Data-relative directory is Patterns/<project>/Markup/<pattern>.
+    static let maximumDirectoryDepth = 4
     var fileSizes: [String: Int64] = [:]
     var fileIdentities: [String: SyncRegularFileIdentity] = [:]
     var directoryIdentities: [String: SyncRegularFileIdentity] = [:]
+    private var fileInventoryBytes = LegacyImportContentProjection.initialEncodedByteCount
+    private var directoryInventoryBytes = 0
+
+    mutating func admit(_ path: String, isDirectory: Bool, maximumBytes: Int) throws {
+        let entryBytes = try LegacyImportContentProjection.projectedEntryByteCount(forRelativePath: path)
+        // Separate directory allowance covers up to four ancestors per admitted
+        // file without reducing its projection allowance. Empty directories also
+        // consume this finite budget; no payload byte count can bound those.
+        let limit = isDirectory ? maximumBytes * Self.maximumDirectoryDepth : maximumBytes
+        let used = isDirectory ? directoryInventoryBytes : fileInventoryBytes
+        guard used <= limit, entryBytes <= limit - used else {
+            throw KnitNoteBackupError.fileTooLarge
+        }
+        if isDirectory {
+            directoryInventoryBytes += entryBytes
+        } else {
+            fileInventoryBytes += entryBytes
+        }
+    }
 }
 
 public struct KnitNoteBackupService: Sendable {
@@ -238,6 +265,8 @@ public struct KnitNoteBackupService: Sendable {
     private var synchronizeDirectory: @Sendable (URL) throws -> Void =
         Self.defaultSynchronizeDirectory
     private var legacyImportMaximumFileBytes: Int64 = 100_000_000
+    private var legacyImportMaximumInventoryBytes = LegacyImportContentProjection.maximumEncodedBytes
+    private var legacyImportPackageEntryRead: @Sendable (String) -> Void = { _ in }
     private var legacyImportPreparationStepHook:
         @Sendable (LegacyImportPreparationStep) throws -> Void = { _ in }
     private var beforeLegacyImportPackageFinalPathValidation:
@@ -403,6 +432,17 @@ public struct KnitNoteBackupService: Sendable {
     init(
         liveRoot: URL,
         workRoot: URL,
+        legacyImportMaximumInventoryBytes: Int,
+        legacyImportPackageEntryRead: @escaping @Sendable (String) -> Void
+    ) {
+        self.init(liveRoot: liveRoot, workRoot: workRoot)
+        self.legacyImportMaximumInventoryBytes = legacyImportMaximumInventoryBytes
+        self.legacyImportPackageEntryRead = legacyImportPackageEntryRead
+    }
+
+    init(
+        liveRoot: URL,
+        workRoot: URL,
         legacyImportPreparationStepHook:
             @escaping @Sendable (LegacyImportPreparationStep) throws -> Void
     ) {
@@ -538,6 +578,11 @@ public struct KnitNoteBackupService: Sendable {
         at packageURL: URL,
         expectedWorkRootIdentity: SyncRegularFileIdentity
     ) throws -> LegacyImportPackageObservation {
+        // Internal injection may lower admission budgets, never raise production caps.
+        guard legacyImportMaximumInventoryBytes >= LegacyImportContentProjection.initialEncodedByteCount,
+              legacyImportMaximumInventoryBytes <= LegacyImportContentProjection.maximumEncodedBytes else {
+            throw KnitNoteBackupError.fileTooLarge
+        }
         let standardizedWorkRoot = workRoot.standardizedFileURL
         let standardizedPackageURL = packageURL.standardizedFileURL
         guard standardizedPackageURL.deletingLastPathComponent() == standardizedWorkRoot,
@@ -575,7 +620,15 @@ public struct KnitNoteBackupService: Sendable {
         )
         defer { Darwin.close(packageDescriptor) }
         let packageRootIdentity = Self.regularFileIdentity(packageInfo)
-        guard try directoryEntryNames(packageDescriptor) == ["Data", "manifest.json"] else {
+        var rootNames: Set<String> = []
+        try forEachLegacyImportDirectoryEntry(packageDescriptor) { name in
+            guard rootNames.count < 2,
+                  name == "Data" || name == "manifest.json",
+                  rootNames.insert(name).inserted else {
+                throw KnitNoteBackupError.unknownPackageEntry
+            }
+        }
+        guard rootNames == ["Data", "manifest.json"] else {
             throw KnitNoteBackupError.unknownPackageEntry
         }
 
@@ -841,10 +894,11 @@ public struct KnitNoteBackupService: Sendable {
     private func preflightLegacyImportPackageDirectory(
         descriptor: Int32,
         relativeDirectory: String,
+        depth: Int = 0,
         totalBytes: inout Int64,
         result: inout LegacyImportPackagePreflight
     ) throws {
-        for name in try directoryEntryNames(descriptor) {
+        try forEachLegacyImportDirectoryEntry(descriptor) { name in
             guard !name.hasPrefix("."), isSafeFileComponent(name) else {
                 throw KnitNoteBackupError.unsafePackageEntry
             }
@@ -860,6 +914,10 @@ public struct KnitNoteBackupService: Sendable {
             }
             switch info.st_mode & S_IFMT {
             case S_IFDIR:
+                guard depth < LegacyImportPackagePreflight.maximumDirectoryDepth else {
+                    throw KnitNoteBackupError.fileTooLarge
+                }
+                try result.admit(relativePath, isDirectory: true, maximumBytes: legacyImportMaximumInventoryBytes)
                 guard info.st_nlink >= 1,
                       result.directoryIdentities.updateValue(
                         Self.regularFileIdentity(info),
@@ -877,11 +935,13 @@ public struct KnitNoteBackupService: Sendable {
                     try preflightLegacyImportPackageDirectory(
                         descriptor: child,
                         relativeDirectory: relativePath,
+                        depth: depth + 1,
                         totalBytes: &totalBytes,
                         result: &result
                     )
                 }
             case S_IFREG:
+                try result.admit(relativePath, isDirectory: false, maximumBytes: legacyImportMaximumInventoryBytes)
                 guard info.st_nlink == 1,
                       info.st_size >= 0,
                       result.fileSizes[relativePath] == nil,
@@ -902,6 +962,41 @@ public struct KnitNoteBackupService: Sendable {
             default:
                 throw KnitNoteBackupError.unsafePackageEntry
             }
+        }
+    }
+
+    // Native-only streaming enumeration: retain at most one NAME_MAX-sized name
+    // before the visitor's admission checks, never a complete directory listing.
+    // A new open-file description also avoids dup's shared directory offset.
+    private func forEachLegacyImportDirectoryEntry(
+        _ descriptor: Int32,
+        visit: (String) throws -> Void
+    ) throws {
+        let streamDescriptor = ".".withCString {
+            Darwin.openat(descriptor, $0, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        }
+        guard streamDescriptor >= 0 else { throw KnitNoteBackupError.unsafePackageEntry }
+        guard let stream = Darwin.fdopendir(streamDescriptor) else {
+            Darwin.close(streamDescriptor)
+            throw KnitNoteBackupError.unsafePackageEntry
+        }
+        defer { Darwin.closedir(stream) }
+        while true {
+            // Visitor syscalls can alter errno, so reset immediately before readdir.
+            errno = 0
+            guard let entry = Darwin.readdir(stream) else {
+                guard errno == 0 else { throw KnitNoteBackupError.unsafePackageEntry }
+                return
+            }
+            let name = withUnsafePointer(to: entry.pointee.d_name) { namePointer in
+                namePointer.withMemoryRebound(
+                    to: CChar.self, capacity: Int(entry.pointee.d_namlen) + 1
+                ) { String(validatingCString: $0) }
+            }
+            guard let name else { throw KnitNoteBackupError.unsafePackageEntry }
+            guard name != ".", name != ".." else { continue }
+            legacyImportPackageEntryRead(name)
+            try visit(name)
         }
     }
 

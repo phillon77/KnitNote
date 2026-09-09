@@ -414,6 +414,139 @@ private func sourceFixture() throws -> (KnitNoteBackupService, URL, URL) {
             ))
         }
     }
+
+    @Test func packageInventoryStopsReadingNamesAtAdmissionBudget() throws {
+        for directories in [false, true] {
+            let (base, live, root) = try sourceFixture()
+            defer { try? FileManager.default.removeItem(at: root) }
+            let prepared = try base.prepareLegacyImportBackup(appVersion: "1.7.0")
+            let archiveBefore = try Data(contentsOf: live.appendingPathComponent("projects-v1.json"))
+            let dataRoot = prepared.packageURL.appendingPathComponent("Data")
+            for index in 0..<100 {
+                let url = dataRoot.appendingPathComponent(String(repeating: "a", count: 100) + "\(index)")
+                if directories {
+                    try FileManager.default.createDirectory(at: url, withIntermediateDirectories: false)
+                } else {
+                    try Data().write(to: url)
+                }
+            }
+            // Budget rejection must precede semantic inspection of this corrupt manifest.
+            try Data("invalid".utf8).write(to: prepared.packageURL.appendingPathComponent("manifest.json"))
+            let reads = LegacyPackageEntryReadCounter()
+            let service = KnitNoteBackupService(
+                liveRoot: base.liveRoot,
+                workRoot: base.workRoot,
+                legacyImportMaximumInventoryBytes: 512,
+                legacyImportPackageEntryRead: reads.record
+            )
+            #expect(throws: KnitNoteBackupError.fileTooLarge) {
+                try service.revalidateLegacyImportBackup(prepared)
+            }
+            // Counts actual readdir yields, including the two package-root names.
+            // A collect-all-names pass before admission exceeds this ceiling.
+            #expect(reads.count > 2)
+            #expect(reads.count <= 18)
+            #expect(try FileManager.default.contentsOfDirectory(atPath: dataRoot.path).count == 101)
+            #expect(try Data(contentsOf: live.appendingPathComponent("projects-v1.json")) == archiveBefore)
+            #expect(try Data(contentsOf: prepared.packageURL.appendingPathComponent("manifest.json")) == Data("invalid".utf8))
+        }
+    }
+
+    @Test func packageRootNameAdmissionStopsAtThirdEntry() throws {
+        let (base, _, root) = try sourceFixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let prepared = try base.prepareLegacyImportBackup(appVersion: "1.7.0")
+        for index in 0..<100 {
+            try Data().write(to: prepared.packageURL.appendingPathComponent("extra\(index)"))
+        }
+        let reads = LegacyPackageEntryReadCounter()
+        let service = KnitNoteBackupService(
+            liveRoot: base.liveRoot, workRoot: base.workRoot,
+            legacyImportMaximumInventoryBytes: 1_000_000,
+            legacyImportPackageEntryRead: reads.record
+        )
+        #expect(throws: KnitNoteBackupError.unknownPackageEntry) {
+            try service.revalidateLegacyImportBackup(prepared)
+        }
+        #expect(reads.count <= 3)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: prepared.packageURL.path).count == 102)
+    }
+
+    @Test func nativeInventoryAllowsExactArchiveBoundaryAndCannotRaiseProductionBudget() throws {
+        let (base, _, root) = try sourceFixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let prepared = try base.prepareLegacyImportBackup(appVersion: "1.7.0")
+        // 41-byte projection header + 48-byte entry framing + 15-byte archive path.
+        let exact = KnitNoteBackupService(
+            liveRoot: base.liveRoot, workRoot: base.workRoot,
+            legacyImportMaximumInventoryBytes: 104,
+            legacyImportPackageEntryRead: { _ in }
+        )
+        try exact.revalidateLegacyImportBackup(prepared)
+        for rejectedBudget in [103, -1, 1_000_001, Int.max] {
+            let service = KnitNoteBackupService(
+                liveRoot: base.liveRoot, workRoot: base.workRoot,
+                legacyImportMaximumInventoryBytes: rejectedBudget,
+                legacyImportPackageEntryRead: { _ in }
+            )
+            #expect(throws: KnitNoteBackupError.fileTooLarge) {
+                try service.revalidateLegacyImportBackup(prepared)
+            }
+        }
+    }
+
+    @Test func packageDepthAdmissionRejectsBeforeOpeningFifthDirectory() throws {
+        let (service, _, root) = try sourceFixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let prepared = try service.prepareLegacyImportBackup(appVersion: "1.7.0")
+        let fourth = prepared.packageURL.appendingPathComponent("Data/Patterns/project/Markup/pattern")
+        try FileManager.default.createDirectory(at: fourth, withIntermediateDirectories: true)
+        try Data("invalid".utf8).write(to: prepared.packageURL.appendingPathComponent("manifest.json"))
+        // Four levels pass metadata admission and reach semantic inspection.
+        #expect(throws: KnitNoteBackupError.invalidManifest) {
+            try service.revalidateLegacyImportBackup(prepared)
+        }
+        let fifth = fourth.appendingPathComponent("too-deep")
+        try FileManager.default.createDirectory(at: fifth, withIntermediateDirectories: false)
+        try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: fifth.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: fifth.path) }
+        #expect(throws: KnitNoteBackupError.fileTooLarge) {
+            try service.revalidateLegacyImportBackup(prepared)
+        }
+        #expect(FileManager.default.fileExists(atPath: fifth.path))
+    }
+
+    @Test func productionPackageInventoryRejectsZeroByteFilesAndEmptyDirectoriesBeforeManifestRead() throws {
+        for directories in [false, true] {
+            let (service, _, root) = try sourceFixture()
+            defer { try? FileManager.default.removeItem(at: root) }
+            let prepared = try service.prepareLegacyImportBackup(appVersion: "1.7.0")
+            let dataRoot = prepared.packageURL.appendingPathComponent("Data")
+            // 48-byte entry overhead + at least 241 path bytes: these cross the
+            // real 1 MB file / 4 MB directory inventories without any payload.
+            let count = directories ? 14_000 : 3_500
+            for index in 0..<count {
+                let url = dataRoot.appendingPathComponent(String(repeating: "a", count: 240) + "\(index)")
+                if directories {
+                    try FileManager.default.createDirectory(at: url, withIntermediateDirectories: false)
+                } else {
+                    try Data().write(to: url)
+                }
+            }
+            try Data("invalid".utf8).write(to: prepared.packageURL.appendingPathComponent("manifest.json"))
+            #expect(throws: KnitNoteBackupError.fileTooLarge) {
+                try service.revalidateLegacyImportBackup(prepared)
+            }
+            #expect(try FileManager.default.contentsOfDirectory(atPath: dataRoot.path).count == count + 1)
+        }
+    }
+}
+
+private final class LegacyPackageEntryReadCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = 0
+    var count: Int { lock.withLock { value } }
+    func record(_ name: String) { lock.withLock { value += 1 } }
 }
 
 @Suite struct LegacyImportContentProjectionTests {

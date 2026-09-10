@@ -46,3 +46,17 @@ Fresh verification on the story changes:
 - Independent read-only review found no actionable story/project issues: no prior source memberships removed, unchanged target set/configurations/dependencies/resources, and no sync activation. Regeneration adds four legacy-import sources to the app, three to Watch, and the existing PhoneWatchNativeSessionLifecycleTests to app tests.
 
 Limits: no live App launch, screenshot/physical layout acceptance, full upgrade regression, signed archive, push, upload, or App Store submission. The scoped story implementation is complete; release readiness is not established by these checks.
+
+## Physical upgrade preflight after user backup confirmation
+
+The user confirmed an exported backup. On 2026-09-10, read-only device queries verified the paired iPhone 17 Pro Max on iOS 26.6.1 still has KnitNote 1.6.0 (12). Candidate source remains 532aca4d42fe3db610655fdd22b2da8ef38d99f2 with no tracked code changes.
+
+A development-signed Debug build using existing signing settings and that embedded source revision failed before installation (exit 65, 5.351 seconds). The app's iOS entitlements require CloudKit/container and push capabilities, but the current development profile contains neither. The relevant profile is unexpired (2027-07-26) and includes the test iPhone; this is a capability mismatch, not an expired profile or missing device. The available store profiles also lack those capabilities. No raw profiles or signing material were saved.
+
+No install, uninstall, launch, device data modification, signing-portal update, upload or submission occurred. The next decision is whether to align the local-only release entitlements with deferred iCloud functionality, or authorize updating Apple signing capabilities/profiles. Do not silently strip permissions for a test-only build or enable cloud services to bypass this gate.
+
+The user subsequently approved aligning this release with local-only capabilities. Removed CloudKit/container and APS permissions from both main-app entitlement files and removed remote-notification background mode from the project specification and generated Info.plist. App Group, Mac sandbox, user-selected read/write and network-client permissions remain unchanged. Watch/Share configuration and shipping composition were not modified; dormant cloud implementation/container configuration remains for future work, without granting cloud capability.
+
+Updated exact source and signed-product audit allowlists to reject cloud permissions for this candidate rather than bypassing audit. Adapted fixtures to a no-cloud baseline and unexpected-permission rejection cases. The entitlement tests first failed with six issues against the old configuration; after the change, 14 entitlement/Watch packaging tests passed. Five source background-mode audit cases and the production static audit passed. These scoped checks are not full regression, device acceptance or distribution-signing proof.
+
+Signed-artifact audit fixtures: 3 test functions PASS, including 22 unexpected cloud-permission/identifier-alias cases across iOS, macOS, Watch and Share, a preserved Mac-security rejection, and the canonical no-cloud archive acceptance case (155.708 seconds). These are controlled fixture tests, not actual signed archives.

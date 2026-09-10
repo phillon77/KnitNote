@@ -29,8 +29,6 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         KnitNoteSourceRevision: $(KNITNOTE_SOURCE_REVISION)
         KnitNoteCloudKitContainerIdentifier: $(KNITNOTE_ICLOUD_CONTAINER_IDENTIFIER)
-        UIBackgroundModes:
-          - remote-notification
         CFBundleLocalizations: [en, zh-Hant, zh-Hans, de, fr, ja, nb, sv, fi, da, ko, el, nl]
         CFBundleURLTypes:
           - CFBundleURLName: com.phillon.KnitNote

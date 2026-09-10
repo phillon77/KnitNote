@@ -6,15 +6,5 @@
 	<array>
 		<string>group.com.phillon.KnitNote</string>
 	</array>
-	<key>com.apple.developer.icloud-container-identifiers</key>
-	<array>
-		<string>$(KNITNOTE_ICLOUD_CONTAINER_IDENTIFIER)</string>
-	</array>
-	<key>com.apple.developer.icloud-services</key>
-	<array>
-		<string>CloudKit</string>
-	</array>
-	<key>aps-environment</key>
-	<string>development</string>
 </dict>
 </plist>

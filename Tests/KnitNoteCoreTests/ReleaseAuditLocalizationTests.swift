@@ -11,10 +11,10 @@ extension ProjectArchive {
 struct SignedCloudEntitlementMutation: Sendable, CustomTestStringConvertible {
     enum Product: String, Sendable { case iOS, macOS, watch, share }
     enum Kind: String, Sendable {
-        case missingContainer, wrongContainer, extraContainer
-        case missingServices, wrongServices, extraServices
-        case missingEnvironment, wrongEnvironment, extraEnvironment
-        case missingAPS, wrongAPS, extraAPS
+        case extraContainer
+        case extraServices
+        case extraEnvironment
+        case extraAPS
         case conflictingIdentifierAlias
         case extraIOSAPS, extraMacAPS
     }
@@ -374,30 +374,14 @@ struct PBXPathWhitespaceMutation: Sendable, CustomTestStringConvertible {
     }
 
     @Test(arguments: [
-        SignedCloudEntitlementMutation(product: .iOS, kind: .missingContainer),
-        SignedCloudEntitlementMutation(product: .iOS, kind: .wrongContainer),
         SignedCloudEntitlementMutation(product: .iOS, kind: .extraContainer),
-        SignedCloudEntitlementMutation(product: .iOS, kind: .missingServices),
-        SignedCloudEntitlementMutation(product: .iOS, kind: .wrongServices),
         SignedCloudEntitlementMutation(product: .iOS, kind: .extraServices),
-        SignedCloudEntitlementMutation(product: .iOS, kind: .missingEnvironment),
-        SignedCloudEntitlementMutation(product: .iOS, kind: .wrongEnvironment),
         SignedCloudEntitlementMutation(product: .iOS, kind: .extraEnvironment),
-        SignedCloudEntitlementMutation(product: .iOS, kind: .missingAPS),
-        SignedCloudEntitlementMutation(product: .iOS, kind: .wrongAPS),
         SignedCloudEntitlementMutation(product: .iOS, kind: .extraAPS),
         SignedCloudEntitlementMutation(product: .iOS, kind: .conflictingIdentifierAlias),
-        SignedCloudEntitlementMutation(product: .macOS, kind: .missingContainer),
-        SignedCloudEntitlementMutation(product: .macOS, kind: .wrongContainer),
         SignedCloudEntitlementMutation(product: .macOS, kind: .extraContainer),
-        SignedCloudEntitlementMutation(product: .macOS, kind: .missingServices),
-        SignedCloudEntitlementMutation(product: .macOS, kind: .wrongServices),
         SignedCloudEntitlementMutation(product: .macOS, kind: .extraServices),
-        SignedCloudEntitlementMutation(product: .macOS, kind: .missingEnvironment),
-        SignedCloudEntitlementMutation(product: .macOS, kind: .wrongEnvironment),
         SignedCloudEntitlementMutation(product: .macOS, kind: .extraEnvironment),
-        SignedCloudEntitlementMutation(product: .macOS, kind: .missingAPS),
-        SignedCloudEntitlementMutation(product: .macOS, kind: .wrongAPS),
         SignedCloudEntitlementMutation(product: .macOS, kind: .extraAPS),
         SignedCloudEntitlementMutation(product: .macOS, kind: .conflictingIdentifierAlias),
         SignedCloudEntitlementMutation(product: .watch, kind: .extraContainer),
@@ -567,8 +551,8 @@ struct PBXPathWhitespaceMutation: Sendable, CustomTestStringConvertible {
         #expect(result.output.contains("source iOS/macOS INFOPLIST_FILE"))
     }
 
-    @Test func staticAuditRejectsMainInfoWithoutRemoteNotificationEvenWhenProjectSpecContainsIt() throws {
-        let fixture = try sourceInfoPlistFixture(mainModes: nil)
+    @Test func staticAuditRejectsMainInfoWithRemoteNotification() throws {
+        let fixture = try sourceInfoPlistFixture(mainModes: ["remote-notification"])
         defer { try? FileManager.default.removeItem(at: fixture.root) }
         let result = try runReleaseAudit(environment: ["KNITNOTE_MAIN_INFO_PLIST": fixture.main.path])
 
@@ -585,25 +569,25 @@ struct PBXPathWhitespaceMutation: Sendable, CustomTestStringConvertible {
         ])
 
         #expect(result.status != 0)
-        #expect(result.output.contains("source main UIBackgroundModes"))
+        #expect(result.output.contains("forbidden CloudKit or remote-notification"))
     }
 
-    @Test func staticAuditRejectsUnusedInfoDecoyWithRemoteNotification() throws {
+    @Test func staticAuditIgnoresUnusedInfoDecoyForLocalOnlyRelease() throws {
         let fixture = try sourceInfoPlistFixture(mainModes: nil, decoyModes: ["remote-notification"])
         defer { try? FileManager.default.removeItem(at: fixture.root) }
         let result = try runReleaseAudit(environment: ["KNITNOTE_MAIN_INFO_PLIST": fixture.main.path])
 
-        #expect(result.status != 0)
-        #expect(result.output.contains("source main UIBackgroundModes"))
+        #expect(result.status == 0)
+        #expect(result.output.contains("TEST FIXTURE STATIC AUDIT: PASS"))
     }
 
-    @Test func staticAuditRejectsProjectSpecWhoseOnlyRemoteNotificationIsADecoy() throws {
+    @Test func staticAuditRejectsRemoteNotificationInMainSpecDespiteDecoy() throws {
         let fixture = try projectSpecFixture { specification in
             var targets = try #require(specification["targets"] as? [String: Any])
             var main = try #require(targets["KnitNote"] as? [String: Any])
             var info = try #require(main["info"] as? [String: Any])
             var properties = try #require(info["properties"] as? [String: Any])
-            properties.removeValue(forKey: "UIBackgroundModes")
+            properties["UIBackgroundModes"] = ["remote-notification"]
             info["properties"] = properties
             main["info"] = info
             targets["KnitNote"] = main
@@ -2915,77 +2899,23 @@ private func signedCloudEntitlements(
     mutation: SignedCloudEntitlementMutation?
 ) -> String {
     let applies = mutation?.product == product
-    if product == .watch || product == .share {
-        guard applies else { return "" }
-        switch mutation?.kind {
-        case .extraContainer:
-            return "<key>com.apple.developer.icloud-container-identifiers</key><array><string>iCloud.com.phillon.KnitNote</string></array>"
-        case .extraServices:
-            return "<key>com.apple.developer.icloud-services</key><array><string>CloudKit</string></array>"
-        case .extraEnvironment:
-            return "<key>com.apple.developer.icloud-container-environment</key><string>Production</string>"
-        case .extraIOSAPS:
-            return "<key>aps-environment</key><string>production</string>"
-        case .extraMacAPS:
-            return "<key>com.apple.developer.aps-environment</key><string>production</string>"
-        default:
-            return ""
-        }
-    }
-
-    let kind = applies ? mutation?.kind : nil
-    let containers: String
-    switch kind {
-    case .missingContainer:
-        containers = ""
-    case .wrongContainer:
-        containers = "<key>com.apple.developer.icloud-container-identifiers</key><array><string>iCloud.com.phillon.Wrong</string></array>"
+    guard applies else { return "" }
+    switch mutation?.kind {
     case .extraContainer:
-        containers = "<key>com.apple.developer.icloud-container-identifiers</key><array><string>iCloud.com.phillon.KnitNote</string><string>iCloud.com.phillon.Unexpected</string></array>"
-    default:
-        containers = "<key>com.apple.developer.icloud-container-identifiers</key><array><string>iCloud.com.phillon.KnitNote</string></array>"
-    }
-    let services: String
-    switch kind {
-    case .missingServices:
-        services = ""
-    case .wrongServices:
-        services = "<key>com.apple.developer.icloud-services</key><array><string>CloudDocuments</string></array>"
+        return "<key>com.apple.developer.icloud-container-identifiers</key><array><string>iCloud.com.phillon.KnitNote</string></array>"
     case .extraServices:
-        services = "<key>com.apple.developer.icloud-services</key><array><string>CloudKit</string><string>CloudDocuments</string></array>"
-    default:
-        services = "<key>com.apple.developer.icloud-services</key><array><string>CloudKit</string></array>"
-    }
-    let environment: String
-    switch kind {
-    case .missingEnvironment:
-        environment = ""
-    case .wrongEnvironment:
-        environment = "<key>com.apple.developer.icloud-container-environment</key><string>Development</string>"
+        return "<key>com.apple.developer.icloud-services</key><array><string>CloudKit</string></array>"
     case .extraEnvironment:
-        environment = "<key>com.apple.developer.icloud-container-environment</key><array><string>Production</string><string>Development</string></array>"
-    default:
-        environment = "<key>com.apple.developer.icloud-container-environment</key><string>Production</string>"
-    }
-    let apsKey = product == .iOS ? "aps-environment" : "com.apple.developer.aps-environment"
-    let aps: String
-    switch kind {
-    case .missingAPS:
-        aps = ""
-    case .wrongAPS:
-        aps = "<key>\(apsKey)</key><string>development</string>"
+        return "<key>com.apple.developer.icloud-container-environment</key><string>Production</string>"
+    case .extraIOSAPS:
+        return "<key>aps-environment</key><string>production</string>"
+    case .extraMacAPS:
+        return "<key>com.apple.developer.aps-environment</key><string>production</string>"
     case .extraAPS:
-        let alternate = product == .iOS ? "com.apple.developer.aps-environment" : "aps-environment"
-        aps = "<key>\(apsKey)</key><string>production</string><key>\(alternate)</key><string>production</string>"
+        return "<key>aps-environment</key><string>production</string><key>com.apple.developer.aps-environment</key><string>production</string>"
     default:
-        aps = "<key>\(apsKey)</key><string>production</string>"
+        return ""
     }
-    return """
-    \(containers)
-    \(services)
-    \(environment)
-    \(aps)
-    """
 }
 
 private func conflictingSignedIdentifierAlias(

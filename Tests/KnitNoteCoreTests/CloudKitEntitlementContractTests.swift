@@ -7,15 +7,14 @@ import Testing
         let generatedProject = try source("KnitNote.xcodeproj/project.pbxproj")
         let ios = try entitlements("KnitNote/KnitNote-iOS.entitlements")
         let mac = try entitlements("KnitNote/KnitNote-macOS.entitlements")
-        let expectedReference = "$(KNITNOTE_ICLOUD_CONTAINER_IDENTIFIER)"
 
         #expect(
             project.components(
                 separatedBy: "KNITNOTE_ICLOUD_CONTAINER_IDENTIFIER: iCloud.com.phillon.KnitNote"
             ).count == 2
         )
-        #expect(ios["com.apple.developer.icloud-container-identifiers"] as? [String] == [expectedReference])
-        #expect(mac["com.apple.developer.icloud-container-identifiers"] as? [String] == [expectedReference])
+        #expect(ios["com.apple.developer.icloud-container-identifiers"] == nil)
+        #expect(mac["com.apple.developer.icloud-container-identifiers"] == nil)
         #expect(
             generatedProject.components(
                 separatedBy: "KNITNOTE_ICLOUD_CONTAINER_IDENTIFIER = iCloud.com.phillon.KnitNote;"
@@ -23,30 +22,26 @@ import Testing
         )
     }
 
-    @Test func appTargetsDeclareCloudKitAndRemoteNotificationCapabilities() throws {
+    @Test func localOnlyAppTargetsPreserveRequiredSecurityWithoutCloudCapabilities() throws {
         let project = try source("project.yml")
         let ios = try entitlements("KnitNote/KnitNote-iOS.entitlements")
         let mac = try entitlements("KnitNote/KnitNote-macOS.entitlements")
 
-        #expect(ios["com.apple.developer.icloud-services"] as? [String] == ["CloudKit"])
-        #expect(mac["com.apple.developer.icloud-services"] as? [String] == ["CloudKit"])
-        #expect(ios["aps-environment"] as? String == "development")
-        #expect(mac["com.apple.developer.aps-environment"] as? String == "development")
+        #expect(ios["com.apple.security.application-groups"] as? [String] == ["group.com.phillon.KnitNote"])
+        #expect(mac["com.apple.security.app-sandbox"] as? Bool == true)
+        #expect(mac["com.apple.security.files.user-selected.read-write"] as? Bool == true)
+        #expect(mac["com.apple.security.network.client"] as? Bool == true)
         #expect(Set(ios.keys) == Set([
             "com.apple.security.application-groups",
-            "com.apple.developer.icloud-container-identifiers",
-            "com.apple.developer.icloud-services",
-            "aps-environment",
         ]))
         #expect(Set(mac.keys) == Set([
             "com.apple.security.app-sandbox",
             "com.apple.security.files.user-selected.read-write",
             "com.apple.security.network.client",
-            "com.apple.developer.icloud-container-identifiers",
-            "com.apple.developer.icloud-services",
-            "com.apple.developer.aps-environment",
         ]))
-        #expect(project.contains("UIBackgroundModes:\n          - remote-notification"))
+        #expect(!project.contains("- remote-notification"))
+        let info = try entitlements("KnitNote/Info.plist")
+        #expect(!(info["UIBackgroundModes"] as? [String] ?? []).contains("remote-notification"))
     }
 
     @Test func generatedTargetsResolveOnlyCanonicalEntitlementFiles() throws {

@@ -25,6 +25,36 @@ struct SignedCloudEntitlementMutation: Sendable, CustomTestStringConvertible {
     var testDescription: String { "\(product.rawValue)-\(kind.rawValue)" }
 }
 
+struct BetaReportMutation: Sendable, CustomTestStringConvertible {
+    enum Value: String, CaseIterable, Sendable { case missing, disabled, string, integer }
+    let product: String
+    let location: String
+    let value: Value
+
+    static let all: [Self] = ["iOS", "Watch", "Share"].flatMap { product in
+        ["profile", "signed"].flatMap { location in
+            Value.allCases.map { Self(product: product, location: location, value: $0) }
+        }
+    }
+    var testDescription: String { "\(product)-\(location)-\(value.rawValue)" }
+    var plistValue: Any? {
+        switch value {
+        case .missing: nil
+        case .disabled: false
+        case .string: "true"
+        case .integer: 1
+        }
+    }
+    var xml: String {
+        switch value {
+        case .missing: ""
+        case .disabled: "<key>beta-reports-active</key><false/>"
+        case .string: "<key>beta-reports-active</key><string>true</string>"
+        case .integer: "<key>beta-reports-active</key><integer>1</integer>"
+        }
+    }
+}
+
 struct ProductIdentifierMutation: Sendable, CustomTestStringConvertible {
     enum Product: String, CaseIterable, Sendable { case iOS, macOS, watch, share }
     enum Location: String, CaseIterable, Sendable { case profile, signed }
@@ -249,6 +279,31 @@ struct PBXPathWhitespaceMutation: Sendable, CustomTestStringConvertible {
 }
 
 @Suite(.serialized) struct ReleaseAuditLocalizationTests {
+    @Test func archiveAuditAcceptsAppStoreBetaReportingEntitlements() throws {
+        let fixture = try makeArchiveFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
+        let result = try runReleaseAudit(archives: fixture.archives, environment: ["PATH": fixture.commandPath])
+        #expect(result.status == 0, Comment(rawValue: result.output))
+        #expect(result.output.contains("TEST FIXTURE ARCHIVE AUDIT: PASS"))
+    }
+
+    @Test(arguments: BetaReportMutation.all)
+    func archiveAuditRejectsInvalidBetaReportingEntitlements(mutation: BetaReportMutation) throws {
+        let fixture = try makeArchiveFixture(betaReportMutation: mutation)
+        defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
+        let result = try runReleaseAudit(archives: fixture.archives, environment: ["PATH": fixture.commandPath])
+        #expect(result.status != 0)
+        #expect(result.output.contains("\(mutation.product) beta reporting entitlement must be true in both profile and signature"), Comment(rawValue: result.output))
+    }
+
+    @Test func archiveAuditRejectsBetaReportingEntitlementOnMac() throws {
+        let fixture = try makeArchiveFixture(extraMacSignedEntitlement: "beta-reports-active")
+        defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
+        let result = try runReleaseAudit(archives: fixture.archives, environment: ["PATH": fixture.commandPath])
+        #expect(result.status != 0)
+        #expect(result.output.contains("macOS signed entitlements do not match"), Comment(rawValue: result.output))
+    }
+
     @Test(arguments: PBXGraphMutation.all)
     func staticAuditRejectsUntypedAmbiguousOrDanglingPBXGraph(
         mutation: PBXGraphMutation
@@ -3007,6 +3062,7 @@ private func makeArchiveFixture(
     changedMacSignedEntitlement: String? = nil,
     extraMacSignedEntitlement: String? = nil,
     signedCloudEntitlementMutation: SignedCloudEntitlementMutation? = nil,
+    betaReportMutation: BetaReportMutation? = nil,
     identifierMutation: ProductIdentifierMutation? = nil,
     mutateDistributionAfterProvenance: String? = nil,
     removeDistributionAfterProvenance: String? = nil,
@@ -3197,6 +3253,11 @@ private func makeArchiveFixture(
             }
         } else {
             profileEntitlements["get-task-allow"] = false
+            profileEntitlements["beta-reports-active"] = true
+            if let mutation = betaReportMutation,
+               mutation.product == item.name, mutation.location == "profile" {
+                profileEntitlements["beta-reports-active"] = mutation.plistValue
+            }
         }
         if item.name == "iOS" || item.name == "Share" {
             profileEntitlements["com.apple.security.application-groups"] = ["group.com.phillon.KnitNote"]
@@ -3297,6 +3358,13 @@ private func makeArchiveFixture(
     try fileManager.createDirectory(at: fakeBin, withIntermediateDirectories: true)
     let codesign = fakeBin.appendingPathComponent("codesign")
     let shouldFailCodesign = codesignFailure ? "yes" : "no"
+    func betaXML(_ product: String) -> String {
+        if let mutation = betaReportMutation,
+           mutation.product == product, mutation.location == "signed" {
+            return mutation.xml
+        }
+        return "<key>beta-reports-active</key><true/>"
+    }
     let iOSIdentifier = identifierXML(identifierValues(
         for: .iOS, location: .signed, mutation: identifierMutation,
         canonicalOverride: signedIdentifierOverride
@@ -3348,10 +3416,10 @@ private func makeArchiveFixture(
       exit 64
     elif [ "${1:-}" = "-d" ]; then
       case "${4:-${3:-}}" in
-        *KnitNoteWatch.app) identity='\(watchIdentifier)'; group='\(watchCloudEntitlements)\(watchIdentifierAlias)' ;;
-        *KnitNoteShare.appex) identity='\(shareIdentifier)'; group='<key>com.apple.security.application-groups</key><array><string>group.com.phillon.KnitNote</string></array>\(shareCloudEntitlements)\(shareIdentifierAlias)' ;;
+        *KnitNoteWatch.app) identity='\(watchIdentifier)\(betaXML("Watch"))'; group='\(watchCloudEntitlements)\(watchIdentifierAlias)' ;;
+        *KnitNoteShare.appex) identity='\(shareIdentifier)\(betaXML("Share"))'; group='<key>com.apple.security.application-groups</key><array><string>group.com.phillon.KnitNote</string></array>\(shareCloudEntitlements)\(shareIdentifierAlias)' ;;
         *macOS*|*/mac/*) identity='\(macIdentifier)'; group='\(macSecurityEntitlements)\(macIdentifierAlias)' ;;
-        *) identity='\(iOSIdentifier)'; group='<key>com.apple.security.application-groups</key><array><string>group.com.phillon.KnitNote</string></array>\(iOSCloudEntitlements)\(iOSIdentifierAlias)' ;;
+        *) identity='\(iOSIdentifier)\(betaXML("iOS"))'; group='<key>com.apple.security.application-groups</key><array><string>group.com.phillon.KnitNote</string></array>\(iOSCloudEntitlements)\(iOSIdentifierAlias)' ;;
       esac
       printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict>'"$identity"'<key>com.apple.developer.team-identifier</key><string>9CFPAUL5N5</string><key>get-task-allow</key><false/>'"$group"'</dict></plist>'
     fi

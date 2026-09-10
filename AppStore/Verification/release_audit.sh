@@ -166,6 +166,7 @@ verify_signed_product_cloud_entitlements() {
           ."com.apple.security.application-groups" == ["group.com.phillon.KnitNote"]
           and ((keys - [
             "application-identifier",
+            "beta-reports-active",
             "com.apple.developer.team-identifier",
             "get-task-allow",
             "com.apple.security.application-groups"
@@ -181,6 +182,7 @@ verify_signed_product_cloud_entitlements() {
         | jq -e '
           (keys | sort) == ([
             "application-identifier",
+            "beta-reports-active",
             "com.apple.developer.team-identifier",
             "get-task-allow"
           ] | sort)
@@ -192,6 +194,7 @@ verify_signed_product_cloud_entitlements() {
         | jq -e '
           (keys | sort) == ([
             "application-identifier",
+            "beta-reports-active",
             "com.apple.developer.team-identifier",
             "get-task-allow",
             "com.apple.security.application-groups"
@@ -653,6 +656,15 @@ signed_key = "com.apple.application-identifier" if label == "macOS" else "applic
 alternate_signed_key = "application-identifier" if label == "macOS" else "com.apple.application-identifier"
 expected_id = f"{team}.{bundle}"
 expected_groups = [group] if group else []
+# App Store export adds this entitlement to iOS, Watch and Share signatures.
+# Require the actual boolean in both signed data and its authorizing profile;
+# merely allowing the key would also admit disabled or malformed grants.
+# https://developer.apple.com/library/archive/qa/qa1830/_index.html
+if label in ("iOS", "Watch", "Share") and not (
+    profile.get("beta-reports-active") is True
+    and signed.get("beta-reports-active") is True
+):
+    raise SystemExit(f"{label} beta reporting entitlement must be true in both profile and signature")
 valid = (
     profile.get(signed_key) == expected_id
     and alternate_signed_key not in profile

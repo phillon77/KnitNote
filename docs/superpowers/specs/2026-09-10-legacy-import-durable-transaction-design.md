@@ -82,13 +82,17 @@ receipt 新 wire 明確使用必填 `formatVersion: 3`（不是 `version`），�
 
 沿用既有每檔及累積預算；新的 manifest、備份副本、history/abort/rollback 最壞 prefix 必須在開始任何输出前計入。legacy source projection 上限 1,000,000 bytes、directory inventory 上限 4,000,000 bytes；原生 recovery 單次上限 100,000,000 bytes，不因新角色調高。容量 exact 與 +1 拒絕都需實測。
 
-舊 V3 reader 面對 V4 必須拒絕且不改寫/清理。此要求是資料保留，不是承諾舊 binary 能使用新資料。需驗證實際舊路徑包含 open/recovery/archive/cleanup 的拒絕前無寫入；單獨 decoder throws 不足。如果任一路能清掉未知 evidence，V4 issuer 維持停用直到相容性保護完成。
+2026-09-10 相容性修訂：使用者在「保留原始資料與備份，不支援舊開發測試版直接開啟新版同步資料」的建議後回覆 `go on`，確認採用此方向。修訂前的開發測試 binary 不在 V4 帳號儲存的直接降版支援範圍，不能宣稱修改新 reader 能保護已存在的舊 binary。原始 legacy 資料與成功備份仍須保留；這項決策不授權刪除、覆寫或自動把新版資料轉回舊版。
+
+本次維護的 reader（包含仍存在的 legacy open/recovery/archive/cleanup 入口）面對未知或未完整支援的格式，必須在改寫、建立會話或清理前拒絕。單獨 decoder throws 不足；需驗證實際入口與完整檔案／目錄現場不變。完整支援 V4 的 verified 路徑才可處理 V4；不支援 owned 格式的相容入口可以直接拒絕該格式，不降級處理。如果本次維護的任一路仍能清掉未知 evidence，V4 issuer 維持停用。
+
+本機 `v1.6.0-build12` 標籤未包含這套帳號儲存程式，但標籤不是已發佈 binary 的證明。正式接線前須核對實際升級來源；不得把上述開發版降版限制擴張成免除正式版升級或資料保留驗證。詳見 `../reports/2026-09-10-v4-integration-preflight.md`。
 
 ## 9. 驗收矩陣
 
 真實子程序在 preparing 出版、部分 output、live move、staged move、installed、journal 各持久 prefix、receipt 後 committed 前、committed 後 handoff 前終止。父程序從同一路徑重新開啟，不重建 fixture。process termination 不等於模擬斷電，另用 write/file-sync/parent-sync 注入補測 durability。
 
-每個 case 檢查原資料、成功備份、原生證據、journal、receipt、canonical 與結果；驗證未提交回復與提交後重開兩條路。錯帳號、缺／損毀 binding、receipt、LegacyBackup、附件、history；來源新編輯與身份替換；重複點擊、A→B→A、late callback 與 drain；容量 exact/+1；舊版證據保留；Watch pending 不改綁。正式 factory 呼叫數維持零。
+每個 case 檢查原資料、成功備份、原生證據、journal、receipt、canonical 與結果；驗證未提交回復與提交後重開兩條路。錯帳號、缺／損毀 binding、receipt、LegacyBackup、附件、history；來源新編輯與身份替換；重複點擊、A→B→A、late callback 與 drain；容量 exact/+1；本次維護 reader 的未知格式證據保留（不宣稱歷史開發 binary 已修復）；Watch pending 不改綁。正式 factory 呼叫數維持零。
 
 ## 10. 本次先執行的原生提交邊界驗證
 

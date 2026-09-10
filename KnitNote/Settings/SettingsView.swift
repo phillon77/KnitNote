@@ -63,6 +63,12 @@ struct SettingsView: View {
                 }
 
                 MacSettingsSection(title: "settings.about") {
+                    calculatorLink(
+                        title: "about.story.title",
+                        systemImage: "book.closed",
+                        destination: KnitNoteStoryView()
+                    )
+                    Divider()
                     MacSettingsRow {
                         HStack(alignment: .firstTextBaseline, spacing: 16) {
                             Text("settings.version")
@@ -145,6 +151,11 @@ struct SettingsView: View {
             BackupSettingsSection()
 
             Section("settings.about") {
+                NavigationLink {
+                    KnitNoteStoryView()
+                } label: {
+                    Label("about.story.title", systemImage: "book.closed")
+                }
                 HStack(alignment: .firstTextBaseline, spacing: 16) {
                     Text("settings.version")
                     Spacer(minLength: 12)
@@ -167,5 +178,39 @@ struct SettingsView: View {
             bundle: .main,
             locale: locale
         )
+    }
+}
+
+private struct KnitNoteStoryView: View {
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                Text("about.story.title")
+                    .font(.title2.bold())
+                    .accessibilityAddTraits(.isHeader)
+                Text("about.story.p1")
+                Text("about.story.p2")
+                Text("about.story.p3")
+                Text("about.story.p4")
+                Text("about.story.p5")
+                Text("about.story.p6")
+
+                Divider()
+
+                Text("about.usage.title")
+                    .font(.title2.bold())
+                    .accessibilityAddTraits(.isHeader)
+                Text("about.usage.body")
+            }
+            .font(.body)
+            .lineSpacing(4)
+            .multilineTextAlignment(.leading)
+            .textSelection(.enabled)
+            .frame(maxWidth: 680, alignment: .leading)
+            .padding(24)
+            .frame(maxWidth: .infinity, alignment: .top)
+        }
+        .background(WatercolorBackground())
+        .navigationTitle("about.story.title")
     }
 }

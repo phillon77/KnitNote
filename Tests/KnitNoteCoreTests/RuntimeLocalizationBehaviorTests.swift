@@ -3,6 +3,28 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite struct RuntimeLocalizationBehaviorTests {
+    // Missing story resources or English fallback for a selected language must fail.
+    @Test func aboutStoryResolvesInEveryLanguageWithCorrectedLemonYear() throws {
+        let keys = ["about.story.title", "about.story.p1", "about.story.p2",
+                    "about.story.p3", "about.story.p4", "about.story.p5",
+                    "about.story.p6", "about.usage.title", "about.usage.body"]
+        let values = try shippingCatalogValues(keys: keys)
+        let bundle = try localizedFixtureBundle(additionalStringsByLanguage: values)
+        for language in SupportedLocalization.v150Identifiers {
+            for key in keys {
+                let value = LocaleAwareText.string(key, locale: Locale(identifier: language), bundle: bundle)
+                #expect(!value.isEmpty && value != key)
+            }
+            let memory = LocaleAwareText.string("about.story.p3", locale: Locale(identifier: language), bundle: bundle)
+            #expect(memory.contains("2025"))
+            #expect(!memory.contains("2023"))
+        }
+        #expect(LocaleAwareText.string("about.story.title", locale: Locale(identifier: "zh-Hant"), bundle: bundle) == "開發故事")
+        #expect(LocaleAwareText.string("about.usage.title", locale: Locale(identifier: "zh-Hant"), bundle: bundle) == "建議使用方式")
+        #expect(LocaleAwareText.string("about.story.title", locale: Locale(identifier: "en"), bundle: bundle) == "The Story Behind KnitNote")
+        #expect(LocaleAwareText.string("about.story.title", locale: Locale(identifier: "ja"), bundle: bundle) == "KnitNote が生まれた物語")
+    }
+
     @Test func semanticMessageRendersAgainWhenTheSelectedLocaleChanges() throws {
         let bundle = try localizedFixtureBundle()
         let message = LocalizedMessage.key("save.error")

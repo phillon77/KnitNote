@@ -31,3 +31,18 @@ Fresh copy-change validation: the new current-note acceptance/rejection tests fi
 Additional diagnostic, not all-green: `python3 AppStore/Verification/commercial_release_check_test.py` ran 22 tests with 1 failure. Its integration fixture injects KNITNOTE_COMMERCIAL_CONFIGURATION and expects a paid-model error, but the existing production audit rejects environment overrides before that check. The audit's only change this turn is EXPECTED_VERSION. Do not weaken that rejection; the old test needs a separately scoped correction. An initial module-style invocation also failed import resolution; direct-file execution above is the actual suite result.
 
 Version verification: bounded native Swift run, filter `ReleaseConfigurationContractTests|WatchPackagingContractTests|ReleaseCandidateIdentityTests`, passed 51 tests in 3 suites (114.996 seconds tests, 196.181 seconds command, exit 0). This includes parsed project settings and actual unsigned Xcode Release/Debug build-setting queries, not signed products. Compilation emitted a pre-existing deprecated String initializer warning in unchanged HighlightOverlayContractTests; no warning-free build claim. Full Core/App runtime and archive acceptance were not run.
+
+## Approved About story implementation
+
+The user's subsequent `ok` approved `docs/releases/1.6.1-about-story-review.md`. Settings on iOS/iPadOS and macOS now link to the story, with separate usage recommendations. Nine keys across 13 locales match the approved text exactly; Lemon's year is 2025. No data access, sync activation, or release-note expansion was introduced.
+
+Fresh verification on the story changes:
+
+- TDD: the new localization test first failed on the missing catalog key, then passed after implementation. Final `RuntimeLocalizationBehaviorTests|SettingsAboutVersionContractTests|WatchPackagingContractTests`: 24 tests / 3 suites PASS, exit 0 (1.331 seconds command).
+- Initial Mac build exposed missing legacy-import source registration in the existing generated project. Regenerated with XcodeGen. Initial iOS build then exposed the preparation coordinator's AppVersionInfo dependency, intentionally unavailable on Watch. Excluded that unused-on-Watch coordinator in project.yml and regenerated again; no feature implementation changed.
+- Unsigned macOS Debug build PASS, exit 0 (22.931 seconds). Unsigned generic iOS Debug build including Watch PASS after the exclusion, exit 0 (34.523 seconds).
+- Read back compiled macOS and iOS Localizable.strings: all 117 story/usage values in each product exactly match the source catalog. The first inspection script could not parse Xcode's XML encoding directly with plistlib; the successful check used plutil JSON conversion.
+- Final static release audit PASS; metadata and offline commercial configuration checks PASS. This does not supersede the previously documented commercial integration-test failure.
+- Independent read-only review found no actionable story/project issues: no prior source memberships removed, unchanged target set/configurations/dependencies/resources, and no sync activation. Regeneration adds four legacy-import sources to the app, three to Watch, and the existing PhoneWatchNativeSessionLifecycleTests to app tests.
+
+Limits: no live App launch, screenshot/physical layout acceptance, full upgrade regression, signed archive, push, upload, or App Store submission. The scoped story implementation is complete; release readiness is not established by these checks.

@@ -121,6 +121,7 @@ targets:
           - App/UpdateReminderPolicy.swift
           - App/KnitNoteMacWindowSizingPolicy.swift
           - Calculators/PatternCalculator.swift
+          - CloudSync/LegacyImportPreparationCoordinator.swift
           - Launch/LaunchExperienceCoordinator.swift
           - Patterns/PatternLibraryImportPresentation.swift
           - Patterns/PatternInboxProcessing.swift

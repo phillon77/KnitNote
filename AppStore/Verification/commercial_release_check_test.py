@@ -482,7 +482,7 @@ class PublicStorefrontTests(unittest.TestCase):
 
 
 class ReleaseAuditIntegrationTests(unittest.TestCase):
-    def test_static_audit_rejects_paid_commercial_configuration(self):
+    def test_production_static_audit_rejects_external_commercial_override(self):
         configuration = copy.deepcopy(VALID_CONFIGURATION)
         configuration["appDownload"]["model"] = "paid"
         configuration["appDownload"]["basePrice"] = "2.99"
@@ -507,7 +507,10 @@ class ReleaseAuditIntegrationTests(unittest.TestCase):
             )
 
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("appDownload.model must be free", result.stderr)
+        self.assertIn(
+            "production audit rejects override KNITNOTE_COMMERCIAL_CONFIGURATION",
+            result.stderr,
+        )
         self.assertNotIn("RELEASE AUDIT: PASS", result.stdout)
 
 

@@ -838,7 +838,12 @@ import Testing
             default: try store.deleteYarn(id: store.yarns[0].id)
             }
             let entry = try #require(try fixture.ledger().recentlyDeleted().first)
-            #expect(entry.files.count == (kind == "yarn" ? 1 : 2))
+            // The complete fixture includes both the yarn photo and its label photo.
+            #expect(entry.files.count == 2)
+            if kind == "yarn" {
+                #expect(Set(entry.files.map { $0.restoreRelativePath.split(separator: "/").first.map(String.init) ?? "" })
+                    == Set(["YarnPhotos", "YarnLabelPhotos"]))
+            }
             #expect(!entry.domain.ownedRecords.contains { $0.id.kind == .project })
             #expect(store.project(id: project.id) != nil)
             if kind == "legacy" {
@@ -852,6 +857,15 @@ import Testing
             #expect(restoredParent.patterns == project.patterns)
             #expect(restoredParent.journalEntries == project.journalEntries)
             #expect(store.yarns.count == 1)
+            if kind == "yarn" {
+                let restoredYarn = try #require(store.yarns.first)
+                #expect(restoredYarn.photoFilename != nil)
+                #expect(restoredYarn.labelPhotoFilenames.count == 1)
+                for proof in entry.files {
+                    let restoredFile = fixture.root.appendingPathComponent(proof.restoreRelativePath)
+                    #expect(Data(SHA256.hash(data: try Data(contentsOf: restoredFile))) == proof.sha256)
+                }
+            }
         }
     }
 

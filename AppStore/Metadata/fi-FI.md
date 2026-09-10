@@ -7,7 +7,7 @@
 - Support URL: https://phillon77.github.io/KnitNote/support.html
 - Marketing URL: https://phillon77.github.io/KnitNote/
 - Privacy URL: https://phillon77.github.io/KnitNote/privacy.html
-- What's New: KnitNote 1.5.1:ssä voit nyt järjestää ohjeet omiin kansioihin. Lankakirjaston otsikko vaihtuu heti valitun sovelluskielen mukaiseksi, ja KnitNote ilmoittaa, kun App Storessa on saatavilla uudempi versio.
+- What's New: Tietojen optimointi
 - Description: |
   Keskity käsissäsi olevaan lankaan. KnitNote kokoaa neuleprojektit, kuusi laskuria, ohjeet ja muistiinpanot selkeään ja rauhalliseen työtilaan.
 

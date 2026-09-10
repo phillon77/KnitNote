@@ -7,7 +7,7 @@
 - Support URL: https://phillon77.github.io/KnitNote/support.html
 - Marketing URL: https://phillon77.github.io/KnitNote/
 - Privacy URL: https://phillon77.github.io/KnitNote/privacy.html
-- What's New: In KnitNote 1.5.1 kun je patronen nu ordenen in eigen mappen. De titel van de garenbibliotheek volgt direct de gekozen app-taal en KnitNote laat het weten wanneer er een nieuwere versie beschikbaar is in de App Store.
+- What's New: Gegevensoptimalisatie
 - Description: |
   Houd de draad in handen. KnitNote brengt breiprojecten, zes tellers, patronen en notities samen in een rustige, overzichtelijke werkruimte.
 

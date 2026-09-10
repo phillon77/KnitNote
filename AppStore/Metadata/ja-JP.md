@@ -7,7 +7,7 @@
 - Support URL: https://phillon77.github.io/KnitNote/support.html
 - Marketing URL: https://phillon77.github.io/KnitNote/
 - Privacy URL: https://phillon77.github.io/KnitNote/privacy.html
-- What's New: KnitNote 1.5.1 では、編み図をカスタムフォルダで整理できるようになりました。毛糸ライブラリのタイトルは選択した App の言語にすぐ切り替わり、新しいバージョンが App Store で利用できると KnitNote がお知らせします。
+- What's New: データの最適化
 - Description: |
   手元の毛糸に集中できるように。KnitNoteはApple Watchでのカウント、作品の進捗、6つのカウンター、PDF編み図を、落ち着いた見やすい作業スペースにまとめます。
 

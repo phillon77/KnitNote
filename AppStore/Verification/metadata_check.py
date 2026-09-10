@@ -358,42 +358,21 @@ LANGUAGE_CONTRACTS = {
         "surfaces": ("Instellingen", "Apple Watch", "deelschermen"),
     },
 }
-V151_WHATS_NEW_RELATIONSHIPS = {
-    "en-US.md": ("organize patterns in custom folders", "Yarn Library title immediately follows your selected app language", "newer version is available on the App Store"),
-    "zh-Hant.md": ("自訂資料夾整理織圖", "毛線庫標題會立即跟隨所選 App 語言", "有新版本可用時，也會提供前往 App Store 的提醒"),
-    "de-DE.md": ("Anleitungen jetzt in eigenen Ordnern organisieren", "Titel der Garnbibliothek folgt sofort der ausgewählten App-Sprache", "neuere Version verfügbar ist"),
-    "fr-FR.md": ("classer vos modèles dans des dossiers personnalisés", "titre de la bibliothèque de fils s’adapte immédiatement à la langue choisie dans l’app", "nouvelle version est disponible dans l’App Store"),
-    "ja-JP.md": ("編み図をカスタムフォルダで整理", "毛糸ライブラリのタイトルは選択した App の言語にすぐ切り替わり", "新しいバージョンが App Store で利用できると KnitNote がお知らせ"),
-    "zh-Hans.md": ("使用自定义文件夹整理图解", "毛线库标题会立即跟随所选 App 语言", "有新版本可用时，也会提供前往 App Store 的提醒"),
-    "nb-NO.md": ("organisere mønstre i egne mapper", "Tittelen på garnbiblioteket følger app-språket du har valgt med én gang", "nyere versjon er tilgjengelig i App Store"),
-    "sv-SE.md": ("ordna mönster i egna mappar", "Titeln på garnbiblioteket följer direkt det appspråk du har valt", "nyare version finns i App Store"),
-    "fi-FI.md": ("järjestää ohjeet omiin kansioihin", "Lankakirjaston otsikko vaihtuu heti valitun sovelluskielen mukaiseksi", "uudempi versio"),
-    "da-DK.md": ("organisere mønstre i dine egne mapper", "Titlen på garnbiblioteket følger straks det valgte app-sprog", "nyere version er tilgængelig i App Store"),
-    "ko-KR.md": ("사용자 지정 폴더로 도안을 정리", "실 라이브러리 제목은 선택한 App 언어로 즉시 바뀌며", "App Store에 새 버전이 있으면 KnitNote가 알려 줍니다"),
-    "el-GR.md": ("οργανώνεις τα πατρόν σου σε προσαρμοσμένους φακέλους", "τίτλος της βιβλιοθήκης νημάτων ακολουθεί αμέσως τη γλώσσα", "νεότερη έκδοση στο App Store"),
-    "nl-NL.md": ("patronen nu ordenen in eigen mappen", "titel van de garenbibliotheek volgt direct de gekozen app-taal", "nieuwere versie beschikbaar is in de App Store"),
+V161_APPROVED_WHATS_NEW = {
+    "zh-Hant.md": "資料優化", "zh-Hans.md": "数据优化",
+    "en-US.md": "Data optimization", "de-DE.md": "Datenoptimierung",
+    "fr-FR.md": "Optimisation des données", "ja-JP.md": "データの最適化",
+    "nb-NO.md": "Dataoptimalisering", "sv-SE.md": "Dataoptimering",
+    "fi-FI.md": "Tietojen optimointi", "da-DK.md": "Dataoptimering",
+    "ko-KR.md": "데이터 최적화", "el-GR.md": "Βελτιστοποίηση δεδομένων",
+    "nl-NL.md": "Gegevensoptimalisatie",
 }
-V151_APPROVED_WHATS_NEW = {
-    "zh-Hant.md": "KnitNote 1.5.1 現在支援自訂資料夾整理織圖。毛線庫標題會立即跟隨所選 App 語言；有新版本可用時，也會提供前往 App Store 的提醒。",
-    "en-US.md": "KnitNote 1.5.1 now lets you organize patterns in custom folders. The Yarn Library title immediately follows your selected app language, and KnitNote lets you know when a newer version is available on the App Store.",
-    "de-DE.md": "Mit KnitNote 1.5.1 kannst du Anleitungen jetzt in eigenen Ordnern organisieren. Der Titel der Garnbibliothek folgt sofort der ausgewählten App-Sprache, und KnitNote weist dich darauf hin, wenn im App Store eine neuere Version verfügbar ist.",
-    "fr-FR.md": "KnitNote 1.5.1 vous permet désormais de classer vos modèles dans des dossiers personnalisés. Le titre de la bibliothèque de fils s’adapte immédiatement à la langue choisie dans l’app, et KnitNote vous avertit lorsqu’une nouvelle version est disponible dans l’App Store.",
-    "ja-JP.md": "KnitNote 1.5.1 では、編み図をカスタムフォルダで整理できるようになりました。毛糸ライブラリのタイトルは選択した App の言語にすぐ切り替わり、新しいバージョンが App Store で利用できると KnitNote がお知らせします。",
-    "zh-Hans.md": "KnitNote 1.5.1 现在支持使用自定义文件夹整理图解。毛线库标题会立即跟随所选 App 语言；有新版本可用时，也会提供前往 App Store 的提醒。",
-    "nb-NO.md": "I KnitNote 1.5.1 kan du nå organisere mønstre i egne mapper. Tittelen på garnbiblioteket følger app-språket du har valgt med én gang, og KnitNote gir beskjed når en nyere versjon er tilgjengelig i App Store.",
-    "sv-SE.md": "I KnitNote 1.5.1 kan du nu ordna mönster i egna mappar. Titeln på garnbiblioteket följer direkt det appspråk du har valt, och KnitNote meddelar när en nyare version finns i App Store.",
-    "fi-FI.md": "KnitNote 1.5.1:ssä voit nyt järjestää ohjeet omiin kansioihin. Lankakirjaston otsikko vaihtuu heti valitun sovelluskielen mukaiseksi, ja KnitNote ilmoittaa, kun App Storessa on saatavilla uudempi versio.",
-    "da-DK.md": "I KnitNote 1.5.1 kan du nu organisere mønstre i dine egne mapper. Titlen på garnbiblioteket følger straks det valgte app-sprog, og KnitNote giver besked, når en nyere version er tilgængelig i App Store.",
-    "ko-KR.md": "KnitNote 1.5.1에서는 이제 사용자 지정 폴더로 도안을 정리할 수 있습니다. 실 라이브러리 제목은 선택한 App 언어로 즉시 바뀌며, App Store에 새 버전이 있으면 KnitNote가 알려 줍니다.",
-    "el-GR.md": "Στο KnitNote 1.5.1 μπορείς πλέον να οργανώνεις τα πατρόν σου σε προσαρμοσμένους φακέλους. Ο τίτλος της βιβλιοθήκης νημάτων ακολουθεί αμέσως τη γλώσσα που έχεις επιλέξει στην εφαρμογή και το KnitNote σε ενημερώνει όταν υπάρχει νεότερη έκδοση στο App Store.",
-    "nl-NL.md": "In KnitNote 1.5.1 kun je patronen nu ordenen in eigen mappen. De titel van de garenbibliotheek volgt direct de gekozen app-taal en KnitNote laat het weten wanneer er een nieuwere versie beschikbaar is in de App Store.",
-}
-for filename, relationships in V151_WHATS_NEW_RELATIONSHIPS.items():
+for filename, approved in V161_APPROVED_WHATS_NEW.items():
     LANGUAGE_CONTRACTS[filename].update({
-        "version": "1.5.1",
+        "version": "1.6.1",
         "whats_new_languages": (),
-        "whats_new_relationships": relationships,
-        "approved_whats_new": V151_APPROVED_WHATS_NEW[filename],
+        "whats_new_relationships": (),
+        "approved_whats_new": approved,
     })
 FIELD = re.compile(r"^- ([^:]+):\s*(.*)$")
 CLAIM_WHITESPACE = re.compile(r"\s+")
@@ -779,10 +758,7 @@ def validate(path: Path) -> list[str]:
             errors.append(f"{path}: copy: forbidden release claim: {concept}")
     if contract is not None:
         description = fields.get("Description", "")
-        versions = re.findall(r"(?<![0-9])1\.\d+(?:\.\d+)?(?![0-9])", whats_new)
-        version = contract.get("version", "1.4.1")
-        if versions != [version]:
-            errors.append(f"{path}: What's New: must identify KnitNote {version} exactly")
+        version = contract["version"]
         if whats_new != contract.get("approved_whats_new", whats_new):
             errors.append(
                 f"{path}: What's New: must match the approved {version} release note exactly"
@@ -793,7 +769,7 @@ def validate(path: Path) -> list[str]:
         for relationship in contract.get("whats_new_relationships", ()):
             if relationship.casefold() not in whats_new.casefold():
                 errors.append(
-                    f"{path}: What's New: missing implemented 1.5.1 behavior: {relationship}"
+                    f"{path}: What's New: missing implemented {version} behavior: {relationship}"
                 )
         for language in contract["languages"]:
             if language.casefold() not in description.casefold():

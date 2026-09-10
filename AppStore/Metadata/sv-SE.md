@@ -7,7 +7,7 @@
 - Support URL: https://phillon77.github.io/KnitNote/support.html
 - Marketing URL: https://phillon77.github.io/KnitNote/
 - Privacy URL: https://phillon77.github.io/KnitNote/privacy.html
-- What's New: I KnitNote 1.5.1 kan du nu ordna mönster i egna mappar. Titeln på garnbiblioteket följer direkt det appspråk du har valt, och KnitNote meddelar när en nyare version finns i App Store.
+- What's New: Dataoptimering
 - Description: |
   Behåll fokus på garnet i händerna. KnitNote samlar stickprojekt, sex räknare, mönster och anteckningar i en lugn och tydlig arbetsyta.
 

@@ -7,7 +7,7 @@
 - Support URL: https://phillon77.github.io/KnitNote/support.html
 - Marketing URL: https://phillon77.github.io/KnitNote/
 - Privacy URL: https://phillon77.github.io/KnitNote/privacy.html
-- What's New: KnitNote 1.5.1 vous permet désormais de classer vos modèles dans des dossiers personnalisés. Le titre de la bibliothèque de fils s’adapte immédiatement à la langue choisie dans l’app, et KnitNote vous avertit lorsqu’une nouvelle version est disponible dans l’App Store.
+- What's New: Optimisation des données
 - Description: |
   Gardez votre attention sur le fil entre vos mains. KnitNote réunit le comptage sur Apple Watch, l’avancement des ouvrages, six compteurs et les patrons PDF dans un espace clair et apaisant.
 

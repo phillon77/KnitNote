@@ -78,12 +78,12 @@ import Testing
 
         #expect(
             specification.components(
-                separatedBy: "MARKETING_VERSION: 1.7.0"
+                separatedBy: "MARKETING_VERSION: 1.6.1"
             ).count == 4
         )
         #expect(
             generatedProject.components(
-                separatedBy: "MARKETING_VERSION = 1.7.0;"
+                separatedBy: "MARKETING_VERSION = 1.6.1;"
             ).count == 7
         )
         #expect(!generatedProject.contains("MARKETING_VERSION = 1.5.1;"))

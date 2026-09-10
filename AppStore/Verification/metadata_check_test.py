@@ -10,8 +10,6 @@ import unittest
 from pathlib import Path
 
 from AppStore.Verification.metadata_check import (
-    V151_APPROVED_WHATS_NEW as PRODUCTION_V151_APPROVED_WHATS_NEW,
-    V151_WHATS_NEW_RELATIONSHIPS as PRODUCTION_V151_WHATS_NEW_RELATIONSHIPS,
     dutch_backup_has_source_attachment,
     dutch_is_completed_additive_negation,
     parse,
@@ -110,21 +108,6 @@ SETTINGS_AND_SURFACE_TOKENS = {
     "el-GR.md": ("ρυθμίσεις", "Apple Watch", "κοινής χρήσης"),
     "nl-NL.md": ("Instellingen", "Apple Watch", "deelschermen"),
 }
-V151_WHATS_NEW_RELATIONSHIPS = {
-    "en-US.md": ("organize patterns in custom folders", "Yarn Library title immediately follows your selected app language", "newer version is available on the App Store"),
-    "zh-Hant.md": ("自訂資料夾整理織圖", "毛線庫標題會立即跟隨所選 App 語言", "有新版本可用時，也會提供前往 App Store 的提醒"),
-    "de-DE.md": ("Anleitungen jetzt in eigenen Ordnern organisieren", "Titel der Garnbibliothek folgt sofort der ausgewählten App-Sprache", "neuere Version verfügbar ist"),
-    "fr-FR.md": ("classer vos modèles dans des dossiers personnalisés", "titre de la bibliothèque de fils s’adapte immédiatement à la langue choisie dans l’app", "nouvelle version est disponible dans l’App Store"),
-    "ja-JP.md": ("編み図をカスタムフォルダで整理", "毛糸ライブラリのタイトルは選択した App の言語にすぐ切り替わり", "新しいバージョンが App Store で利用できると KnitNote がお知らせ"),
-    "zh-Hans.md": ("使用自定义文件夹整理图解", "毛线库标题会立即跟随所选 App 语言", "有新版本可用时，也会提供前往 App Store 的提醒"),
-    "nb-NO.md": ("organisere mønstre i egne mapper", "Tittelen på garnbiblioteket følger app-språket du har valgt med én gang", "nyere versjon er tilgjengelig i App Store"),
-    "sv-SE.md": ("ordna mönster i egna mappar", "Titeln på garnbiblioteket följer direkt det appspråk du har valt", "nyare version finns i App Store"),
-    "fi-FI.md": ("järjestää ohjeet omiin kansioihin", "Lankakirjaston otsikko vaihtuu heti valitun sovelluskielen mukaiseksi", "uudempi versio"),
-    "da-DK.md": ("organisere mønstre i dine egne mapper", "Titlen på garnbiblioteket følger straks det valgte app-sprog", "nyere version er tilgængelig i App Store"),
-    "ko-KR.md": ("사용자 지정 폴더로 도안을 정리", "실 라이브러리 제목은 선택한 App 언어로 즉시 바뀌며", "App Store에 새 버전이 있으면 KnitNote가 알려 줍니다"),
-    "el-GR.md": ("οργανώνεις τα πατρόν σου σε προσαρμοσμένους φακέλους", "τίτλος της βιβλιοθήκης νημάτων ακολουθεί αμέσως τη γλώσσα", "νεότερη έκδοση στο App Store"),
-    "nl-NL.md": ("patronen nu ordenen in eigen mappen", "titel van de garenbibliotheek volgt direct de gekozen app-taal", "nieuwere versie beschikbaar is in de App Store"),
-}
 V151_APPROVED_WHATS_NEW = {
     "zh-Hant.md": "KnitNote 1.5.1 現在支援自訂資料夾整理織圖。毛線庫標題會立即跟隨所選 App 語言；有新版本可用時，也會提供前往 App Store 的提醒。",
     "en-US.md": "KnitNote 1.5.1 now lets you organize patterns in custom folders. The Yarn Library title immediately follows your selected app language, and KnitNote lets you know when a newer version is available on the App Store.",
@@ -187,48 +170,23 @@ class MetadataLocaleTests(unittest.TestCase):
             with self.subTest(filename=filename):
                 self.assertEqual(validate(METADATA / filename), [])
 
-    def test_every_package_describes_v151_release_and_supported_languages(self) -> None:
-        for filename in EXPECTED_LOCALES:
+    def test_current_notes_and_supported_languages(self) -> None:
+        expected = {
+            "zh-Hant.md": "資料優化", "zh-Hans.md": "数据优化",
+            "en-US.md": "Data optimization", "de-DE.md": "Datenoptimierung",
+            "fr-FR.md": "Optimisation des données", "ja-JP.md": "データの最適化",
+            "nb-NO.md": "Dataoptimalisering", "sv-SE.md": "Dataoptimering",
+            "fi-FI.md": "Tietojen optimointi", "da-DK.md": "Dataoptimering",
+            "ko-KR.md": "데이터 최적화", "el-GR.md": "Βελτιστοποίηση δεδομένων",
+            "nl-NL.md": "Gegevensoptimalisatie",
+        }
+        for filename, note in expected.items():
             with self.subTest(filename=filename):
                 fields = parse(METADATA / filename)
-                whats_new = fields["What's New"]
-                description = fields["Description"]
-                self.assertEqual(
-                    re.findall(r"(?<![0-9])1\.\d+(?:\.\d+)?(?![0-9])", whats_new),
-                    ["1.5.1"],
-                )
-                for relationship in V151_WHATS_NEW_RELATIONSHIPS[filename]:
-                    self.assertIn(relationship, whats_new)
-                for language in LANGUAGE_NAMES[filename]:
-                    self.assertIn(language, description)
-                for token in SETTINGS_AND_SURFACE_TOKENS[filename]:
-                    self.assertIn(token, description)
-
-    def test_every_package_matches_the_approved_v151_release_note(self) -> None:
-        for filename, approved in V151_APPROVED_WHATS_NEW.items():
-            with self.subTest(filename=filename):
-                self.assertEqual(parse(METADATA / filename)["What's New"], approved)
-
-    def test_german_and_korean_yarn_library_terms_match_shipped_catalog(self) -> None:
-        expected_terms = {
-            "de-DE.md": ("de", "Garnbibliothek"),
-            "ko-KR.md": ("ko", "실 라이브러리"),
-        }
-        catalog = json.loads(LOCALIZATION_CATALOG.read_text(encoding="utf-8"))
-        localizations = catalog["strings"]["yarn.library.title"]["localizations"]
-        for filename, (locale, term) in expected_terms.items():
-            with self.subTest(filename=filename, owner="catalog"):
-                self.assertEqual(localizations[locale]["stringUnit"]["value"], term)
-            for owner, value in (
-                ("metadata", parse(METADATA / filename)["What's New"]),
-                ("production relationships", PRODUCTION_V151_WHATS_NEW_RELATIONSHIPS[filename]),
-                ("production oracle", PRODUCTION_V151_APPROVED_WHATS_NEW[filename]),
-                ("test relationships", V151_WHATS_NEW_RELATIONSHIPS[filename]),
-                ("test oracle", V151_APPROVED_WHATS_NEW[filename]),
-            ):
-                with self.subTest(filename=filename, owner=owner):
-                    relationship_text = "\n".join(value) if isinstance(value, tuple) else value
-                    self.assertIn(term, relationship_text)
+                self.assertEqual(fields["What's New"], note)
+                self.assertEqual(validate(METADATA / filename), [])
+                for token in LANGUAGE_NAMES[filename] + SETTINGS_AND_SURFACE_TOKENS[filename]:
+                    self.assertIn(token, fields["Description"])
 
     def test_every_package_preserves_non_release_note_store_fields(self) -> None:
         for filename, expected_hash in UNCHANGED_FIELD_HASHES.items():
@@ -255,107 +213,22 @@ class MetadataLocaleTests(unittest.TestCase):
         self.assertEqual(EXPECTED_LOCALES[-1], "nl-NL.md")
         self.assertEqual(len(EXPECTED_LOCALES), 13)
 
-    def test_validator_rejects_stale_or_incomplete_v151_release_notes(self) -> None:
+    def test_validator_rejects_stale_or_modified_current_notes(self) -> None:
         for filename in EXPECTED_LOCALES:
-            with self.subTest(filename=filename, mutation="version"):
-                fields = parse(METADATA / filename)
-                fields["What's New"] = V151_APPROVED_WHATS_NEW[filename].replace("1.5.1", "1.5.0")
-                path = self.write_named_metadata(filename, fields)
-                self.assertIn(
-                    f"{path}: What's New: must identify KnitNote 1.5.1 exactly",
-                    validate(path),
-                )
-            for relationship in V151_WHATS_NEW_RELATIONSHIPS[filename]:
-                with self.subTest(filename=filename, missing=relationship):
-                    fields = parse(METADATA / filename)
-                    fields["What's New"] = V151_APPROVED_WHATS_NEW[filename].replace(relationship, "")
+            current = parse(METADATA / filename)
+            for note in (
+                V151_APPROVED_WHATS_NEW[filename],
+                "", current["What's New"] + "!", "KnitNote 1.7.0",
+                "Not " + current["What's New"],
+            ):
+                with self.subTest(filename=filename, note=note):
+                    fields = dict(current)
+                    fields["What's New"] = note
                     path = self.write_named_metadata(filename, fields)
                     self.assertIn(
-                        f"{path}: What's New: missing implemented 1.5.1 behavior: {relationship}",
+                        f"{path}: What's New: must match the approved 1.6.1 release note exactly",
                         validate(path),
                     )
-
-    def test_validator_rejects_v151_terms_without_the_approved_relationships(self) -> None:
-        fields = parse(METADATA / "en-US.md")
-        fields["What's New"] = (
-            "KnitNote 1.5.1 has folders, patterns, and custom organization in separate documentation. "
-            "The Yarn Library and app language are described elsewhere, rather than saying its title "
-            "immediately follows your selected app language. A newer version and the App Store are "
-            "also mentioned separately, but no reminder is offered."
-        )
-        path = self.write_named_metadata("en-US.md", fields)
-
-        errors = validate(path)
-
-        for relationship in (
-            "organize patterns in custom folders",
-            "Yarn Library title immediately follows your selected app language",
-            "newer version is available on the App Store",
-        ):
-            self.assertIn(
-                f"{path}: What's New: missing implemented 1.5.1 behavior: {relationship}",
-                errors,
-            )
-
-    def test_validator_rejects_negated_v151_relationships_even_when_phrases_remain(self) -> None:
-        fields = parse(METADATA / "en-US.md")
-        fields["What's New"] = (
-            "The claim 'KnitNote 1.5.1 now lets you organize patterns in custom folders' is false. "
-            "The Yarn Library title does not immediately follow your selected app language, and "
-            "KnitNote does not let you know when a newer version is available on the App Store."
-        )
-        path = self.write_named_metadata("en-US.md", fields)
-
-        self.assertIn(
-            f"{path}: What's New: must match the approved 1.5.1 release note exactly",
-            validate(path),
-        )
-
-    def test_validator_rejects_adjacent_negation_synonyms(self) -> None:
-        fields = parse(METADATA / "en-US.md")
-        fields["What's New"] = (
-            "KnitNote 1.5.1 does not organize patterns in custom folders. "
-            "The Yarn Library title is disabled for the selected app language, and a newer "
-            "version is unavailable on the App Store."
-        )
-        path = self.write_named_metadata("en-US.md", fields)
-        exact_error = f"{path}: What's New: must match the approved 1.5.1 release note exactly"
-        self.assertIn(exact_error, validate(path))
-
-    def test_validator_treats_additive_not_only_as_noncanonical_not_negative(self) -> None:
-        fields = parse(METADATA / "en-US.md")
-        fields["What's New"] = (
-            "KnitNote 1.5.1 not only lets you organize patterns in custom folders, but also makes "
-            "the Yarn Library title immediately follow your selected app language and lets you know "
-            "when a newer version is available on the App Store."
-        )
-        path = self.write_named_metadata("en-US.md", fields)
-        errors = validate(path)
-        self.assertIn(
-            f"{path}: What's New: must match the approved 1.5.1 release note exactly",
-            errors,
-        )
-        self.assertNotIn(
-            f"{path}: What's New: must not negate approved 1.5.1 behavior",
-            errors,
-        )
-
-    def test_validator_rejects_stale_v150_release_note_for_every_locale(self) -> None:
-        for filename in EXPECTED_LOCALES:
-            with self.subTest(filename=filename):
-                fields = parse(METADATA / filename)
-                fields["What's New"] = V151_APPROVED_WHATS_NEW[filename].replace(
-                    "1.5.1", "1.5.0",
-                )
-                path = self.write_named_metadata(filename, fields)
-                self.assertTrue(
-                    any(
-                        "must identify KnitNote 1.5.1 exactly" in error
-                        or "must match the approved 1.5.1 release note exactly" in error
-                        for error in validate(path)
-                    ),
-                    validate(path),
-                )
 
     def test_validator_rejects_v151_prohibited_update_claims(self) -> None:
         prohibited = {

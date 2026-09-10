@@ -10,7 +10,7 @@ import Testing
         #expect(yaml.contains("PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnitNote.watch"))
         #expect(yaml.contains("PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnitNote.share"))
         #expect(
-            yaml.components(separatedBy: "MARKETING_VERSION: 1.7.0").count == 4
+            yaml.components(separatedBy: "MARKETING_VERSION: 1.6.1").count == 4
         )
         #expect(
             yaml.components(separatedBy: "CURRENT_PROJECT_VERSION: 13").count == 4
@@ -123,7 +123,7 @@ import Testing
             "AppStore/Verification/PatternLibraryVerification.md"
         )
 
-        #expect(audit.contains(#"EXPECTED_VERSION="1.7.0""#))
+        #expect(audit.contains(#"EXPECTED_VERSION="1.6.1""#))
         #expect(audit.contains(#"EXPECTED_BUILD="13""#))
         #expect(verification.contains("Candidate: `1.2.0` / Build `3`"))
         #expect(verification.contains("does not verify the pending `1.2.1`"))

@@ -7,7 +7,7 @@
 - Support URL: https://phillon77.github.io/KnitNote/support.html
 - Marketing URL: https://phillon77.github.io/KnitNote/
 - Privacy URL: https://phillon77.github.io/KnitNote/privacy.html
-- What's New: Στο KnitNote 1.5.1 μπορείς πλέον να οργανώνεις τα πατρόν σου σε προσαρμοσμένους φακέλους. Ο τίτλος της βιβλιοθήκης νημάτων ακολουθεί αμέσως τη γλώσσα που έχεις επιλέξει στην εφαρμογή και το KnitNote σε ενημερώνει όταν υπάρχει νεότερη έκδοση στο App Store.
+- What's New: Βελτιστοποίηση δεδομένων
 - Description: |
   Μείνετε συγκεντρωμένοι στο νήμα που κρατάτε. Το KnitNote συγκεντρώνει έργα πλεξίματος, έξι μετρητές, σχέδια και σημειώσεις σε έναν ήρεμο και ευανάγνωστο χώρο εργασίας.
 

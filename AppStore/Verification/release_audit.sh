@@ -1164,7 +1164,8 @@ else
 fi
 
 if [[ "$MODE" == "archives" ]]; then
-  "$SWIFT" test --disable-sandbox
+  # Keep the complete suite, but avoid contention in timing-sensitive tests.
+  "$SWIFT" test --disable-sandbox --no-parallel
 fi
 
 SPEC_JSON="$(mktemp "${TMPDIR:-/tmp}/knitnote-release-spec.XXXXXX")"

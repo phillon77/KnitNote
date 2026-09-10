@@ -279,6 +279,25 @@ struct PBXPathWhitespaceMutation: Sendable, CustomTestStringConvertible {
 }
 
 @Suite(.serialized) struct ReleaseAuditLocalizationTests {
+    @Test func archiveAuditRunsCompleteTestSuiteSequentially() throws {
+        let fixture = try makeArchiveFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
+        let result = try runReleaseAudit(archives: fixture.archives, environment: ["PATH": fixture.commandPath])
+        #expect(result.status == 0, Comment(rawValue: result.output))
+        let arguments = try String(contentsOf: fixture.temporaryRoot.appendingPathComponent("swift-arguments.log"), encoding: .utf8)
+        // Assert the audit's real invocation: no filters, skips or disabled framework.
+        #expect(arguments.split(separator: "\n").map(String.init) == ["test", "--disable-sandbox", "--no-parallel"])
+    }
+
+    @Test func archiveAuditStopsWhenCompleteTestSuiteFails() throws {
+        let fixture = try makeArchiveFixture(swiftExitStatus: 42)
+        defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
+        let result = try runReleaseAudit(archives: fixture.archives, environment: ["PATH": fixture.commandPath])
+        #expect(result.status == 42, Comment(rawValue: result.output))
+        #expect(!result.output.contains("AUDIT: PASS"))
+        #expect(!FileManager.default.fileExists(atPath: fixture.extractionLog.path))
+    }
+
     @Test func archiveAuditAcceptsAppStoreBetaReportingEntitlements() throws {
         let fixture = try makeArchiveFixture()
         defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
@@ -3077,7 +3096,8 @@ private func makeArchiveFixture(
     symlinkDistributionAfterProvenance: String? = nil,
     symlinkPreparedExportRoot: String? = nil,
     symlinkPreparedIOSPayloadToReal: Bool = false,
-    symlinkDistributionParentAfterProvenance: Bool = false
+    symlinkDistributionParentAfterProvenance: Bool = false,
+    swiftExitStatus: Int = 0
 ) throws -> ArchiveFixture {
     let fileManager = FileManager.default
     let temporaryRoot = fileManager.temporaryDirectory
@@ -3448,7 +3468,8 @@ private func makeArchiveFixture(
     let swift = fakeBin.appendingPathComponent("swift")
     try """
     #!/bin/sh
-    exit 0
+    printf '%s\\n' "$@" > '\(temporaryRoot.appendingPathComponent("swift-arguments.log").path)'
+    exit \(swiftExitStatus)
     """.write(to: swift, atomically: true, encoding: .utf8)
     try fileManager.setAttributes(
         [.posixPermissions: NSNumber(value: 0o755)],

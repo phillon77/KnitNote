@@ -233,7 +233,8 @@ struct ProjectArchiveSyncMapperTests {
         cached[projectID] = projectRecord
         let package = try ProjectArchiveSyncMapper.export(archive: archive, liveRoot: root, deviceID: "test",
             reusing: .init(archive: archive, records: cached), issuedAttachmentRecords: [])
-        #expect(package.attachments.count == 6)
+        // Complete fixture: project, yarn, label, journal full/thumbnail, PDF and markup.
+        #expect(package.attachments.count == 7)
         #expect(try package.record(for: projectID) == projectRecord)
         let result = try ProjectArchiveSyncMapper.materialize(records: package.records,
             attachments: stage(package, root: root), baseArchive: .init(version: 14, projects: []))
@@ -274,13 +275,14 @@ struct ProjectArchiveSyncMapperTests {
         let merged = second.records.filter { $0.id.kind != .attachment } + history
         let result = try ProjectArchiveSyncMapper.materialize(records: merged,
             attachments: stage(second, root: root), baseArchive: archive)
-        #expect(result.files.count == 6)
+        #expect(result.files.count == 7)
+        #expect(result.files.filter { $0.relativePath.hasPrefix("YarnLabelPhotos/") }.count == 1)
         #expect(Set(result.files.map { $0.version.versionID }) == Set(second.attachments.keys))
         for records in [history, history.reversed()] {
             let exported = try ProjectArchiveSyncMapper.export(archive: result.archive, liveRoot: root, deviceID: "b",
                 reusing: .init(archive: result.archive, records: Dictionary(uniqueKeysWithValues: result.records.map { ($0.id, $0) })),
                 issuedAttachmentRecords: records)
-            #expect(exported.records.filter { $0.id.kind == .attachment }.count == 12)
+            #expect(exported.records.filter { $0.id.kind == .attachment }.count == 14)
             #expect(Set(exported.attachments.keys) == Set(second.attachments.keys))
             for record in history { #expect(try exported.record(for: record.id) == record) }
         }
@@ -434,7 +436,7 @@ struct ProjectArchiveSyncMapperTests {
             else { _ = try BackupFixture.writeCompleteArchive(to: root) }
             let original = try JSONDecoder().decode(ProjectArchive.self, from: Data(contentsOf: root.appendingPathComponent("projects-v1.json")))
             let package = try ProjectArchiveSyncMapper.export(archive: original, liveRoot: root, deviceID: "test")
-            #expect(package.attachments.count == (library ? 2 : 6))
+            #expect(package.attachments.count == (library ? 2 : 7))
             let result = try ProjectArchiveSyncMapper.materialize(records: package.records, attachments: stage(package, root: root), baseArchive: .init(version: 14, projects: []))
             #expect(result.archive.projects == original.projects)
             #expect(result.archive.yarns == original.yarns)

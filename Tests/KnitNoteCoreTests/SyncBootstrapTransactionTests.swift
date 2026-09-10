@@ -215,7 +215,8 @@ struct SyncBootstrapTransactionTests {
         #expect(Array(after.prefix(pending.count)) == pending)
         #expect(Set(try fixture.readArchive().projects.map(\.id)) == Set(fixture.archive.projects.map(\.id) + (overlap ? [other.id] : [])))
         if overlap { #expect(try fixture.readArchive().projects.first { $0.id == fixture.archive.projects[0].id }?.name == "Pending overlap edit") }
-        #expect(try tx.checkpoint(prepared).records.filter { $0.id.kind == .attachment }.count == 6)
+        // Includes the label photo in addition to the six original media slots.
+        #expect(try tx.checkpoint(prepared).records.filter { $0.id.kind == .attachment }.count == 7)
         for (url, bytes) in sourceBytes { #expect(try Data(contentsOf: url) == bytes) }
         try tx.canonicalHandoff(prepared).revalidate()
     }
@@ -1030,11 +1031,11 @@ struct SyncBootstrapTransactionTests {
         let sources = pending.compactMap { mutation -> SyncAttachmentSource? in
             guard case let .save(save) = mutation else { return nil }; return save.attachmentSource
         }
-        #expect(sources.count == 6)
+        #expect(sources.count == 7)
         for source in sources {
             #expect(Data(SHA256.hash(data: try Data(contentsOf: source.fileURL))) == source.contentSHA256)
         }
-        #expect(try transaction.checkpoint(prepared).records.filter { $0.id.kind == .attachment }.count == 6)
+        #expect(try transaction.checkpoint(prepared).records.filter { $0.id.kind == .attachment }.count == 7)
         try journal.acknowledge(Set(pending.map(\.identity)))
         for id in package.attachments.keys {
             #expect(FileManager.default.fileExists(atPath: prepared.originalBackupRoot.deletingLastPathComponent().appendingPathComponent("Attachments/\(id.uuidString)").path))

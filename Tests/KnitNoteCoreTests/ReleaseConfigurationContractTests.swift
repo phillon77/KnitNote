@@ -57,7 +57,11 @@ import Testing
         #expect(entitlements?["com.apple.security.app-sandbox"] as? Bool == true)
         #expect(entitlements?["com.apple.security.files.user-selected.read-write"] as? Bool == true)
         #expect(entitlements?["com.apple.security.network.client"] as? Bool == true)
-        #expect(entitlements?.count == 6)
+        #expect(Set(entitlements?.keys.map { $0 } ?? []) == [
+            "com.apple.security.app-sandbox",
+            "com.apple.security.files.user-selected.read-write",
+            "com.apple.security.network.client",
+        ])
     }
 
     @Test func submissionSourceHasEveryRequiredSection() throws {

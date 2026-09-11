@@ -10,6 +10,9 @@ struct ProjectJournalEntryDetailView: View {
     @State private var showingEditor = false
     @State private var showingDeleteConfirmation = false
     @State private var deleteErrorKey: String?
+#if os(iOS)
+    @State private var shareSource: JournalShareSourceItem?
+#endif
 
     var body: some View {
         NavigationStack {
@@ -52,23 +55,7 @@ struct ProjectJournalEntryDetailView: View {
                 }
             }
             .navigationTitle("journal.detail.title")
-            .toolbar {
-                if let project, entry != nil {
-                    if !project.isCompleted {
-                        ToolbarItemGroup(placement: .primaryAction) {
-                            Button("journal.edit", systemImage: "pencil") {
-                                showingEditor = true
-                            }
-                            .frame(minWidth: 44, minHeight: 44)
-
-                            Button("journal.delete", systemImage: "trash", role: .destructive) {
-                                showingDeleteConfirmation = true
-                            }
-                            .frame(minWidth: 44, minHeight: 44)
-                        }
-                    }
-                }
-            }
+            .toolbar { journalToolbar }
             .confirmationDialog(
                 "journal.delete.confirm.title",
                 isPresented: $showingDeleteConfirmation,
@@ -88,6 +75,12 @@ struct ProjectJournalEntryDetailView: View {
             .sheet(isPresented: $showingEditor) {
                 EditProjectJournalEntryView(projectID: projectID, entryID: entryID)
             }
+#if os(iOS)
+            .sheet(item: $shareSource) { item in
+                JournalSharePreviewView(source: item.source, locale: locale)
+                    .environment(\.locale, locale)
+            }
+#endif
         }
         .frame(minWidth: 340, minHeight: 480)
         .tint(WatercolorTheme.actionBerry)
@@ -101,6 +94,42 @@ struct ProjectJournalEntryDetailView: View {
     private var project: StoredProject? {
         store.project(id: projectID)
     }
+
+    @ToolbarContentBuilder
+    private var journalToolbar: some ToolbarContent {
+        if let project, let entry {
+#if os(iOS)
+            ToolbarItem(placement: .primaryAction) {
+                Button("journal.share", systemImage: "square.and.arrow.up") {
+                    openShare(project: project, entry: entry)
+                }
+                .frame(minWidth: 44, minHeight: 44)
+                .accessibilityIdentifier("journalShare.open")
+            }
+#endif
+            if !project.isCompleted {
+                ToolbarItemGroup(placement: .primaryAction) {
+                    Button("journal.edit", systemImage: "pencil") { showingEditor = true }
+                        .frame(minWidth: 44, minHeight: 44)
+                    Button("journal.delete", systemImage: "trash", role: .destructive) {
+                        showingDeleteConfirmation = true
+                    }
+                    .frame(minWidth: 44, minHeight: 44)
+                }
+            }
+        }
+    }
+
+#if os(iOS)
+    private func openShare(project: StoredProject, entry: ProjectJournalEntry) {
+        guard let photoURL = store.journalPhotoURL(for: entry) else { return }
+        shareSource = JournalShareSourceItem(source: JournalShareSource(
+            projectName: project.name,
+            entry: entry,
+            photoURL: photoURL
+        ))
+    }
+#endif
 
     private var entry: ProjectJournalEntry? {
         project?.journalEntries.first { $0.id == entryID }
@@ -126,3 +155,10 @@ struct ProjectJournalEntryDetailView: View {
         }
     }
 }
+
+#if os(iOS)
+private struct JournalShareSourceItem: Identifiable {
+    let id = UUID()
+    let source: JournalShareSource
+}
+#endif

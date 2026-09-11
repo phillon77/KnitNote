@@ -221,6 +221,30 @@ struct ProjectJournalViewContractTests {
         #expect(detail.contains("Label(\"journal.readOnly.completed\", systemImage: \"lock.fill\")"))
     }
 
+    @Test func detailSharesActiveAndCompletedEntriesOnIOS() throws {
+        let detail = try projectSource(named: "ProjectJournalEntryDetailView")
+        let share = try #require(detail.range(of: "Button(\"journal.share\", systemImage: \"square.and.arrow.up\")"))
+        let mutationGate = try #require(detail.range(of: "if !project.isCompleted"))
+
+        #expect(detail.contains("#if os(iOS)"))
+        #expect(detail.contains("JournalSharePreviewView("))
+        #expect(detail.contains("store.journalPhotoURL(for: entry)"))
+        #expect(share.lowerBound < mutationGate.lowerBound)
+    }
+
+    @Test func previewExposesTwoFormatsFourMetadataSwitchesAndThreeOutputs() throws {
+        let source = try projectSource(named: "JournalSharing/JournalSharePreviewView")
+        for token in [
+            "journal.share.format.post", "journal.share.format.story",
+            "journal.share.showProject", "journal.share.showDate",
+            "journal.share.showCaption", "journal.share.showBrand",
+            "journal.share.action.share", "journal.share.action.save",
+            "journal.share.action.copy"
+        ] {
+            #expect(source.contains(token))
+        }
+    }
+
     private var repositoryRoot: URL {
         URL(filePath: #filePath)
             .deletingLastPathComponent()

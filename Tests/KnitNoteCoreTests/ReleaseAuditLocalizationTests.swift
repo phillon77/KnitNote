@@ -853,6 +853,31 @@ struct PBXPathWhitespaceMutation: Sendable, CustomTestStringConvertible {
         #expect(result.output.contains("top-level Xcode project and shared scheme inventory is not canonical"))
     }
 
+    @Test func staticAuditAcceptsJournalShareUITestSchemeButRejectsUnknownScheme() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("knitnote-project-inventory-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let schemes = root.appendingPathComponent("KnitNote.xcodeproj/xcshareddata/xcschemes")
+        try FileManager.default.createDirectory(at: schemes, withIntermediateDirectories: true)
+        let products = [
+            "KnitNote": "KnitNote.app",
+            "KnitNoteJournalShareUITests": "KnitNote.app",
+            "KnitNoteShare": "KnitNoteShare.appex",
+            "KnitNoteWatch": "KnitNoteWatch.app",
+        ]
+        for (name, product) in products {
+            try "<Scheme><BuildAction><BuildActionEntries><BuildActionEntry><BuildableReference BuildableName=\"\(product)\"/></BuildActionEntry></BuildActionEntries></BuildAction></Scheme>"
+                .write(to: schemes.appendingPathComponent("\(name).xcscheme"), atomically: true, encoding: .utf8)
+        }
+
+        let accepted = try runReleaseAudit(environment: ["KNITNOTE_PROJECT_SCAN_ROOT": root.path])
+        #expect(accepted.status == 0)
+
+        try "<Scheme/>".write(to: schemes.appendingPathComponent("Unknown.xcscheme"), atomically: true, encoding: .utf8)
+        let rejected = try runReleaseAudit(environment: ["KNITNOTE_PROJECT_SCAN_ROOT": root.path])
+        #expect(rejected.status != 0)
+        #expect(rejected.output.contains("top-level Xcode project and shared scheme inventory is not canonical"))
+    }
+
     @Test func staticAuditRejectsIncompleteInfoPlistCatalog() throws {
         let temporaryRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent("knitnote-info-plist-catalog-\(UUID().uuidString)")

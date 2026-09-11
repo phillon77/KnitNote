@@ -764,7 +764,7 @@ schemes = {
     for project in projects
 }
 
-expected_schemes = ["KnitNote.xcscheme", "KnitNoteShare.xcscheme", "KnitNoteWatch.xcscheme"]
+expected_schemes = ["KnitNote.xcscheme", "KnitNoteJournalShareUITests.xcscheme", "KnitNoteShare.xcscheme", "KnitNoteWatch.xcscheme"]
 shipping_products = set()
 for project in projects:
     for scheme in (project / "xcshareddata" / "xcschemes").glob("*.xcscheme"):

@@ -59,8 +59,8 @@ A fresh full run began on exact final SHA `885799e0` at
 It completed at 2026-09-11T16:10:31Z with exit 0: **2950 tests in 215 suites
 passed after 2544.407 seconds, zero issues**.
 
-The Core suite retains exact clipboard-composition coverage in
-`JournalShareModelTests`, including user text and optional `#KnitNote` content.
+The Core suite retains exact composed-text coverage in `JournalShareModelTests`,
+including user text and optional `#KnitNote` content.
 
 ### macOS-hosted app test bundle
 
@@ -105,9 +105,9 @@ exact dimensions below for both formats:
 | Post 4:5 | 1080 x 1350 JPG |
 | Story 9:16 | 1080 x 1920 JPG |
 
-Renderer tests also cover metadata visibility combinations, long captions,
-photo-only safe areas, and deterministic output. Model tests cover export
-ownership/cleanup, Save state, cancellation, and exact clipboard composition.
+Renderer tests also cover metadata visibility combinations, long captions, and
+photo-only safe areas. Model tests cover export ownership/cleanup, Save state,
+cancellation, and exact composed text with hashtag inclusion and omission.
 
 ## Native iOS Simulator matrix
 
@@ -155,7 +155,9 @@ sheet/title did not clip horizontally, but the normal initial viewport shows
 only the photo/top of the tall card; it does not prove the entire card is
 visible without scrolling. Lower controls are verified as reachable scroll
 content, not as simultaneously visible in the initial screenshot. Simulator
-tests observed no source-entry mutation.
+coverage does not claim a source-mutation check. Coordinator tests cover
+immutable source-entry input, while the native completed-project case verifies
+that Edit and Delete are absent and Share remains available.
 
 At accessibility sizes, the selected Post/Story format is also exposed through
 the native selected accessibility trait. The final focused regression passed
@@ -180,9 +182,9 @@ not silently counted as completed:
   reachable, and viewport-relative preview sizing is optional polish;
 - a nonpositive cleanup-cap test is deferred because production always passes
   50 and the guard is direct;
-- live clipboard UI inspection is deferred because the adapter directly assigns
-  the supplied string while Core model tests retain exact full-text and hashtag
-  composition coverage.
+- live clipboard UI inspection is deferred; Core model tests retain exact
+  full-text and hashtag composition coverage, while native UI verifies Copy
+  reachability and feedback.
 
 ## Physical-device acceptance — not performed
 

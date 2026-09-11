@@ -29,7 +29,16 @@ import Testing
         #expect(result.projectName == nil)
         #expect(result.caption == nil)
         #expect(result.formattedDate != nil)
-        #expect(sourceCaption == "  第 36 行 🧶  ")
+
+        let visibleResult = JournalShareCardDescription.make(
+            format: .post,
+            visibility: JournalShareVisibility(),
+            projectName: "紅茶開衫",
+            createdAt: Date(timeIntervalSince1970: 0),
+            caption: sourceCaption,
+            locale: Locale(identifier: "zh-Hant")
+        )
+        #expect(visibleResult.caption == sourceCaption)
     }
 
     @Test(arguments: ["", "完成衣身", "完成衣身\n\n#knitnote", "#KnitNote 原本就在這裡"])
@@ -40,11 +49,31 @@ import Testing
         #expect(once.localizedCaseInsensitiveContains("#knitnote"))
     }
 
+    @Test func disablingHashtagPreservesTextVerbatim() {
+        let text = "  完成衣身 🧶  \n\n#KnitNote 原本就在這裡  "
+        #expect(JournalShareTextComposer.compose(text: text, includeHashtag: false) == text)
+    }
+
+    @Test func defaultVisibilityShowsEveryField() {
+        let visibility = JournalShareVisibility()
+        #expect(visibility.showsProjectName)
+        #expect(visibility.showsDate)
+        #expect(visibility.showsCaption)
+        #expect(visibility.showsBrand)
+    }
+
     @Test func generationGateRejectsStaleCompletion() {
         var gate = JournalShareGenerationGate()
         let old = gate.begin()
         let current = gate.begin()
         #expect(!gate.finish(old))
         #expect(gate.finish(current))
+    }
+
+    @Test func cancellingGenerationRejectsPriorToken() {
+        var gate = JournalShareGenerationGate()
+        let token = gate.begin()
+        gate.cancel()
+        #expect(!gate.finish(token))
     }
 }

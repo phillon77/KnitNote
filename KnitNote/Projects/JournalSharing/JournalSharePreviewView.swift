@@ -130,6 +130,7 @@ struct JournalSharePreviewView: View {
             Label(key, systemImage: model.format == format ? "checkmark.circle.fill" : "circle")
                 .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
         }
+        .accessibilityAddTraits(model.format == format ? .isSelected : [])
     }
 
     private var visibilityControls: some View {

@@ -1,7 +1,7 @@
 # KnitNote Journal Social Sharing Design
 
-**Date:** 2026-09-11  
-**Status:** Approved in conversation  
+**Date:** 2026-09-11
+**Status:** Approved in conversation
 **Target:** iPhone and iPad (iOS/iPadOS 18+)
 
 ## Goal

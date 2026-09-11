@@ -72,8 +72,20 @@ final class JournalShareFlowUITests: XCTestCase {
             locale: "zh_Hant_TW"
         )
         XCTAssertFalse(app.segmentedControls["journalShare.format"].exists)
-        XCTAssertTrue(app.buttons["貼文 4:5"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["限時動態 9:16"].exists)
+        let post = app.buttons["貼文 4:5"]
+        let story = app.buttons["限時動態 9:16"]
+        XCTAssertTrue(post.waitForExistence(timeout: 5))
+        XCTAssertTrue(story.exists)
+        XCTAssertTrue(post.isSelected)
+        XCTAssertFalse(story.isSelected)
+
+        story.tap()
+        XCTAssertFalse(post.isSelected)
+        XCTAssertTrue(story.isSelected)
+
+        post.tap()
+        XCTAssertTrue(post.isSelected)
+        XCTAssertFalse(story.isSelected)
         attachReadyPreview(named: "zh-Hant-accessibility-xxxl")
     }
 

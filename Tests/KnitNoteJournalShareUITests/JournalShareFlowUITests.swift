@@ -4,14 +4,19 @@ final class JournalShareFlowUITests: XCTestCase {
     private var app: XCUIApplication!
 
     @MainActor
-    private func launchSharePreview() {
+    private func launchSharePreview(
+        language: String = "en",
+        locale: String = "en_US"
+    ) {
         continueAfterFailure = false
         app = XCUIApplication()
         app.launchArguments = [
+            "-AppleLanguages", "(\(language))",
+            "-AppleLocale", locale,
             "-storeScreenshotMode", "YES",
             "-storeScreenshotScene", "projects",
-            "-storeScreenshotLanguage", "en",
-            "-storeScreenshotToken", "JournalShareFlowUITests"
+            "-storeScreenshotLanguage", language,
+            "-storeScreenshotToken", "JournalShareFlowUITests-\(language)"
         ]
         app.launch()
         XCTAssertTrue(app.descendants(matching: .any)["storeScreenshot.ready"].waitForExistence(timeout: 10))
@@ -23,6 +28,53 @@ final class JournalShareFlowUITests: XCTestCase {
         XCTAssertTrue(openShare.waitForExistence(timeout: 5))
         openShare.tap()
         XCTAssertTrue(app.otherElements["journalShare.preview"].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testCompletedProjectJournalRemainsShareableAndReadOnly() {
+        continueAfterFailure = false
+        app = XCUIApplication()
+        app.launchArguments = [
+            "-AppleLanguages", "(en)",
+            "-AppleLocale", "en_US",
+            "-storeScreenshotMode", "YES",
+            "-storeScreenshotScene", "projects",
+            "-storeScreenshotLanguage", "en",
+            "-storeScreenshotToken", "JournalShareFlowUITests-completed"
+        ]
+        app.launch()
+        XCTAssertTrue(app.descendants(matching: .any)["storeScreenshot.ready"].waitForExistence(timeout: 10))
+        app.staticTexts["Cloud Shawl"].firstMatch.tap()
+
+        let editProject = app.buttons["Edit Project"]
+        XCTAssertTrue(editProject.waitForExistence(timeout: 5))
+        editProject.tap()
+        let markCompleted = app.buttons["Mark as Completed"]
+        scrollUntilHittable(markCompleted)
+        markCompleted.tap()
+
+        let journal = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "First pattern section complete")).firstMatch
+        scrollUntilHittable(journal)
+        journal.tap()
+        XCTAssertTrue(app.buttons["journalShare.open"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Edit"].exists)
+        XCTAssertFalse(app.buttons["Delete"].exists)
+
+        app.buttons["journalShare.open"].tap()
+        XCTAssertTrue(app.otherElements["journalShare.preview"].waitForExistence(timeout: 10))
+        attachReadyPreview(named: "completed-project-normal")
+    }
+
+    @MainActor
+    func testTraditionalChineseAccessibilityPreviewUsesReflowedFormatControls() {
+        launchSharePreview(
+            language: "zh-Hant",
+            locale: "zh_Hant_TW"
+        )
+        XCTAssertFalse(app.segmentedControls["journalShare.format"].exists)
+        XCTAssertTrue(app.buttons["貼文 4:5"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["限時動態 9:16"].exists)
+        attachReadyPreview(named: "zh-Hant-accessibility-xxxl")
     }
 
     @MainActor
@@ -74,5 +126,14 @@ final class JournalShareFlowUITests: XCTestCase {
     private func scrollUntilHittable(_ element: XCUIElement, limit: Int = 8) {
         for _ in 0..<limit where !element.isHittable { app.swipeUp() }
         XCTAssertTrue(element.isHittable)
+    }
+
+    @MainActor
+    private func attachReadyPreview(named name: String) {
+        XCTAssertTrue(app.otherElements["journalShare.preview"].waitForExistence(timeout: 10))
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 }

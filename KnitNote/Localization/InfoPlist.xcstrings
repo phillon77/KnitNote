@@ -1,6 +1,90 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+      "NSPhotoLibraryAddUsageDescription": {
+        "comment": "Privacy purpose for add-only Photos access when saving a journal share card.",
+        "localizations": {
+          "en": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Save the knitting journal share cards you create to Photos."
+            }
+          },
+          "zh-Hant": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "將你製作的編織日誌分享卡儲存到照片。"
+            }
+          },
+          "zh-Hans": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "将你创建的编织日记分享卡存储到照片。"
+            }
+          },
+          "de": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Sichere deine erstellten Stricktagebuch-Karten in Fotos."
+            }
+          },
+          "fr": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Enregistrez dans Photos les cartes de journal de tricot que vous créez."
+            }
+          },
+          "ja": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "作成した編み物日記の共有カードを写真に保存します。"
+            }
+          },
+          "nb": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Arkiver delingskortene du lager fra strikkedagboken, i Bilder."
+            }
+          },
+          "sv": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Spara delningskorten du skapar från stickdagboken i Bilder."
+            }
+          },
+          "fi": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Tallenna luomasi neulepäiväkirjan jakokortit Kuviin."
+            }
+          },
+          "da": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Gem de delingskort, du opretter fra strikkedagbogen, i Fotos."
+            }
+          },
+          "ko": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "생성한 뜨개질 일지 공유 카드를 사진에 저장합니다."
+            }
+          },
+          "el": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Αποθηκεύστε στις Φωτογραφίες τις κάρτες ημερολογίου πλεξίματος που δημιουργείτε."
+            }
+          },
+          "nl": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Bewaar de deelkaarten die je van je breidagboek maakt in Foto’s."
+            }
+          }
+        },
+        "extractionState": "extracted_with_value"
+      },
     "CFBundleDisplayName" : {
       "comment" : "Bundle display name",
       "extractionState" : "extracted_with_value",

@@ -3,6 +3,35 @@ import Testing
 @testable import KnitNoteCore
 
 @Suite struct ReleaseConfigurationContractTests {
+    @Test func appDeclaresLocalizedPhotoAddUsage() throws {
+        let project = try sourceText("project.yml")
+        #expect(project.contains("NSPhotoLibraryAddUsageDescription:"))
+
+        let catalogData = try Data(
+            contentsOf: releaseConfigurationRepositoryRoot.appending(
+                path: "KnitNote/Localization/InfoPlist.xcstrings"
+            )
+        )
+        let payload = try #require(
+            JSONSerialization.jsonObject(with: catalogData) as? [String: Any]
+        )
+        let strings = try #require(payload["strings"] as? [String: Any])
+        let entry = try #require(
+            strings["NSPhotoLibraryAddUsageDescription"] as? [String: Any]
+        )
+        let localizations = try #require(entry["localizations"] as? [String: Any])
+        let locales = [
+            "en", "zh-Hant", "zh-Hans", "de", "fr", "ja",
+            "nb", "sv", "fi", "da", "ko", "el", "nl",
+        ]
+        #expect(Set(localizations.keys) == Set(locales))
+        for locale in locales {
+            let localization = try #require(localizations[locale] as? [String: Any])
+            let unit = try #require(localization["stringUnit"] as? [String: Any])
+            #expect((unit["value"] as? String)?.isEmpty == false)
+        }
+    }
+
     @Test func projectUsesProductionIdentifiersVersionAndTeam() throws {
         let yaml = try sourceText("project.yml")
 

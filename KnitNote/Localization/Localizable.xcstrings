@@ -17647,6 +17647,2911 @@
         }
       }
     },
+      "journal.share": {
+        "comment": "Journal share UI. Translate interface text only; never alter user-authored journal or post content.",
+        "localizations": {
+          "en": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Share"
+            }
+          },
+          "zh-Hant": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "分享"
+            }
+          },
+          "zh-Hans": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "分享"
+            }
+          },
+          "de": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Teilen"
+            }
+          },
+          "fr": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Partager"
+            }
+          },
+          "ja": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "共有"
+            }
+          },
+          "nb": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Del"
+            }
+          },
+          "sv": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Dela"
+            }
+          },
+          "fi": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Jaa"
+            }
+          },
+          "da": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Del"
+            }
+          },
+          "ko": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "공유"
+            }
+          },
+          "el": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Κοινοποίηση"
+            }
+          },
+          "nl": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Delen"
+            }
+          }
+        }
+      },
+      "journal.share.title": {
+        "comment": "Journal share UI. Translate interface text only; never alter user-authored journal or post content.",
+        "localizations": {
+          "en": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Share Knitting Journal"
+            }
+          },
+          "zh-Hant": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "分享編織日誌"
+            }
+          },
+          "zh-Hans": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "分享编织日记"
+            }
+          },
+          "de": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Stricktagebuch teilen"
+            }
+          },
+          "fr": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Partager le journal de tricot"
+            }
+          },
+          "ja": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "編み物日記を共有"
+            }
+          },
+          "nb": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Del strikkedagbok"
+            }
+          },
+          "sv": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Dela stickdagbok"
+            }
+          },
+          "fi": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Jaa neulepäiväkirja"
+            }
+          },
+          "da": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Del strikkedagbog"
+            }
+          },
+          "ko": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "뜨개질 일지 공유"
+            }
+          },
+          "el": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Κοινοποίηση ημερολογίου πλεξίματος"
+            }
+          },
+          "nl": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Breidagboek delen"
+            }
+          }
+        }
+      },
+      "journal.share.loading": {
+        "comment": "Journal share UI. Translate interface text only; never alter user-authored journal or post content.",
+        "localizations": {
+          "en": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Creating preview…"
+            }
+          },
+          "zh-Hant": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "正在製作預覽…"
+            }
+          },
+          "zh-Hans": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "正在创建预览…"
+            }
+          },
+          "de": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Vorschau wird erstellt…"
+            }
+          },
+          "fr": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Création de l’aperçu…"
+            }
+          },
+          "ja": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "プレビューを作成中…"
+            }
+          },
+          "nb": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Oppretter forhåndsvisning…"
+            }
+          },
+          "sv": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Skapar förhandsvisning…"
+            }
+          },
+          "fi": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Luodaan esikatselua…"
+            }
+          },
+          "da": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Opretter eksempel…"
+            }
+          },
+          "ko": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "미리보기 생성 중…"
+            }
+          },
+          "el": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Δημιουργία προεπισκόπησης…"
+            }
+          },
+          "nl": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Voorvertoning maken…"
+            }
+          }
+        }
+      },
+      "journal.share.format": {
+        "comment": "Journal share UI. Translate interface text only; never alter user-authored journal or post content.",
+        "localizations": {
+          "en": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Format"
+            }
+          },
+          "zh-Hant": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "格式"
+            }
+          },
+          "zh-Hans": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "格式"
+            }
+          },
+          "de": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Format"
+            }
+          },
+          "fr": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Format"
+            }
+          },
+          "ja": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "フォーマット"
+            }
+          },
+          "nb": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Format"
+            }
+          },
+          "sv": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Format"
+            }
+          },
+          "fi": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Muoto"
+            }
+          },
+          "da": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Format"
+            }
+          },
+          "ko": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "형식"
+            }
+          },
+          "el": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Μορφή"
+            }
+          },
+          "nl": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Indeling"
+            }
+          }
+        }
+      },
+      "journal.share.format.post": {
+        "comment": "Journal share UI. Translate interface text only; never alter user-authored journal or post content.",
+        "localizations": {
+          "en": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Post 4:5"
+            }
+          },
+          "zh-Hant": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "貼文 4:5"
+            }
+          },
+          "zh-Hans": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "帖子 4:5"
+            }
+          },
+          "de": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Beitrag 4:5"
+            }
+          },
+          "fr": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Publication 4:5"
+            }
+          },
+          "ja": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "投稿 4:5"
+            }
+          },
+          "nb": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Innlegg 4:5"
+            }
+          },
+          "sv": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Inlägg 4:5"
+            }
+          },
+          "fi": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Julkaisu 4:5"
+            }
+          },
+          "da": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Opslag 4:5"
+            }
+          },
+          "ko": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "게시물 4:5"
+            }
+          },
+          "el": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Δημοσίευση 4:5"
+            }
+          },
+          "nl": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Bericht 4:5"
+            }
+          }
+        }
+      },
+      "journal.share.format.story": {
+        "comment": "Journal share UI. Translate interface text only; never alter user-authored journal or post content.",
+        "localizations": {
+          "en": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Story 9:16"
+            }
+          },
+          "zh-Hant": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "限時動態 9:16"
+            }
+          },
+          "zh-Hans": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "限时动态 9:16"
+            }
+          },
+          "de": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Story 9:16"
+            }
+          },
+          "fr": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Story 9:16"
+            }
+          },
+          "ja": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "ストーリー 9:16"
+            }
+          },
+          "nb": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Historie 9:16"
+            }
+          },
+          "sv": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Händelse 9:16"
+            }
+          },
+          "fi": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Tarina 9:16"
+            }
+          },
+          "da": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Historie 9:16"
+            }
+          },
+          "ko": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "스토리 9:16"
+            }
+          },
+          "el": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Ιστορία 9:16"
+            }
+          },
+          "nl": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Verhaal 9:16"
+            }
+          }
+        }
+      },
+      "journal.share.showProject": {
+        "comment": "Journal share UI. Translate interface text only; never alter user-authored journal or post content.",
+        "localizations": {
+          "en": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Show project name"
+            }
+          },
+          "zh-Hant": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "顯示專案名稱"
+            }
+          },
+          "zh-Hans": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "显示项目名称"
+            }
+          },
+          "de": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Projektname anzeigen"
+            }
+          },
+          "fr": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Afficher le nom du projet"
+            }
+          },
+          "ja": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "プロジェクト名を表示"
+            }
+          },
+          "nb": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Vis prosjektnavn"
+            }
+          },
+          "sv": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Visa projektnamn"
+            }
+          },
+          "fi": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Näytä projektin nimi"
+            }
+          },
+          "da": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Vis projektnavn"
+            }
+          },
+          "ko": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "프로젝트 이름 표시"
+            }
+          },
+          "el": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Εμφάνιση ονόματος έργου"
+            }
+          },
+          "nl": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Projectnaam tonen"
+            }
+          }
+        }
+      },
+      "journal.share.showDate": {
+        "comment": "Journal share UI. Translate interface text only; never alter user-authored journal or post content.",
+        "localizations": {
+          "en": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Show date"
+            }
+          },
+          "zh-Hant": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "顯示日期"
+            }
+          },
+          "zh-Hans": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "显示日期"
+            }
+          },
+          "de": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Datum anzeigen"
+            }
+          },
+          "fr": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Afficher la date"
+            }
+          },
+          "ja": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "日付を表示"
+            }
+          },
+          "nb": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Vis dato"
+            }
+          },
+          "sv": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Visa datum"
+            }
+          },
+          "fi": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Näytä päivämäärä"
+            }
+          },
+          "da": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Vis dato"
+            }
+          },
+          "ko": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "날짜 표시"
+            }
+          },
+          "el": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Εμφάνιση ημερομηνίας"
+            }
+          },
+          "nl": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Datum tonen"
+            }
+          }
+        }
+      },
+      "journal.share.showCaption": {
+        "comment": "Journal share UI. Translate interface text only; never alter user-authored journal or post content.",
+        "localizations": {
+          "en": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Show journal text"
+            }
+          },
+          "zh-Hant": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "顯示日誌文字"
+            }
+          },
+          "zh-Hans": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "显示日记文字"
+            }
+          },
+          "de": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Tagebuchtext anzeigen"
+            }
+          },
+          "fr": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Afficher le texte du journal"
+            }
+          },
+          "ja": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "日記の文章を表示"
+            }
+          },
+          "nb": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Vis journaltekst"
+            }
+          },
+          "sv": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Visa dagbokstext"
+            }
+          },
+          "fi": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Näytä päiväkirjateksti"
+            }
+          },
+          "da": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Vis dagbogstekst"
+            }
+          },
+          "ko": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "일지 텍스트 표시"
+            }
+          },
+          "el": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Εμφάνιση κειμένου ημερολογίου"
+            }
+          },
+          "nl": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Dagboektekst tonen"
+            }
+          }
+        }
+      },
+      "journal.share.showBrand": {
+        "comment": "Journal share UI. Translate interface text only; never alter user-authored journal or post content.",
+        "localizations": {
+          "en": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Show KnitNote"
+            }
+          },
+          "zh-Hant": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "顯示 KnitNote"
+            }
+          },
+          "zh-Hans": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "显示 KnitNote"
+            }
+          },
+          "de": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "KnitNote anzeigen"
+            }
+          },
+          "fr": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Afficher KnitNote"
+            }
+          },
+          "ja": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "KnitNote を表示"
+            }
+          },
+          "nb": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Vis KnitNote"
+            }
+          },
+          "sv": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Visa KnitNote"
+            }
+          },
+          "fi": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Näytä KnitNote"
+            }
+          },
+          "da": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Vis KnitNote"
+            }
+          },
+          "ko": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "KnitNote 표시"
+            }
+          },
+          "el": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Εμφάνιση KnitNote"
+            }
+          },
+          "nl": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "KnitNote tonen"
+            }
+          }
+        }
+      },
+      "journal.share.text": {
+        "comment": "Journal share UI. Translate interface text only; never alter user-authored journal or post content.",
+        "localizations": {
+          "en": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Post text"
+            }
+          },
+          "zh-Hant": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "貼文文字"
+            }
+          },
+          "zh-Hans": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "帖子文字"
+            }
+          },
+          "de": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Beitragstext"
+            }
+          },
+          "fr": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Texte de la publication"
+            }
+          },
+          "ja": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "投稿テキスト"
+            }
+          },
+          "nb": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Innleggstekst"
+            }
+          },
+          "sv": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Inläggstext"
+            }
+          },
+          "fi": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Julkaisuteksti"
+            }
+          },
+          "da": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Opslagstekst"
+            }
+          },
+          "ko": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "게시물 텍스트"
+            }
+          },
+          "el": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Κείμενο δημοσίευσης"
+            }
+          },
+          "nl": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Berichttekst"
+            }
+          }
+        }
+      },
+      "journal.share.hashtag": {
+        "comment": "Journal share UI. Translate interface text only; never alter user-authored journal or post content.",
+        "localizations": {
+          "en": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Include #KnitNote"
+            }
+          },
+          "zh-Hant": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "加入 #KnitNote"
+            }
+          },
+          "zh-Hans": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "添加 #KnitNote"
+            }
+          },
+          "de": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "#KnitNote hinzufügen"
+            }
+          },
+          "fr": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Inclure #KnitNote"
+            }
+          },
+          "ja": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "#KnitNote を含める"
+            }
+          },
+          "nb": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Ta med #KnitNote"
+            }
+          },
+          "sv": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Ta med #KnitNote"
+            }
+          },
+          "fi": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Lisää #KnitNote"
+            }
+          },
+          "da": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Medtag #KnitNote"
+            }
+          },
+          "ko": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "#KnitNote 포함"
+            }
+          },
+          "el": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Συμπερίληψη #KnitNote"
+            }
+          },
+          "nl": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "#KnitNote toevoegen"
+            }
+          }
+        }
+      },
+      "journal.share.action.share": {
+        "comment": "Journal share UI. Translate interface text only; never alter user-authored journal or post content.",
+        "localizations": {
+          "en": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Share"
+            }
+          },
+          "zh-Hant": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "分享"
+            }
+          },
+          "zh-Hans": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "分享"
+            }
+          },
+          "de": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Teilen"
+            }
+          },
+          "fr": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Partager"
+            }
+          },
+          "ja": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "共有"
+            }
+          },
+          "nb": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Del"
+            }
+          },
+          "sv": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Dela"
+            }
+          },
+          "fi": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Jaa"
+            }
+          },
+          "da": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Del"
+            }
+          },
+          "ko": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "공유"
+            }
+          },
+          "el": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Κοινοποίηση"
+            }
+          },
+          "nl": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Delen"
+            }
+          }
+        }
+      },
+      "journal.share.action.save": {
+        "comment": "Journal share UI. Translate interface text only; never alter user-authored journal or post content.",
+        "localizations": {
+          "en": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Save to Photos"
+            }
+          },
+          "zh-Hant": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "儲存到照片"
+            }
+          },
+          "zh-Hans": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "存储到照片"
+            }
+          },
+          "de": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "In Fotos sichern"
+            }
+          },
+          "fr": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Enregistrer dans Photos"
+            }
+          },
+          "ja": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "写真に保存"
+            }
+          },
+          "nb": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Arkiver i Bilder"
+            }
+          },
+          "sv": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Spara i Bilder"
+            }
+          },
+          "fi": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Tallenna Kuviin"
+            }
+          },
+          "da": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Gem i Fotos"
+            }
+          },
+          "ko": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "사진에 저장"
+            }
+          },
+          "el": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Αποθήκευση στις Φωτογραφίες"
+            }
+          },
+          "nl": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Bewaar in Foto’s"
+            }
+          }
+        }
+      },
+      "journal.share.action.copy": {
+        "comment": "Journal share UI. Translate interface text only; never alter user-authored journal or post content.",
+        "localizations": {
+          "en": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Copy Post Text"
+            }
+          },
+          "zh-Hant": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "複製貼文文字"
+            }
+          },
+          "zh-Hans": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "复制帖子文字"
+            }
+          },
+          "de": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Beitragstext kopieren"
+            }
+          },
+          "fr": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Copier le texte"
+            }
+          },
+          "ja": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "投稿テキストをコピー"
+            }
+          },
+          "nb": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Kopier innleggstekst"
+            }
+          },
+          "sv": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Kopiera inläggstext"
+            }
+          },
+          "fi": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Kopioi julkaisuteksti"
+            }
+          },
+          "da": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Kopiér opslagstekst"
+            }
+          },
+          "ko": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "게시물 텍스트 복사"
+            }
+          },
+          "el": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Αντιγραφή κειμένου"
+            }
+          },
+          "nl": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Berichttekst kopiëren"
+            }
+          }
+        }
+      },
+      "journal.share.preview.accessibility": {
+        "comment": "Journal share UI. Translate interface text only; never alter user-authored journal or post content.",
+        "localizations": {
+          "en": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Knitting journal share card preview"
+            }
+          },
+          "zh-Hant": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "編織日誌分享卡預覽"
+            }
+          },
+          "zh-Hans": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "编织日记分享卡预览"
+            }
+          },
+          "de": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Vorschau der Stricktagebuch-Karte"
+            }
+          },
+          "fr": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Aperçu de la carte du journal de tricot"
+            }
+          },
+          "ja": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "編み物日記共有カードのプレビュー"
+            }
+          },
+          "nb": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Forhåndsvisning av delingskort"
+            }
+          },
+          "sv": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Förhandsvisning av delningskort"
+            }
+          },
+          "fi": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Neulepäiväkirjan jakokortin esikatselu"
+            }
+          },
+          "da": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Eksempel på delingskort"
+            }
+          },
+          "ko": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "뜨개질 일지 공유 카드 미리보기"
+            }
+          },
+          "el": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Προεπισκόπηση κάρτας κοινοποίησης"
+            }
+          },
+          "nl": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Voorvertoning van deelkaart"
+            }
+          }
+        }
+      },
+      "journal.share.copyFeedback": {
+        "comment": "Journal share UI. Translate interface text only; never alter user-authored journal or post content.",
+        "localizations": {
+          "en": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Copied"
+            }
+          },
+          "zh-Hant": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "已複製"
+            }
+          },
+          "zh-Hans": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "已复制"
+            }
+          },
+          "de": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Kopiert"
+            }
+          },
+          "fr": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Copié"
+            }
+          },
+          "ja": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "コピー済み"
+            }
+          },
+          "nb": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Kopiert"
+            }
+          },
+          "sv": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Kopierat"
+            }
+          },
+          "fi": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Kopioitu"
+            }
+          },
+          "da": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Kopieret"
+            }
+          },
+          "ko": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "복사됨"
+            }
+          },
+          "el": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Αντιγράφηκε"
+            }
+          },
+          "nl": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Gekopieerd"
+            }
+          }
+        }
+      },
+      "journal.share.saving": {
+        "comment": "Journal share UI. Translate interface text only; never alter user-authored journal or post content.",
+        "localizations": {
+          "en": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Saving…"
+            }
+          },
+          "zh-Hant": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "正在儲存…"
+            }
+          },
+          "zh-Hans": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "正在存储…"
+            }
+          },
+          "de": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Wird gesichert…"
+            }
+          },
+          "fr": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Enregistrement…"
+            }
+          },
+          "ja": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "保存中…"
+            }
+          },
+          "nb": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Arkiverer…"
+            }
+          },
+          "sv": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Sparar…"
+            }
+          },
+          "fi": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Tallennetaan…"
+            }
+          },
+          "da": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Gemmer…"
+            }
+          },
+          "ko": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "저장 중…"
+            }
+          },
+          "el": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Αποθήκευση…"
+            }
+          },
+          "nl": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Bewaren…"
+            }
+          }
+        }
+      },
+      "journal.share.saved": {
+        "comment": "Journal share UI. Translate interface text only; never alter user-authored journal or post content.",
+        "localizations": {
+          "en": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Saved to Photos"
+            }
+          },
+          "zh-Hant": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "已儲存到照片"
+            }
+          },
+          "zh-Hans": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "已存储到照片"
+            }
+          },
+          "de": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "In Fotos gesichert"
+            }
+          },
+          "fr": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Enregistré dans Photos"
+            }
+          },
+          "ja": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "写真に保存しました"
+            }
+          },
+          "nb": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Arkivert i Bilder"
+            }
+          },
+          "sv": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Sparad i Bilder"
+            }
+          },
+          "fi": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Tallennettu Kuviin"
+            }
+          },
+          "da": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Gemt i Fotos"
+            }
+          },
+          "ko": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "사진에 저장됨"
+            }
+          },
+          "el": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Αποθηκεύτηκε στις Φωτογραφίες"
+            }
+          },
+          "nl": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Bewaard in Foto’s"
+            }
+          }
+        }
+      },
+      "journal.share.saveCancelled": {
+        "comment": "Journal share UI. Translate interface text only; never alter user-authored journal or post content.",
+        "localizations": {
+          "en": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Save cancelled"
+            }
+          },
+          "zh-Hant": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "已取消儲存"
+            }
+          },
+          "zh-Hans": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "已取消存储"
+            }
+          },
+          "de": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Sichern abgebrochen"
+            }
+          },
+          "fr": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Enregistrement annulé"
+            }
+          },
+          "ja": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "保存をキャンセルしました"
+            }
+          },
+          "nb": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Arkivering avbrutt"
+            }
+          },
+          "sv": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Sparandet avbröts"
+            }
+          },
+          "fi": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Tallennus peruutettu"
+            }
+          },
+          "da": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Lagring annulleret"
+            }
+          },
+          "ko": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "저장 취소됨"
+            }
+          },
+          "el": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Η αποθήκευση ακυρώθηκε"
+            }
+          },
+          "nl": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Bewaren geannuleerd"
+            }
+          }
+        }
+      },
+      "journal.share.openSettings": {
+        "comment": "Journal share UI. Translate interface text only; never alter user-authored journal or post content.",
+        "localizations": {
+          "en": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Open Settings"
+            }
+          },
+          "zh-Hant": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "開啟設定"
+            }
+          },
+          "zh-Hans": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "打开设置"
+            }
+          },
+          "de": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Einstellungen öffnen"
+            }
+          },
+          "fr": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Ouvrir Réglages"
+            }
+          },
+          "ja": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "設定を開く"
+            }
+          },
+          "nb": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Åpne Innstillinger"
+            }
+          },
+          "sv": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Öppna Inställningar"
+            }
+          },
+          "fi": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Avaa Asetukset"
+            }
+          },
+          "da": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Åbn Indstillinger"
+            }
+          },
+          "ko": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "설정 열기"
+            }
+          },
+          "el": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Άνοιγμα Ρυθμίσεων"
+            }
+          },
+          "nl": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Open Instellingen"
+            }
+          }
+        }
+      },
+      "journal.share.error.title": {
+        "comment": "Journal share UI. Translate interface text only; never alter user-authored journal or post content.",
+        "localizations": {
+          "en": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Unable to Share"
+            }
+          },
+          "zh-Hant": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "無法分享"
+            }
+          },
+          "zh-Hans": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "无法分享"
+            }
+          },
+          "de": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Teilen nicht möglich"
+            }
+          },
+          "fr": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Partage impossible"
+            }
+          },
+          "ja": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "共有できません"
+            }
+          },
+          "nb": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Kan ikke dele"
+            }
+          },
+          "sv": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Det gick inte att dela"
+            }
+          },
+          "fi": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Jakaminen ei onnistu"
+            }
+          },
+          "da": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Kan ikke dele"
+            }
+          },
+          "ko": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "공유할 수 없음"
+            }
+          },
+          "el": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Η κοινοποίηση δεν είναι δυνατή"
+            }
+          },
+          "nl": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Delen niet mogelijk"
+            }
+          }
+        }
+      },
+      "journal.share.error.photoUnavailable": {
+        "comment": "Journal share UI. Translate interface text only; never alter user-authored journal or post content.",
+        "localizations": {
+          "en": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "This journal photo is unavailable."
+            }
+          },
+          "zh-Hant": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "無法讀取這張日誌照片。"
+            }
+          },
+          "zh-Hans": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "无法读取这张日记照片。"
+            }
+          },
+          "de": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Dieses Tagebuchfoto ist nicht verfügbar."
+            }
+          },
+          "fr": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Cette photo du journal est indisponible."
+            }
+          },
+          "ja": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "この日記の写真は利用できません。"
+            }
+          },
+          "nb": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Dette journalbildet er ikke tilgjengelig."
+            }
+          },
+          "sv": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Den här dagboksbilden är inte tillgänglig."
+            }
+          },
+          "fi": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Tämä päiväkirjakuva ei ole saatavilla."
+            }
+          },
+          "da": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Dette dagbogsbillede er ikke tilgængeligt."
+            }
+          },
+          "ko": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "이 일지 사진을 사용할 수 없습니다."
+            }
+          },
+          "el": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Αυτή η φωτογραφία ημερολογίου δεν είναι διαθέσιμη."
+            }
+          },
+          "nl": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Deze dagboekfoto is niet beschikbaar."
+            }
+          }
+        }
+      },
+      "journal.share.error.render": {
+        "comment": "Journal share UI. Translate interface text only; never alter user-authored journal or post content.",
+        "localizations": {
+          "en": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "The share card couldn’t be created."
+            }
+          },
+          "zh-Hant": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "無法製作分享卡。"
+            }
+          },
+          "zh-Hans": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "无法创建分享卡。"
+            }
+          },
+          "de": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Die Karte konnte nicht erstellt werden."
+            }
+          },
+          "fr": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "La carte n’a pas pu être créée."
+            }
+          },
+          "ja": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "共有カードを作成できませんでした。"
+            }
+          },
+          "nb": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Delingskortet kunne ikke opprettes."
+            }
+          },
+          "sv": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Delningskortet kunde inte skapas."
+            }
+          },
+          "fi": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Jakokorttia ei voitu luoda."
+            }
+          },
+          "da": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Delingskortet kunne ikke oprettes."
+            }
+          },
+          "ko": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "공유 카드를 만들 수 없습니다."
+            }
+          },
+          "el": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Δεν ήταν δυνατή η δημιουργία της κάρτας."
+            }
+          },
+          "nl": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "De deelkaart kon niet worden gemaakt."
+            }
+          }
+        }
+      },
+      "journal.share.error.photosDenied": {
+        "comment": "Journal share UI. Translate interface text only; never alter user-authored journal or post content.",
+        "localizations": {
+          "en": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Allow KnitNote to add photos in Settings to save this card."
+            }
+          },
+          "zh-Hant": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "請在「設定」允許 KnitNote 新增照片，以儲存這張卡片。"
+            }
+          },
+          "zh-Hans": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "请在“设置”中允许 KnitNote 添加照片，以存储此卡片。"
+            }
+          },
+          "de": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Erlaube den Fotozugriff in den Einstellungen, um diese Karte zu sichern."
+            }
+          },
+          "fr": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Autorisez l’accès aux photos dans Réglages pour enregistrer cette carte."
+            }
+          },
+          "ja": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "このカードを保存するには、設定で写真へのアクセスを許可してください。"
+            }
+          },
+          "nb": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Tillat tilgang til Bilder i Innstillinger for å arkivere kortet."
+            }
+          },
+          "sv": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Tillåt åtkomst till Bilder i Inställningar för att spara kortet."
+            }
+          },
+          "fi": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Salli Kuvien käyttö Asetuksissa kortin tallentamista varten."
+            }
+          },
+          "da": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Tillad adgang til Fotos i Indstillinger for at gemme kortet."
+            }
+          },
+          "ko": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "이 카드를 저장하려면 설정에서 사진 접근을 허용하세요."
+            }
+          },
+          "el": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Επιτρέψτε την πρόσβαση στις Φωτογραφίες από τις Ρυθμίσεις για αποθήκευση."
+            }
+          },
+          "nl": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Sta toegang tot Foto’s toe in Instellingen om deze kaart te bewaren."
+            }
+          }
+        }
+      },
+      "journal.share.error.saveFailed": {
+        "comment": "Journal share UI. Translate interface text only; never alter user-authored journal or post content.",
+        "localizations": {
+          "en": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "The card couldn’t be saved to Photos."
+            }
+          },
+          "zh-Hant": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "無法將卡片儲存到照片。"
+            }
+          },
+          "zh-Hans": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "无法将卡片存储到照片。"
+            }
+          },
+          "de": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Die Karte konnte nicht in Fotos gesichert werden."
+            }
+          },
+          "fr": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "La carte n’a pas pu être enregistrée dans Photos."
+            }
+          },
+          "ja": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "カードを写真に保存できませんでした。"
+            }
+          },
+          "nb": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Kortet kunne ikke arkiveres i Bilder."
+            }
+          },
+          "sv": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Kortet kunde inte sparas i Bilder."
+            }
+          },
+          "fi": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Korttia ei voitu tallentaa Kuviin."
+            }
+          },
+          "da": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Kortet kunne ikke gemmes i Fotos."
+            }
+          },
+          "ko": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "카드를 사진에 저장할 수 없습니다."
+            }
+          },
+          "el": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Δεν ήταν δυνατή η αποθήκευση στις Φωτογραφίες."
+            }
+          },
+          "nl": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "De kaart kon niet in Foto’s worden bewaard."
+            }
+          }
+        }
+      },
+      "journal.share.error.unavailable": {
+        "comment": "Journal share UI. Translate interface text only; never alter user-authored journal or post content.",
+        "localizations": {
+          "en": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Sharing is temporarily unavailable."
+            }
+          },
+          "zh-Hant": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "目前無法分享。"
+            }
+          },
+          "zh-Hans": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "暂时无法分享。"
+            }
+          },
+          "de": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Teilen ist vorübergehend nicht verfügbar."
+            }
+          },
+          "fr": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Le partage est temporairement indisponible."
+            }
+          },
+          "ja": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "現在、共有は利用できません。"
+            }
+          },
+          "nb": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Deling er midlertidig utilgjengelig."
+            }
+          },
+          "sv": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Delning är tillfälligt otillgängligt."
+            }
+          },
+          "fi": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Jakaminen ei ole tilapäisesti käytettävissä."
+            }
+          },
+          "da": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Deling er midlertidigt utilgængelig."
+            }
+          },
+          "ko": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "일시적으로 공유할 수 없습니다."
+            }
+          },
+          "el": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Η κοινοποίηση δεν είναι προσωρινά διαθέσιμη."
+            }
+          },
+          "nl": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Delen is tijdelijk niet beschikbaar."
+            }
+          }
+        }
+      },
+      "journal.share.announcement.copied": {
+        "comment": "Journal share UI. Translate interface text only; never alter user-authored journal or post content.",
+        "localizations": {
+          "en": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Copied"
+            }
+          },
+          "zh-Hant": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "已複製"
+            }
+          },
+          "zh-Hans": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "已复制"
+            }
+          },
+          "de": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Kopiert"
+            }
+          },
+          "fr": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Copié"
+            }
+          },
+          "ja": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "コピー済み"
+            }
+          },
+          "nb": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Kopiert"
+            }
+          },
+          "sv": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Kopierat"
+            }
+          },
+          "fi": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Kopioitu"
+            }
+          },
+          "da": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Kopieret"
+            }
+          },
+          "ko": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "복사됨"
+            }
+          },
+          "el": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Αντιγράφηκε"
+            }
+          },
+          "nl": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Gekopieerd"
+            }
+          }
+        }
+      },
+      "journal.share.announcement.failed": {
+        "comment": "Journal share UI. Translate interface text only; never alter user-authored journal or post content.",
+        "localizations": {
+          "en": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Sharing is temporarily unavailable."
+            }
+          },
+          "zh-Hant": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "目前無法分享。"
+            }
+          },
+          "zh-Hans": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "暂时无法分享。"
+            }
+          },
+          "de": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Teilen ist vorübergehend nicht verfügbar."
+            }
+          },
+          "fr": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Le partage est temporairement indisponible."
+            }
+          },
+          "ja": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "現在、共有は利用できません。"
+            }
+          },
+          "nb": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Deling er midlertidig utilgjengelig."
+            }
+          },
+          "sv": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Delning är tillfälligt otillgängligt."
+            }
+          },
+          "fi": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Jakaminen ei ole tilapäisesti käytettävissä."
+            }
+          },
+          "da": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Deling er midlertidigt utilgængelig."
+            }
+          },
+          "ko": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "일시적으로 공유할 수 없습니다."
+            }
+          },
+          "el": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Η κοινοποίηση δεν είναι προσωρινά διαθέσιμη."
+            }
+          },
+          "nl": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Delen is tijdelijk niet beschikbaar."
+            }
+          }
+        }
+      },
+      "journal.share.announcement.photoUnavailable": {
+        "comment": "Journal share UI. Translate interface text only; never alter user-authored journal or post content.",
+        "localizations": {
+          "en": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "This journal photo is unavailable."
+            }
+          },
+          "zh-Hant": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "無法讀取這張日誌照片。"
+            }
+          },
+          "zh-Hans": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "无法读取这张日记照片。"
+            }
+          },
+          "de": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Dieses Tagebuchfoto ist nicht verfügbar."
+            }
+          },
+          "fr": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Cette photo du journal est indisponible."
+            }
+          },
+          "ja": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "この日記の写真は利用できません。"
+            }
+          },
+          "nb": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Dette journalbildet er ikke tilgjengelig."
+            }
+          },
+          "sv": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Den här dagboksbilden är inte tillgänglig."
+            }
+          },
+          "fi": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Tämä päiväkirjakuva ei ole saatavilla."
+            }
+          },
+          "da": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Dette dagbogsbillede er ikke tilgængeligt."
+            }
+          },
+          "ko": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "이 일지 사진을 사용할 수 없습니다."
+            }
+          },
+          "el": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Αυτή η φωτογραφία ημερολογίου δεν είναι διαθέσιμη."
+            }
+          },
+          "nl": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Deze dagboekfoto is niet beschikbaar."
+            }
+          }
+        }
+      },
+      "journal.share.announcement.renderFailed": {
+        "comment": "Journal share UI. Translate interface text only; never alter user-authored journal or post content.",
+        "localizations": {
+          "en": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "The share card couldn’t be created."
+            }
+          },
+          "zh-Hant": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "無法製作分享卡。"
+            }
+          },
+          "zh-Hans": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "无法创建分享卡。"
+            }
+          },
+          "de": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Die Karte konnte nicht erstellt werden."
+            }
+          },
+          "fr": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "La carte n’a pas pu être créée."
+            }
+          },
+          "ja": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "共有カードを作成できませんでした。"
+            }
+          },
+          "nb": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Delingskortet kunne ikke opprettes."
+            }
+          },
+          "sv": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Delningskortet kunde inte skapas."
+            }
+          },
+          "fi": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Jakokorttia ei voitu luoda."
+            }
+          },
+          "da": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Delingskortet kunne ikke oprettes."
+            }
+          },
+          "ko": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "공유 카드를 만들 수 없습니다."
+            }
+          },
+          "el": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Δεν ήταν δυνατή η δημιουργία της κάρτας."
+            }
+          },
+          "nl": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "De deelkaart kon niet worden gemaakt."
+            }
+          }
+        }
+      },
+      "journal.share.announcement.photosDenied": {
+        "comment": "Journal share UI. Translate interface text only; never alter user-authored journal or post content.",
+        "localizations": {
+          "en": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Allow KnitNote to add photos in Settings to save this card."
+            }
+          },
+          "zh-Hant": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "請在「設定」允許 KnitNote 新增照片，以儲存這張卡片。"
+            }
+          },
+          "zh-Hans": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "请在“设置”中允许 KnitNote 添加照片，以存储此卡片。"
+            }
+          },
+          "de": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Erlaube den Fotozugriff in den Einstellungen, um diese Karte zu sichern."
+            }
+          },
+          "fr": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Autorisez l’accès aux photos dans Réglages pour enregistrer cette carte."
+            }
+          },
+          "ja": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "このカードを保存するには、設定で写真へのアクセスを許可してください。"
+            }
+          },
+          "nb": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Tillat tilgang til Bilder i Innstillinger for å arkivere kortet."
+            }
+          },
+          "sv": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Tillåt åtkomst till Bilder i Inställningar för att spara kortet."
+            }
+          },
+          "fi": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Salli Kuvien käyttö Asetuksissa kortin tallentamista varten."
+            }
+          },
+          "da": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Tillad adgang til Fotos i Indstillinger for at gemme kortet."
+            }
+          },
+          "ko": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "이 카드를 저장하려면 설정에서 사진 접근을 허용하세요."
+            }
+          },
+          "el": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Επιτρέψτε την πρόσβαση στις Φωτογραφίες από τις Ρυθμίσεις για αποθήκευση."
+            }
+          },
+          "nl": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Sta toegang tot Foto’s toe in Instellingen om deze kaart te bewaren."
+            }
+          }
+        }
+      },
+      "journal.share.announcement.saved": {
+        "comment": "Journal share UI. Translate interface text only; never alter user-authored journal or post content.",
+        "localizations": {
+          "en": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Saved to Photos"
+            }
+          },
+          "zh-Hant": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "已儲存到照片"
+            }
+          },
+          "zh-Hans": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "已存储到照片"
+            }
+          },
+          "de": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "In Fotos gesichert"
+            }
+          },
+          "fr": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Enregistré dans Photos"
+            }
+          },
+          "ja": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "写真に保存しました"
+            }
+          },
+          "nb": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Arkivert i Bilder"
+            }
+          },
+          "sv": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Sparad i Bilder"
+            }
+          },
+          "fi": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Tallennettu Kuviin"
+            }
+          },
+          "da": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Gemt i Fotos"
+            }
+          },
+          "ko": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "사진에 저장됨"
+            }
+          },
+          "el": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Αποθηκεύτηκε στις Φωτογραφίες"
+            }
+          },
+          "nl": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Bewaard in Foto’s"
+            }
+          }
+        }
+      },
+      "journal.share.announcement.saveFailed": {
+        "comment": "Journal share UI. Translate interface text only; never alter user-authored journal or post content.",
+        "localizations": {
+          "en": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "The card couldn’t be saved to Photos."
+            }
+          },
+          "zh-Hant": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "無法將卡片儲存到照片。"
+            }
+          },
+          "zh-Hans": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "无法将卡片存储到照片。"
+            }
+          },
+          "de": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Die Karte konnte nicht in Fotos gesichert werden."
+            }
+          },
+          "fr": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "La carte n’a pas pu être enregistrée dans Photos."
+            }
+          },
+          "ja": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "カードを写真に保存できませんでした。"
+            }
+          },
+          "nb": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Kortet kunne ikke arkiveres i Bilder."
+            }
+          },
+          "sv": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Kortet kunde inte sparas i Bilder."
+            }
+          },
+          "fi": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Korttia ei voitu tallentaa Kuviin."
+            }
+          },
+          "da": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Kortet kunne ikke gemmes i Fotos."
+            }
+          },
+          "ko": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "카드를 사진에 저장할 수 없습니다."
+            }
+          },
+          "el": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Δεν ήταν δυνατή η αποθήκευση στις Φωτογραφίες."
+            }
+          },
+          "nl": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "De kaart kon niet in Foto’s worden bewaard."
+            }
+          }
+        }
+      },
+      "journal.share.announcement.saveCancelled": {
+        "comment": "Journal share UI. Translate interface text only; never alter user-authored journal or post content.",
+        "localizations": {
+          "en": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Save cancelled"
+            }
+          },
+          "zh-Hant": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "已取消儲存"
+            }
+          },
+          "zh-Hans": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "已取消存储"
+            }
+          },
+          "de": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Sichern abgebrochen"
+            }
+          },
+          "fr": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Enregistrement annulé"
+            }
+          },
+          "ja": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "保存をキャンセルしました"
+            }
+          },
+          "nb": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Arkivering avbrutt"
+            }
+          },
+          "sv": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Sparandet avbröts"
+            }
+          },
+          "fi": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Tallennus peruutettu"
+            }
+          },
+          "da": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Lagring annulleret"
+            }
+          },
+          "ko": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "저장 취소됨"
+            }
+          },
+          "el": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Η αποθήκευση ακυρώθηκε"
+            }
+          },
+          "nl": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Bewaren geannuleerd"
+            }
+          }
+        }
+      },
     "journal.title" : {
       "localizations" : {
         "da" : {

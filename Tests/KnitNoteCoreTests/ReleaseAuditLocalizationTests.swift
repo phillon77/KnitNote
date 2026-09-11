@@ -279,6 +279,72 @@ struct PBXPathWhitespaceMutation: Sendable, CustomTestStringConvertible {
 }
 
 @Suite(.serialized) struct ReleaseAuditLocalizationTests {
+    @Test func journalShareKeysCoverEverySupportedLocalization() throws {
+        let required = [
+            "journal.share",
+            "journal.share.title",
+            "journal.share.loading",
+            "journal.share.format",
+            "journal.share.format.post",
+            "journal.share.format.story",
+            "journal.share.showProject",
+            "journal.share.showDate",
+            "journal.share.showCaption",
+            "journal.share.showBrand",
+            "journal.share.text",
+            "journal.share.hashtag",
+            "journal.share.action.share",
+            "journal.share.action.save",
+            "journal.share.action.copy",
+            "journal.share.preview.accessibility",
+            "journal.share.copyFeedback",
+            "journal.share.saving",
+            "journal.share.saved",
+            "journal.share.saveCancelled",
+            "journal.share.openSettings",
+            "journal.share.error.title",
+            "journal.share.error.photoUnavailable",
+            "journal.share.error.render",
+            "journal.share.error.photosDenied",
+            "journal.share.error.saveFailed",
+            "journal.share.error.unavailable",
+            "journal.share.announcement.copied",
+            "journal.share.announcement.failed",
+            "journal.share.announcement.photoUnavailable",
+            "journal.share.announcement.renderFailed",
+            "journal.share.announcement.photosDenied",
+            "journal.share.announcement.saved",
+            "journal.share.announcement.saveFailed",
+            "journal.share.announcement.saveCancelled",
+        ]
+        let url = releaseAuditRepositoryRoot
+            .appending(path: "KnitNote/Localization/Localizable.xcstrings")
+        let payload = try #require(
+            JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
+        )
+        let strings = try #require(payload["strings"] as? [String: Any])
+        for key in required {
+            let entry = try #require(strings[key] as? [String: Any])
+            let localizations = try #require(entry["localizations"] as? [String: Any])
+            #expect(Set(localizations.keys) == Set(releaseLocales))
+            for locale in releaseLocales {
+                let localization = try #require(localizations[locale] as? [String: Any])
+                let unit = try #require(localization["stringUnit"] as? [String: Any])
+                #expect((unit["value"] as? String)?.isEmpty == false)
+            }
+        }
+    }
+
+    @Test func photoAddUsageCompilesForEverySupportedLocalization() throws {
+        for locale in releaseLocales {
+            let values = try compiledInfoPlistValues(locale: locale)
+            #expect(
+                values["NSPhotoLibraryAddUsageDescription"]?.isEmpty == false,
+                "missing compiled Photos-add purpose for \(locale)"
+            )
+        }
+    }
+
     @Test func archiveAuditRunsCompleteTestSuiteSequentially() throws {
         let fixture = try makeArchiveFixture()
         defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
@@ -1432,6 +1498,45 @@ struct PBXPathWhitespaceMutation: Sendable, CustomTestStringConvertible {
         #expect(result.status != 0)
         #expect(result.output.contains("iOS Info.plist has no English source fallback"))
         #expect(result.output.contains("NSCameraUsageDescription"))
+    }
+
+    @Test func archiveAuditRejectsMissingPhotoAddEnglishInfoPlistFallback() throws {
+        let fixture = try makeArchiveFixture(
+            missingEnglishInfoPlistFallback: (
+                target: "iOS",
+                key: "NSPhotoLibraryAddUsageDescription"
+            )
+        )
+        defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
+
+        let result = try runReleaseAudit(
+            archives: fixture.archives,
+            environment: ["PATH": fixture.commandPath]
+        )
+
+        #expect(result.status != 0)
+        #expect(result.output.contains("iOS Info.plist has no English source fallback"))
+        #expect(result.output.contains("NSPhotoLibraryAddUsageDescription"))
+    }
+
+    @Test func archiveAuditRejectsWrongPhotoAddEnglishInfoPlistFallback() throws {
+        let fixture = try makeArchiveFixture(
+            englishInfoPlistFallbackOverride: (
+                target: "macOS",
+                key: "NSPhotoLibraryAddUsageDescription",
+                value: "Wrong Photos purpose"
+            )
+        )
+        defer { try? FileManager.default.removeItem(at: fixture.temporaryRoot) }
+
+        let result = try runReleaseAudit(
+            archives: fixture.archives,
+            environment: ["PATH": fixture.commandPath]
+        )
+
+        #expect(result.status != 0)
+        #expect(result.output.contains("macOS Info.plist has no English source fallback"))
+        #expect(result.output.contains("NSPhotoLibraryAddUsageDescription"))
     }
 
     @Test func archiveAuditRejectsBackupFallbackLiteralAtTheWrongPlistPath() throws {
@@ -3101,6 +3206,7 @@ private func makeArchiveFixture(
     infoPlistValueOverride: (target: String, locale: String, key: String, value: String)? = nil,
     extraInfoPlistKey: (target: String, locale: String)? = nil,
     englishInfoPlistFallbackOverride: (target: String, key: String, value: String)? = nil,
+    missingEnglishInfoPlistFallback: (target: String, key: String)? = nil,
     misplacedEnglishInfoPlistFallback: (target: String, key: String)? = nil,
     missingMacSignedEntitlement: String? = nil,
     changedMacSignedEntitlement: String? = nil,
@@ -3182,10 +3288,15 @@ private func makeArchiveFixture(
             plist["CFBundleDisplayName"] = "KnitNote"
             plist["CFBundleName"] = "KnitNote"
             plist["NSCameraUsageDescription"] = "Take photos for knitting projects, journal entries, and yarn labels."
+            plist["NSPhotoLibraryAddUsageDescription"] = "Save the knitting journal share cards you create to Photos."
             if let override = englishInfoPlistFallbackOverride,
                override.target == item.name,
                override.key != "KnitNote Backup" {
                 plist[override.key] = override.value
+            }
+            if let missing = missingEnglishInfoPlistFallback,
+               missing.target == item.name {
+                plist.removeValue(forKey: missing.key)
             }
             let backupDescription = englishInfoPlistFallbackOverride?.target == item.name
                 && englishInfoPlistFallbackOverride?.key == "KnitNote Backup"

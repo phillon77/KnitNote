@@ -55,18 +55,18 @@ import Testing
         #expect(project.contains("WKCompanionAppBundleIdentifier: com.phillon.KnitNote"))
     }
 
-    @Test func releaseCandidateUsesBuildThirteenAcrossEveryBundle() throws {
+    @Test func releaseCandidateUsesBuildFourteenAcrossEveryBundle() throws {
         let specification = try source("project.yml")
         let generatedProject = try source("KnitNote.xcodeproj/project.pbxproj")
 
         #expect(
             specification.components(
-                separatedBy: "CURRENT_PROJECT_VERSION: 13"
+                separatedBy: "CURRENT_PROJECT_VERSION: 14"
             ).count == 4
         )
         #expect(
             generatedProject.components(
-                separatedBy: "CURRENT_PROJECT_VERSION = 13;"
+                separatedBy: "CURRENT_PROJECT_VERSION = 14;"
             ).count == 7
         )
         #expect(!generatedProject.contains("CURRENT_PROJECT_VERSION = 11;"))
@@ -78,12 +78,12 @@ import Testing
 
         #expect(
             specification.components(
-                separatedBy: "MARKETING_VERSION: 1.6.1"
+                separatedBy: "MARKETING_VERSION: 1.7.0"
             ).count == 4
         )
         #expect(
             generatedProject.components(
-                separatedBy: "MARKETING_VERSION = 1.6.1;"
+                separatedBy: "MARKETING_VERSION = 1.7.0;"
             ).count == 7
         )
         #expect(!generatedProject.contains("MARKETING_VERSION = 1.5.1;"))

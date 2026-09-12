@@ -84,9 +84,13 @@ without uninstalling it first. The existing version was 1.5.1 (11); this is an
 upgrade to 1.6.1 (13). Installation succeeded at 19:16 Taiwan time, with receipt
 `/private/tmp/knitnote-photos-crash-fix.JVFFjB/install-ipad-fixed.json`.
 
-- [ ] User confirms existing iPad projects/journals are intact after upgrade.
-- [ ] User verifies iPad preview, Photos saving, and social draft receipt.
-- [ ] User verifies iPad Photos denial/recovery behavior.
+- [x] User confirms existing iPad projects/journals are intact after upgrade.
+- [x] User reports both preview ratios and Photos saving are normal.
+- [x] User reports sharing through Messages is normal. No social app is
+  installed on that iPad; this does not certify social-app receipt.
+- [x] After denying Photos permission, the user confirms the permission
+  prompt is shown rather than a crash. Restoring permission was requested;
+  a subsequent successful save after restoring it was not separately reported.
 
-No archive, upload, merge, push, submission, or release is authorized by this
-follow-up.
+The user subsequently authorized a local merge back to the original development
+branch. No archive, upload, push, submission, or release is authorized.

@@ -69,8 +69,24 @@ revision; they are not rerun or relabeled for this fix.
   `/private/tmp/knitnote-photos-crash-fix.JVFFjB/install-fixed.json`.
 - Automatic launch was denied because the iPhone was locked; the user must
   unlock and open KnitNote. This is not a post-fix application crash.
-- [ ] User confirms Post and Story save without termination and appear in Photos.
-- [ ] Photos denial/recovery and third-party sharing acceptance remain pending.
+- [x] After installing the fix, the user reported that saving to Photos was
+  normal. The reply did not enumerate each format separately.
+- [x] The user subsequently reported normal image/text receipt in a social
+  draft. The tested destination was not named, so this does not individually
+  certify Instagram, TikTok, Facebook, or X.
+- [ ] Photos denial/recovery and remaining destination-specific checks.
+
+## iPad installation
+
+After the user confirmed the iPad data was backed up, the same signed
+`b3b31f96feecbf363f1a2f32f820c6cef1b3f6fa` app was installed on iPad Air 5
+without uninstalling it first. The existing version was 1.5.1 (11); this is an
+upgrade to 1.6.1 (13). Installation succeeded at 19:16 Taiwan time, with receipt
+`/private/tmp/knitnote-photos-crash-fix.JVFFjB/install-ipad-fixed.json`.
+
+- [ ] User confirms existing iPad projects/journals are intact after upgrade.
+- [ ] User verifies iPad preview, Photos saving, and social draft receipt.
+- [ ] User verifies iPad Photos denial/recovery behavior.
 
 No archive, upload, merge, push, submission, or release is authorized by this
 follow-up.

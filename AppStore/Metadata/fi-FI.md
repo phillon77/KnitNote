@@ -7,7 +7,7 @@
 - Support URL: https://phillon77.github.io/KnitNote/support.html
 - Marketing URL: https://phillon77.github.io/KnitNote/
 - Privacy URL: https://phillon77.github.io/KnitNote/privacy.html
-- What's New: Tietojen optimointi
+- What's New: Jaa neulepäiväkirjasi ja tallenna projektisi jokainen vaihe. • Luo päiväkirjastasi jaettavia kuvakortteja julkaisuihin sopivassa 4:5-muodossa tai pystysuuntaisessa 9:16-muodossa. • Muokkaa kortin tekstiä ja siinä näkyvää sisältöä ennen jakamista muuttamatta alkuperäistä päiväkirjamerkintää. • Tallenna kortit Kuvat-appiin, kopioi jaettava teksti tai jaa kortit muihin appeihin järjestelmän jakovalikon kautta.
 - Description: |
   Keskity käsissäsi olevaan lankaan. KnitNote kokoaa neuleprojektit, kuusi laskuria, ohjeet ja muistiinpanot selkeään ja rauhalliseen työtilaan.
 

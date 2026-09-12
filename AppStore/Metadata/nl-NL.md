@@ -7,7 +7,7 @@
 - Support URL: https://phillon77.github.io/KnitNote/support.html
 - Marketing URL: https://phillon77.github.io/KnitNote/
 - Privacy URL: https://phillon77.github.io/KnitNote/privacy.html
-- What's New: Gegevensoptimalisatie
+- What's New: Deel je breidagboek en leg elke stap van je project vast. • Maak deelbare dagboekkaarten in het berichtformaat 4:5 of het verticale formaat 9:16. • Pas vóór het delen de tekst en de weergegeven inhoud van je kaart aan, zonder het oorspronkelijke dagboekbericht te wijzigen. • Bewaar kaarten in Foto’s, kopieer de tekst om te delen of deel ze met andere apps via het deelmenu van het systeem.
 - Description: |
   Houd de draad in handen. KnitNote brengt breiprojecten, zes tellers, patronen en notities samen in een rustige, overzichtelijke werkruimte.
 

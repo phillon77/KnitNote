@@ -7,7 +7,7 @@
 - Support URL: https://phillon77.github.io/KnitNote/support.html
 - Marketing URL: https://phillon77.github.io/KnitNote/
 - Privacy URL: https://phillon77.github.io/KnitNote/privacy.html
-- What's New: 数据优化
+- What's New: 分享编织日记，留住作品的每一步。 • 新增日记分享图卡，提供 4:5 帖子与 9:16 竖版两种比例。 • 分享前可调整文字与图卡显示内容，不影响原始日记。 • 可将图卡保存至照片、复制分享文字，或通过系统分享菜单分享至其他 App。
 - Description: |
   把注意力留给手中的毛线。KnitNote 将 Apple Watch 计数、作品进度、6 个计数器和 PDF 图解整合在一个清晰、安静的工作空间中。
 

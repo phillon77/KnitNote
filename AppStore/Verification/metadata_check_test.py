@@ -172,13 +172,19 @@ class MetadataLocaleTests(unittest.TestCase):
 
     def test_current_notes_and_supported_languages(self) -> None:
         expected = {
-            "zh-Hant.md": "資料優化", "zh-Hans.md": "数据优化",
-            "en-US.md": "Data optimization", "de-DE.md": "Datenoptimierung",
-            "fr-FR.md": "Optimisation des données", "ja-JP.md": "データの最適化",
-            "nb-NO.md": "Dataoptimalisering", "sv-SE.md": "Dataoptimering",
-            "fi-FI.md": "Tietojen optimointi", "da-DK.md": "Dataoptimering",
-            "ko-KR.md": "데이터 최적화", "el-GR.md": "Βελτιστοποίηση δεδομένων",
-            "nl-NL.md": "Gegevensoptimalisatie",
+            "zh-Hant.md": "分享編織日記，留住作品的每一步。 • 新增日記分享圖卡，提供 4:5 貼文與 9:16 直式兩種比例。 • 分享前可調整文字與圖卡顯示內容，不影響原始日記。 • 可將圖卡儲存至照片、複製分享文字，或透過系統分享選單分享至其他 App。",
+            "en-US.md": "Share your knitting journal and capture every step of your project. • Create shareable journal cards in 4:5 post and 9:16 vertical formats. • Adjust the text and what appears on your card before sharing, without changing the original journal entry. • Save cards to Photos, copy the sharing text, or share to other apps using the system share menu.",
+            "zh-Hans.md": "分享编织日记，留住作品的每一步。 • 新增日记分享图卡，提供 4:5 帖子与 9:16 竖版两种比例。 • 分享前可调整文字与图卡显示内容，不影响原始日记。 • 可将图卡保存至照片、复制分享文字，或通过系统分享菜单分享至其他 App。",
+            "de-DE.md": "Teile dein Stricktagebuch und halte jeden Schritt deines Projekts fest. • Erstelle teilbare Tagebuchkarten im Beitragsformat 4:5 oder im Hochformat 9:16. • Passe vor dem Teilen den Text und die angezeigten Inhalte deiner Karte an, ohne den ursprünglichen Tagebucheintrag zu verändern. • Speichere Karten in Fotos, kopiere den Begleittext oder teile sie über das Teilen-Menü des Systems mit anderen Apps.",
+            "fr-FR.md": "Partagez votre journal de tricot et gardez une trace de chaque étape de votre projet. • Créez des cartes à partager à partir de votre journal, au format publication 4:5 ou vertical 9:16. • Ajustez le texte et les éléments affichés sur la carte avant de la partager, sans modifier l’entrée d’origine du journal. • Enregistrez les cartes dans Photos, copiez le texte de partage ou partagez-les avec d’autres apps via le menu de partage du système.",
+            "ja-JP.md": "編み物日記を共有して、作品づくりの一歩一歩を残しましょう。 • 日記を共有用の画像カードにできます。投稿向けの 4:5 と縦長の 9:16 の2種類に対応しています。 • 元の日記を変更せずに、共有前にカードのテキストや表示内容を調整できます。 • カードを「写真」に保存したり、共有用のテキストをコピーしたり、システムの共有メニューからほかのアプリに共有したりできます。",
+            "nb-NO.md": "Del strikkedagboken din og ta vare på hvert steg i prosjektet. • Lag delbare dagbokkort i innleggsformatet 4:5 eller det stående formatet 9:16. • Tilpass teksten og innholdet som vises på kortet før du deler, uten å endre det opprinnelige dagbokinnlegget. • Lagre kort i Bilder, kopier teksten som skal deles, eller del med andre apper via systemets delingsmeny.",
+            "sv-SE.md": "Dela din stickdagbok och bevara varje steg i ditt projekt. • Skapa delbara dagbokskort i inläggsformatet 4:5 eller det stående formatet 9:16. • Anpassa texten och innehållet som visas på kortet innan du delar, utan att ändra den ursprungliga dagboksanteckningen. • Spara kort i Bilder, kopiera texten som ska delas eller dela till andra appar via systemets delningsmeny.",
+            "fi-FI.md": "Jaa neulepäiväkirjasi ja tallenna projektisi jokainen vaihe. • Luo päiväkirjastasi jaettavia kuvakortteja julkaisuihin sopivassa 4:5-muodossa tai pystysuuntaisessa 9:16-muodossa. • Muokkaa kortin tekstiä ja siinä näkyvää sisältöä ennen jakamista muuttamatta alkuperäistä päiväkirjamerkintää. • Tallenna kortit Kuvat-appiin, kopioi jaettava teksti tai jaa kortit muihin appeihin järjestelmän jakovalikon kautta.",
+            "da-DK.md": "Del din strikkedagbog, og gem hvert trin i dit projekt. • Opret dagbogskort til deling i opslagsformatet 4:5 eller det lodrette format 9:16. • Tilpas teksten og det indhold, der vises på kortet, før du deler, uden at ændre det oprindelige dagbogsindlæg. • Gem kort i Fotos, kopiér teksten til deling, eller del med andre apps via systemets delingsmenu.",
+            "ko-KR.md": "뜨개 일기를 공유하고 작품을 만드는 모든 과정을 간직하세요. • 일기를 공유용 이미지 카드로 만들 수 있습니다. 게시물용 4:5와 세로형 9:16 두 가지 비율을 제공합니다. • 원본 일기는 변경하지 않고, 공유 전에 카드의 글과 표시 내용을 조정할 수 있습니다. • 카드를 사진 앱에 저장하거나 공유할 글을 복사하고, 시스템 공유 메뉴를 통해 다른 앱으로 공유할 수 있습니다.",
+            "el-GR.md": "Μοιραστείτε το ημερολόγιο πλεξίματός σας και κρατήστε κάθε βήμα του έργου σας. • Δημιουργήστε κάρτες από το ημερολόγιό σας για κοινοποίηση, σε μορφή ανάρτησης 4:5 ή κατακόρυφη μορφή 9:16. • Προσαρμόστε το κείμενο και το περιεχόμενο που εμφανίζεται στην κάρτα πριν από την κοινοποίηση, χωρίς να αλλάξετε την αρχική καταχώριση του ημερολογίου. • Αποθηκεύστε τις κάρτες στις Φωτογραφίες, αντιγράψτε το κείμενο κοινοποίησης ή μοιραστείτε τις με άλλες εφαρμογές μέσω του μενού κοινοποίησης του συστήματος.",
+            "nl-NL.md": "Deel je breidagboek en leg elke stap van je project vast. • Maak deelbare dagboekkaarten in het berichtformaat 4:5 of het verticale formaat 9:16. • Pas vóór het delen de tekst en de weergegeven inhoud van je kaart aan, zonder het oorspronkelijke dagboekbericht te wijzigen. • Bewaar kaarten in Foto’s, kopieer de tekst om te delen of deel ze met andere apps via het deelmenu van het systeem."
         }
         for filename, note in expected.items():
             with self.subTest(filename=filename):
@@ -220,13 +226,16 @@ class MetadataLocaleTests(unittest.TestCase):
                 V151_APPROVED_WHATS_NEW[filename],
                 "", current["What's New"] + "!", "KnitNote 1.7.0",
                 "Not " + current["What's New"],
+                "Data optimization", "資料優化",
+                current["What's New"].replace("4:5", "1:1"),
+                current["What's New"].replace("9:16", "16:9"),
             ):
                 with self.subTest(filename=filename, note=note):
                     fields = dict(current)
                     fields["What's New"] = note
                     path = self.write_named_metadata(filename, fields)
                     self.assertIn(
-                        f"{path}: What's New: must match the approved 1.6.1 release note exactly",
+                        f"{path}: What's New: must match the approved 1.7.0 release note exactly",
                         validate(path),
                     )
 

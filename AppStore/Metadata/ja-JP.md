@@ -7,7 +7,7 @@
 - Support URL: https://phillon77.github.io/KnitNote/support.html
 - Marketing URL: https://phillon77.github.io/KnitNote/
 - Privacy URL: https://phillon77.github.io/KnitNote/privacy.html
-- What's New: データの最適化
+- What's New: 編み物日記を共有して、作品づくりの一歩一歩を残しましょう。 • 日記を共有用の画像カードにできます。投稿向けの 4:5 と縦長の 9:16 の2種類に対応しています。 • 元の日記を変更せずに、共有前にカードのテキストや表示内容を調整できます。 • カードを「写真」に保存したり、共有用のテキストをコピーしたり、システムの共有メニューからほかのアプリに共有したりできます。
 - Description: |
   手元の毛糸に集中できるように。KnitNoteはApple Watchでのカウント、作品の進捗、6つのカウンター、PDF編み図を、落ち着いた見やすい作業スペースにまとめます。
 

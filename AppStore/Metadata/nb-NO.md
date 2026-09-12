@@ -7,7 +7,7 @@
 - Support URL: https://phillon77.github.io/KnitNote/support.html
 - Marketing URL: https://phillon77.github.io/KnitNote/
 - Privacy URL: https://phillon77.github.io/KnitNote/privacy.html
-- What's New: Dataoptimalisering
+- What's New: Del strikkedagboken din og ta vare på hvert steg i prosjektet. • Lag delbare dagbokkort i innleggsformatet 4:5 eller det stående formatet 9:16. • Tilpass teksten og innholdet som vises på kortet før du deler, uten å endre det opprinnelige dagbokinnlegget. • Lagre kort i Bilder, kopier teksten som skal deles, eller del med andre apper via systemets delingsmeny.
 - Description: |
   Hold oppmerksomheten på garnet i hendene. KnitNote samler strikkeprosjekter, seks tellere, mønstre og notater i et rolig og oversiktlig arbeidsområde.
 

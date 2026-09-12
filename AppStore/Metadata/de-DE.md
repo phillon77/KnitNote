@@ -7,7 +7,7 @@
 - Support URL: https://phillon77.github.io/KnitNote/support.html
 - Marketing URL: https://phillon77.github.io/KnitNote/
 - Privacy URL: https://phillon77.github.io/KnitNote/privacy.html
-- What's New: Datenoptimierung
+- What's New: Teile dein Stricktagebuch und halte jeden Schritt deines Projekts fest. • Erstelle teilbare Tagebuchkarten im Beitragsformat 4:5 oder im Hochformat 9:16. • Passe vor dem Teilen den Text und die angezeigten Inhalte deiner Karte an, ohne den ursprünglichen Tagebucheintrag zu verändern. • Speichere Karten in Fotos, kopiere den Begleittext oder teile sie über das Teilen-Menü des Systems mit anderen Apps.
 - Description: |
   Konzentriere dich auf das Garn in deinen Händen. KnitNote vereint das Zählen mit der Apple Watch, Projektfortschritt, sechs Zähler und PDF-Muster in einem ruhigen, übersichtlichen Arbeitsbereich.
 

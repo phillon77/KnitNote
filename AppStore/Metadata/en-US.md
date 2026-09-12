@@ -7,7 +7,7 @@
 - Support URL: https://phillon77.github.io/KnitNote/support.html
 - Marketing URL: https://phillon77.github.io/KnitNote/
 - Privacy URL: https://phillon77.github.io/KnitNote/privacy.html
-- What's New: Data optimization
+- What's New: Share your knitting journal and capture every step of your project. • Create shareable journal cards in 4:5 post and 9:16 vertical formats. • Adjust the text and what appears on your card before sharing, without changing the original journal entry. • Save cards to Photos, copy the sharing text, or share to other apps using the system share menu.
 - Description: |
   Keep your attention on the yarn in your hands. KnitNote puts Apple Watch counting, project progress, six counters, and PDF patterns in one calm, readable workspace.
 

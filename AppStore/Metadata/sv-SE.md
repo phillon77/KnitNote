@@ -7,7 +7,7 @@
 - Support URL: https://phillon77.github.io/KnitNote/support.html
 - Marketing URL: https://phillon77.github.io/KnitNote/
 - Privacy URL: https://phillon77.github.io/KnitNote/privacy.html
-- What's New: Dataoptimering
+- What's New: Dela din stickdagbok och bevara varje steg i ditt projekt. • Skapa delbara dagbokskort i inläggsformatet 4:5 eller det stående formatet 9:16. • Anpassa texten och innehållet som visas på kortet innan du delar, utan att ändra den ursprungliga dagboksanteckningen. • Spara kort i Bilder, kopiera texten som ska delas eller dela till andra appar via systemets delningsmeny.
 - Description: |
   Behåll fokus på garnet i händerna. KnitNote samlar stickprojekt, sex räknare, mönster och anteckningar i en lugn och tydlig arbetsyta.
 

@@ -61,7 +61,14 @@ revision; they are not rerun or relabeled for this fix.
 
 ## Physical retest
 
-- [ ] Fixed build installed and launched on the user's iPhone.
+- Fixed source: `b3b31f96feecbf363f1a2f32f820c6cef1b3f6fa`, development
+  1.6.1 (13). Signed device build completed with exit 0; deep/strict signature
+  verification passed and built Info.plist source revision matched.
+- [x] Fixed build installed on the user's iPhone at 08:10 Taiwan time without
+  uninstalling the existing app. Installation receipt:
+  `/private/tmp/knitnote-photos-crash-fix.JVFFjB/install-fixed.json`.
+- Automatic launch was denied because the iPhone was locked; the user must
+  unlock and open KnitNote. This is not a post-fix application crash.
 - [ ] User confirms Post and Story save without termination and appear in Photos.
 - [ ] Photos denial/recovery and third-party sharing acceptance remain pending.
 

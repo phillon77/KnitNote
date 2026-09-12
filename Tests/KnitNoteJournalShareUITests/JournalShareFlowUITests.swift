@@ -119,6 +119,31 @@ final class JournalShareFlowUITests: XCTestCase {
     }
 
     @MainActor
+    func testBothFormatsSaveToPhotosWithoutTerminatingApp() {
+        for formatIndex in 0...1 {
+            launchSharePreview()
+            app.segmentedControls["journalShare.format"].buttons.element(boundBy: formatIndex).tap()
+            let save = app.buttons["journalShare.save"]
+            scrollUntilHittable(save)
+            let enabled = NSPredicate(format: "enabled == true")
+            XCTAssertEqual(XCTWaiter.wait(for: [expectation(for: enabled, evaluatedWith: save)], timeout: 10), .completed)
+            save.tap()
+
+            let permission = XCUIApplication(bundleIdentifier: "com.apple.springboard").alerts.firstMatch
+            if permission.waitForExistence(timeout: 3) {
+                let allow = permission.buttons.matching(NSPredicate(format: "label BEGINSWITH[c] %@ OR label == %@", "Allow", "允許")).firstMatch
+                XCTAssertTrue(allow.exists, "Expected the Photos add-only permission prompt")
+                allow.tap()
+            }
+
+            XCTAssertTrue(app.staticTexts["Saved to Photos"].waitForExistence(timeout: 15))
+            XCTAssertEqual(app.state, .runningForeground)
+            XCTAssertTrue(save.isEnabled)
+            attachReadyPreview(named: "saved-to-photos-format-\(formatIndex)")
+        }
+    }
+
+    @MainActor
     func testSystemShareSheetCanBeCancelledAndPreviewRemains() {
         launchSharePreview()
         let share = app.buttons["journalShare.share"]

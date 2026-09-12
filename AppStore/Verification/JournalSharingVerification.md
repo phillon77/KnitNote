@@ -1,5 +1,11 @@
 # KnitNote Journal Social Sharing Verification
 
+> Physical follow-up, 2026-09-12: the user confirmed existing data and both
+> preview formats, but Save to Photos crashed twice on iPhone. The historical
+> results below do not establish Photos runtime acceptance. See
+> [Photos save crash follow-up](JournalPhotoSaveCrashVerification.md) for the
+> diagnosed actor-isolation defect, focused fix, and retest status.
+
 Date: 2026-09-11
 Candidate: `1.6.1` / Build `13`
 Final verification SHA: `885799e0f862b7c8cfd95b97537efbfb4e04dcdd`

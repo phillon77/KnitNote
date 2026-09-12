@@ -39,7 +39,8 @@ struct IOSJournalPhotoSaver: JournalPhotoSaving {
             throw JournalPhotoSaveError.denied
         }
         do {
-            try await PHPhotoLibrary.shared().performChanges {
+            // Photos invokes this block on its own queue, not the caller's MainActor.
+            try await PHPhotoLibrary.shared().performChanges { @Sendable in
                 PHAssetChangeRequest.creationRequestForAssetFromImage(atFileURL: url)
             }
         } catch {

@@ -208,7 +208,9 @@ struct RootView: View {
                 .tabItem { Label("nav.patterns", systemImage: "doc.text.image") }
             YarnLibraryView()
                 .tabItem { Label("nav.yarn", systemImage: "shippingbox") }
-            SettingsView(storedLanguage: $storedLanguage)
+            SettingsView(storedLanguage: $storedLanguage, onShowUnlock: {
+                unlockPresentation.requestExplicitly()
+            })
                 .tabItem { Label("nav.settings", systemImage: "gearshape") }
         }
         .tint(WatercolorTheme.actionBerry)

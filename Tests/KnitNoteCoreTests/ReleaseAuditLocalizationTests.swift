@@ -862,7 +862,7 @@ struct PBXPathWhitespaceMutation: Sendable, CustomTestStringConvertible {
         )
 
         #expect(result.status != 0)
-        #expect(result.output.contains("iOS product build is 12, expected 14"))
+        #expect(result.output.contains("iOS product build is 12, expected 15"))
     }
 
     @Test func staticAuditRejectsGeneratedProjectMissingOneReleaseRegion() throws {
@@ -3183,7 +3183,7 @@ private func makeArchiveFixture(
     extraDirectory: (target: String, locale: String)? = nil,
     localizationOverrides: [String: [String]] = [:],
     version: String = "1.7.0",
-    build: String = "14",
+    build: String = "15",
     sourceRevision: String = fixtureCommit,
     emptyResource: (String, String)? = nil,
     privacyTracking: Bool = false,

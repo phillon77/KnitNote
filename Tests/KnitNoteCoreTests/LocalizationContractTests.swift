@@ -1446,6 +1446,9 @@ private func isValidDirectPatternFolderLocalization(
             catalogName: "main",
             expectedSourceCommit: "f0116e0",
             permittedAdditionalKeys: [
+                "access.title", "access.checking", "access.lifetime", "access.legacy",
+                "access.trial", "access.expired", "access.notStarted", "access.unavailable",
+                "access.remaining.format", "access.expires", "access.purchase", "access.restored",
                 "about.story.title",
                 "about.story.p1",
                 "about.story.p2",

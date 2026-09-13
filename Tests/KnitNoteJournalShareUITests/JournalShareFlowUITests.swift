@@ -4,6 +4,35 @@ final class JournalShareFlowUITests: XCTestCase {
     private var app: XCUIApplication!
 
     @MainActor
+    func testSettingsKeepsRestoreReachable() {
+        continueAfterFailure = false
+        app = XCUIApplication()
+        // Use the real root rather than the screenshot-only project scene.
+        // Do not initiate a real StoreKit restore or change existing user data.
+        app.launchArguments = [
+            "-AppleLanguages", "(zh-Hant)", "-AppleLocale", "zh_Hant_TW",
+            "-languageSelection", "zh-Hant"
+        ]
+        app.launch()
+        let settings = app.buttons["設定"].firstMatch
+        XCTAssertTrue(settings.waitForExistence(timeout: 15))
+        settings.tap()
+        let status = app.staticTexts["access.status"]
+        XCTAssertTrue(status.waitForExistence(timeout: 5))
+        XCTAssertFalse(status.label.hasPrefix("access."))
+        let restore = app.buttons["access.restore"]
+        XCTAssertTrue(restore.isHittable)
+        XCTAssertTrue(restore.isEnabled)
+        if ["已永久解鎖", "舊版付費用戶"].contains(status.label) {
+            XCTAssertFalse(app.buttons["access.purchase"].exists)
+        }
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "access-settings-zh-Hant"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    @MainActor
     private func launchSharePreview(
         language: String = "en",
         locale: String = "en_US"

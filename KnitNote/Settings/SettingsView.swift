@@ -4,13 +4,16 @@ struct SettingsView: View {
     @Binding var storedLanguage: String
     @Environment(\.locale) private var locale
     let versionInfo: AppVersionInfo?
+    let onShowUnlock: () -> Void
 
     init(
         storedLanguage: Binding<String>,
-        versionInfo: AppVersionInfo? = AppVersionInfo.current()
+        versionInfo: AppVersionInfo? = AppVersionInfo.current(),
+        onShowUnlock: @escaping () -> Void = {}
     ) {
         _storedLanguage = storedLanguage
         self.versionInfo = versionInfo
+        self.onShowUnlock = onShowUnlock
     }
 
     var body: some View {
@@ -123,6 +126,9 @@ struct SettingsView: View {
 
     private var settingsForm: some View {
         Form {
+#if os(iOS)
+            AccessSettingsSection(onShowUnlock: onShowUnlock)
+#endif
             Picker("settings.language", selection: $storedLanguage) {
                 ForEach(LanguageSelection.allCases, id: \.rawValue) { selection in
                     Text(LocalizedStringKey(selection.localizationKey))
@@ -180,6 +186,88 @@ struct SettingsView: View {
         )
     }
 }
+
+#if os(iOS)
+private struct AccessSettingsSection: View {
+    @EnvironmentObject private var coordinator: EntitlementCoordinator
+    @Environment(\.locale) private var locale
+    @State private var isRestoring = false
+    @State private var restoreResultKey: String?
+    let onShowUnlock: () -> Void
+
+    var body: some View {
+        Section("access.title") {
+            TimelineView(.periodic(from: .now, by: 60)) { context in
+                let status = AccessStatusPresentation(
+                    snapshot: coordinator.verifiedSnapshot,
+                    verificationUnavailable: coordinator.purchaseVerificationAvailability == .unavailable,
+                    now: context.date
+                )
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(LocalizedStringKey(status.statusKey))
+                        .font(.headline)
+                        .accessibilityIdentifier("access.status")
+                    if let days = status.remainingDays, let expiry = status.expiresAt {
+                        Text(LocaleAwareText.format("access.remaining.format", locale: locale, days))
+                        Text("access.expires") + Text(" ") + Text(expiry, format: .dateTime.year().month().day().hour().minute())
+                    }
+                    if status.showsVerificationWarning && status.statusKey != "access.unavailable" {
+                        Text("access.unavailable")
+                            .foregroundStyle(.secondary)
+                    }
+                    if status.statusKey == "access.expired" {
+                        Text("unlock.readOnly")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .fixedSize(horizontal: false, vertical: true)
+                if status.canPurchase {
+                    Button("access.purchase", action: onShowUnlock)
+                        .disabled(isRestoring)
+                        .accessibilityIdentifier("access.purchase")
+                }
+            }
+
+            Button(action: restore) {
+                HStack {
+                    Text("unlock.restore")
+                    if isRestoring { ProgressView() }
+                }
+            }
+            .disabled(isRestoring)
+            .accessibilityIdentifier("access.restore")
+
+            if let restoreResultKey {
+                Text(LocalizedStringKey(restoreResultKey))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("access.restoreResult")
+            }
+        }
+    }
+
+    private func restore() {
+        guard !isRestoring else { return }
+        isRestoring = true
+        restoreResultKey = nil
+        Task { @MainActor in
+            defer { isRestoring = false }
+            do {
+                switch try await coordinator.restorePurchases() {
+                case .lifetime, .legacyPaidOwner:
+                    restoreResultKey = "access.restored"
+                case .none:
+                    restoreResultKey = "unlock.restore.notFound"
+                case .unavailable:
+                    restoreResultKey = "access.unavailable"
+                }
+            } catch {
+                restoreResultKey = "unlock.retry"
+            }
+        }
+    }
+}
+#endif
 
 private struct KnitNoteStoryView: View {
     var body: some View {

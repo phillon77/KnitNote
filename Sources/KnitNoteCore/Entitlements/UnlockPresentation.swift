@@ -1,5 +1,42 @@
 import Foundation
 
+/// Presentation only: never starts a trial or changes stored qualifications.
+public struct AccessStatusPresentation: Equatable, Sendable {
+    public let statusKey: String
+    public let canPurchase: Bool
+    public let showsVerificationWarning: Bool
+    public let expiresAt: Date?
+    public let remainingDays: Int?
+
+    public init(snapshot: EntitlementSnapshot?, verificationUnavailable: Bool, now: Date) {
+        showsVerificationWarning = verificationUnavailable
+        expiresAt = snapshot.flatMap { UnlockPresentation.activeTrialExpiry(snapshot: $0, now: now) }
+        remainingDays = expiresAt.map { UnlockPresentation.remainingDays(now: now, expiresAt: $0) }
+        guard let snapshot else {
+            statusKey = verificationUnavailable ? "access.unavailable" : "access.checking"
+            canPurchase = false
+            return
+        }
+        switch snapshot.state(at: now) {
+        case .permanentlyUnlocked:
+            statusKey = "access.lifetime"
+            canPurchase = false
+        case .legacyPaidOwner:
+            statusKey = "access.legacy"
+            canPurchase = false
+        case .trialNotStarted:
+            statusKey = "access.notStarted"
+            canPurchase = !verificationUnavailable
+        case .trialActive:
+            statusKey = "access.trial"
+            canPurchase = !verificationUnavailable
+        case .trialExpired:
+            statusKey = "access.expired"
+            canPurchase = !verificationUnavailable
+        }
+    }
+}
+
 public enum UnlockRestorePresentation: Equatable, Sendable {
     case close
     case restoreNotFound

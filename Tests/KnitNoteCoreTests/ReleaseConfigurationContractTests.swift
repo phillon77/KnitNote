@@ -42,7 +42,7 @@ import Testing
             yaml.components(separatedBy: "MARKETING_VERSION: 1.7.0").count == 4
         )
         #expect(
-            yaml.components(separatedBy: "CURRENT_PROJECT_VERSION: 14").count == 4
+            yaml.components(separatedBy: "CURRENT_PROJECT_VERSION: 15").count == 4
         )
         #expect(yaml.contains("DEVELOPMENT_TEAM: 9CFPAUL5N5"))
     }
@@ -157,7 +157,7 @@ import Testing
         )
 
         #expect(audit.contains(#"EXPECTED_VERSION="1.7.0""#))
-        #expect(audit.contains(#"EXPECTED_BUILD="14""#))
+        #expect(audit.contains(#"EXPECTED_BUILD="15""#))
         #expect(verification.contains("Candidate: `1.2.0` / Build `3`"))
         #expect(verification.contains("does not verify the pending `1.2.1`"))
     }
@@ -342,10 +342,10 @@ import Testing
         #expect(text?.contains("STATIC RELEASE AUDIT: PASS") == true)
     }
 
-    @Test func staticReleaseAuditPinsBuildFourteenAndChecksEveryStringCatalog() throws {
+    @Test func staticReleaseAuditPinsBuildFifteenAndChecksEveryStringCatalog() throws {
         let script = try sourceText("AppStore/Verification/release_audit.sh")
 
-        #expect(script.contains("EXPECTED_BUILD=\"14\""))
+        #expect(script.contains("EXPECTED_BUILD=\"15\""))
         #expect(script.contains("def localization_is_complete"))
         for catalog in [
             "KnitNote/Localization/Localizable.xcstrings",

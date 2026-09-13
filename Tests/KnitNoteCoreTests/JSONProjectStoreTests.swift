@@ -1676,6 +1676,21 @@ private final class DirectCounterManagerArchiveWriteGate: @unchecked Sendable {
     #expect(store.loadError == .unreadableArchive)
 }
 
+@MainActor @Test func freshLiveStoreCanRelaunchBeforeFirstProjectAndThenPersist() throws {
+    let base = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: base) }
+    let first = JSONProjectStore.live(baseDirectory: base)
+    #expect(first.loadError == nil)
+    #expect(first.projects.isEmpty)
+    let second = JSONProjectStore.live(baseDirectory: base)
+    #expect(second.loadError == nil)
+    #expect(second.projects.isEmpty)
+    try second.add(name: "First project")
+    let third = JSONProjectStore.live(baseDirectory: base)
+    #expect(third.loadError == nil)
+    #expect(third.projects.map(\.name) == ["First project"])
+}
+
 @MainActor @Test func liveStoreRecoversRollbackWhenLiveRootIsMissing() throws {
     let fixture = try StoreLaunchRecoveryFixture.interruptedAfterLiveRename()
     defer { fixture.cleanup() }

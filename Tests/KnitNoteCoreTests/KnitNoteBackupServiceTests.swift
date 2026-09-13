@@ -7,6 +7,85 @@ import UniformTypeIdentifiers
 @testable import KnitNoteCore
 
 @Suite struct KnitNoteBackupServiceTests {
+    @Test func recoveryAcceptsOnlyEmptyStartupScaffoldingWithoutWritingAnArchive() throws {
+        let (service, live, root) = try makeServiceFixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        for path in ["Patterns/Assets/.Candidates", "Patterns/Assets/.Transactions",
+                     "Patterns/Assets/.PublicationReceipts"] {
+            try FileManager.default.createDirectory(
+                at: live.appendingPathComponent(path), withIntermediateDirectories: true
+            )
+        }
+        #expect(try service.recoverInterruptedReplacement() == nil)
+        #expect(!FileManager.default.fileExists(atPath: live.appendingPathComponent("projects-v1.json").path))
+    }
+
+    @Test(arguments: ["projects-v1.json", "Patterns/Assets/orphan.pdf",
+                      "Patterns/Assets/.Transactions/pending.json", "unknown.txt"])
+    func recoveryNeverTreatsExistingFilesAsAnEmptyInstall(_ path: String) throws {
+        let (service, live, root) = try makeServiceFixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let file = live.appendingPathComponent(path)
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let bytes = Data("preserve this evidence".utf8)
+        try bytes.write(to: file)
+        #expect(throws: KnitNoteBackupError.rollbackFailed) { try service.recoverInterruptedReplacement() }
+        #expect(try Data(contentsOf: file) == bytes)
+    }
+
+    @Test(arguments: ["unknown", "Patterns/Assets/.Candidates/unexpected"])
+    func recoveryRejectsUnknownEmptyDirectories(_ path: String) throws {
+        let (service, live, root) = try makeServiceFixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let directory = live.appendingPathComponent(path)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        #expect(throws: KnitNoteBackupError.rollbackFailed) { try service.recoverInterruptedReplacement() }
+        #expect(FileManager.default.fileExists(atPath: directory.path))
+    }
+
+    @Test func emptyStartupScaffoldingDoesNotBypassBackupRecoveryEvidence() throws {
+        let (service, live, root) = try makeServiceFixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: live, withIntermediateDirectories: true)
+        let evidence = service.workRoot.appendingPathComponent(".ReplacementJournal.json")
+        try FileManager.default.createDirectory(at: service.workRoot, withIntermediateDirectories: true)
+        let bytes = Data("invalid journal must remain protected".utf8)
+        try bytes.write(to: evidence)
+        #expect(throws: (any Error).self) { try service.recoverInterruptedReplacement() }
+        #expect(try Data(contentsOf: evidence) == bytes)
+    }
+
+    @Test(arguments: [false, true])
+    func emptyStartupScaffoldingPreservesWorkRootEvenWithoutJournal(_ danglingLink: Bool) throws {
+        let (service, _, root) = try makeServiceFixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        if danglingLink {
+            try FileManager.default.createSymbolicLink(
+                at: service.workRoot, withDestinationURL: root.appendingPathComponent("missing")
+            )
+        } else {
+            try FileManager.default.createDirectory(at: service.workRoot, withIntermediateDirectories: true)
+        }
+        #expect(throws: (any Error).self) { try service.recoverInterruptedReplacement() }
+        if danglingLink {
+            #expect(try FileManager.default.destinationOfSymbolicLink(atPath: service.workRoot.path)
+                == root.appendingPathComponent("missing").path)
+        } else {
+            #expect(try FileManager.default.contentsOfDirectory(atPath: service.workRoot.path).isEmpty)
+        }
+    }
+
+    @Test func emptyStartupScaffoldingRejectsSymbolicLinks() throws {
+        let (service, live, root) = try makeServiceFixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let outside = root.appendingPathComponent("outside")
+        try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: live, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: live.appendingPathComponent("Patterns"), withDestinationURL: outside)
+        #expect(throws: KnitNoteBackupError.rollbackFailed) { try service.recoverInterruptedReplacement() }
+        #expect(try FileManager.default.contentsOfDirectory(atPath: outside.path).isEmpty)
+    }
+
     @Test func legacySourceObservationIncludesAllReferencedMediaWithoutTouchingControls() throws {
         let (service, live, root) = try makeServiceFixture()
         defer { try? FileManager.default.removeItem(at: root) }

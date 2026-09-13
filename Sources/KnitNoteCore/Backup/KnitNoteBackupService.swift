@@ -1632,6 +1632,10 @@ public struct KnitNoteBackupService: Sendable {
 
         if fileManager.fileExists(atPath: liveRoot.path) {
             do {
+                // Inbox recovery creates these empty directories before the
+                // first user mutation writes an archive. This is not a failed
+                // replacement; leave it untouched for the store's empty load.
+                if try isEmptyStartupScaffolding() { return nil }
                 try validateLiveRoot(liveRoot)
                 cleanupGeneratedArtifactsAfterValidChoice()
                 return nil
@@ -1658,6 +1662,35 @@ public struct KnitNoteBackupService: Sendable {
         } catch {
             throw KnitNoteBackupError.rollbackFailed
         }
+    }
+
+    private func isEmptyStartupScaffolding() throws -> Bool {
+        let manager = FileManager.default
+        // Any backup work, including a dangling symlink, remains subject to
+        // strict recovery. Never discard recovery evidence for an empty tree.
+        guard !manager.fileExists(atPath: workRoot.path),
+              (try? manager.destinationOfSymbolicLink(atPath: workRoot.path)) == nil else {
+            return false
+        }
+        let allowedDirectories: Set<String> = [
+            "Patterns", "Patterns/Assets", "Patterns/Assets/.Candidates",
+            "Patterns/Assets/.Transactions", "Patterns/Assets/.PublicationReceipts",
+            // The base-directory store uses a private inbox (screenshots/tests).
+            "PatternInbox", "PatternInbox/.Candidates", "PatternInbox/Items",
+            "PatternInbox/Manifests", "PatternInbox/.Quarantine",
+        ]
+        var pending = [liveRoot]
+        while let directory = pending.popLast() {
+            let values = try entryValues(directory)
+            guard values.isDirectory == true, values.isSymbolicLink != true else { return false }
+            for entry in try contents(of: directory) {
+                guard allowedDirectories.contains(relativePath(of: entry, below: liveRoot)) else {
+                    return false
+                }
+                pending.append(entry)
+            }
+        }
+        return true
     }
 
     private var replacementJournalURL: URL {

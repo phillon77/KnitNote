@@ -40,9 +40,14 @@ integration case. They are not counted as passing coverage.
 See [Photos crash verification](JournalPhotoSaveCrashVerification.md) for the
 fixed source revision, signed installations, and user reports. The iPad
 confirmed both image formats, Photos saving, Messages sharing, and a visible
-denied-permission prompt without a crash. Social apps were not installed on
-that iPad. Restoring permission and then saving again was not separately
-confirmed. The iPhone social-draft destination was not named.
+denied-permission prompt without a crash. In subsequent user-reported physical
+retests, Instagram was installed on the iPad and sharing to it succeeded;
+saving to Photos also succeeded again after permission was restored. These
+reports close the iPad Instagram-sharing and permission-recovery checks,
+without changing the historical automated results above. Facebook, X, and
+TikTok remain individually untested; the report does not certify every
+Instagram posting mode. The iPhone social-draft destination was not named,
+and its permission-denial/recovery path remains separately unconfirmed.
 
 These results validate local integration, not every social destination or a
 release candidate. A subsequent documentation-only commit records this report;

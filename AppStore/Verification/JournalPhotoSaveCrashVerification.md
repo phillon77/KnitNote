@@ -74,7 +74,7 @@ revision; they are not rerun or relabeled for this fix.
 - [x] The user subsequently reported normal image/text receipt in a social
   draft. The tested destination was not named, so this does not individually
   certify Instagram, TikTok, Facebook, or X.
-- [ ] Photos denial/recovery and remaining destination-specific checks.
+- [ ] iPhone Photos denial/recovery and remaining destination-specific checks.
 
 ## iPad installation
 
@@ -86,11 +86,18 @@ upgrade to 1.6.1 (13). Installation succeeded at 19:16 Taiwan time, with receipt
 
 - [x] User confirms existing iPad projects/journals are intact after upgrade.
 - [x] User reports both preview ratios and Photos saving are normal.
-- [x] User reports sharing through Messages is normal. No social app is
-  installed on that iPad; this does not certify social-app receipt.
+- [x] User reports sharing through Messages is normal. At that initial check,
+  no social app was installed on the iPad.
 - [x] After denying Photos permission, the user confirms the permission
-  prompt is shown rather than a crash. Restoring permission was requested;
-  a subsequent successful save after restoring it was not separately reported.
+  prompt is shown rather than a crash.
+- [x] In a subsequent physical retest, the user installed Instagram on the
+  iPad and reported: "我剛在ipad 上裝 ig ，可以分享到ig上了".
+  This confirms the reported Instagram sharing path, not every Instagram
+  posting mode or other social destination.
+- [x] After restoring Photos permission, the user reported:
+  "可以再次正常儲存了". The iPad permission-recovery save check is accepted
+  based on this user report; it is not a new automated test result.
+- [ ] Facebook, X, and TikTok remain individually untested.
 
 The user subsequently authorized a local merge back to the original development
 branch. No archive, upload, push, submission, or release is authorized.

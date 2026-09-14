@@ -132,7 +132,7 @@ enum JournalPhotoSaveState: Equatable, Sendable {
         }
     }
 
-    func prepareShare() async throws -> JournalSharePayload {
+    func prepareShare() throws -> JournalSharePayload {
         guard activeShare == nil else { throw JournalSharePreviewActionError.actionInProgress }
         guard canShare, let previewJPEG else { throw JournalSharePreviewActionError.previewUnavailable }
         let url = try exportService.exportJPEG(previewJPEG, entryID: source.entry.id)
@@ -157,9 +157,14 @@ enum JournalPhotoSaveState: Equatable, Sendable {
         do {
             let url = try exportService.exportJPEG(previewJPEG, entryID: source.entry.id)
             exportedURL = url
-            try await photoSaver.saveJPEG(at: url)
+            let outcome = try await photoSaver.saveJPEG(at: url)
             guard state != .dismissed else { return }
-            photoSaveState = .saved
+            switch outcome {
+            case .saved:
+                photoSaveState = .saved
+            case .cancelled:
+                photoSaveState = .cancelled
+            }
         } catch let error as JournalPhotoSaveError {
             guard state != .dismissed else { return }
             photoSaveError = error
@@ -171,9 +176,12 @@ enum JournalPhotoSaveState: Equatable, Sendable {
         }
     }
 
-    func copyText() {
-        guard canCopy else { return }
-        textCopier.copy(JournalShareTextComposer.compose(text: editableText, includeHashtag: includesHashtag))
+    @discardableResult
+    func copyText() -> Bool {
+        guard canCopy else { return false }
+        return textCopier.copy(
+            JournalShareTextComposer.compose(text: editableText, includeHashtag: includesHashtag)
+        )
     }
 
     func finishSharing(_ payload: JournalSharePayload) {

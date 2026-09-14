@@ -19805,6 +19805,89 @@
           }
         }
       },
+      "journal.share.action.saveFile": {
+        "comment": "macOS journal share action that opens a Finder save panel for the generated image.",
+        "localizations": {
+          "en": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Save Image…"
+            }
+          },
+          "zh-Hant": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "儲存圖片⋯"
+            }
+          },
+          "zh-Hans": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "存储图片…"
+            }
+          },
+          "de": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Bild sichern…"
+            }
+          },
+          "fr": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Enregistrer l’image…"
+            }
+          },
+          "ja": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "画像を保存…"
+            }
+          },
+          "nb": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Arkiver bilde…"
+            }
+          },
+          "sv": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Spara bild…"
+            }
+          },
+          "fi": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Tallenna kuva…"
+            }
+          },
+          "da": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Gem billede…"
+            }
+          },
+          "ko": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "이미지 저장…"
+            }
+          },
+          "el": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Αποθήκευση εικόνας…"
+            }
+          },
+          "nl": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Bewaar afbeelding…"
+            }
+          }
+        }
+      },
       "journal.share.action.copy": {
         "comment": "Journal share UI. Translate interface text only; never alter user-authored journal or post content.",
         "localizations": {
@@ -20218,6 +20301,24 @@
               "value": "Bewaard in Foto’s"
             }
           }
+        }
+      },
+      "journal.share.savedFile": {
+        "comment": "macOS confirmation after the generated share image is saved to a Finder destination.",
+        "localizations": {
+          "en": { "stringUnit": { "state": "translated", "value": "Image saved" } },
+          "zh-Hant": { "stringUnit": { "state": "translated", "value": "已儲存圖片" } },
+          "zh-Hans": { "stringUnit": { "state": "translated", "value": "图片已存储" } },
+          "de": { "stringUnit": { "state": "translated", "value": "Bild gesichert" } },
+          "fr": { "stringUnit": { "state": "translated", "value": "Image enregistrée" } },
+          "ja": { "stringUnit": { "state": "translated", "value": "画像を保存しました" } },
+          "nb": { "stringUnit": { "state": "translated", "value": "Bildet er arkivert" } },
+          "sv": { "stringUnit": { "state": "translated", "value": "Bilden har sparats" } },
+          "fi": { "stringUnit": { "state": "translated", "value": "Kuva tallennettu" } },
+          "da": { "stringUnit": { "state": "translated", "value": "Billedet er gemt" } },
+          "ko": { "stringUnit": { "state": "translated", "value": "이미지가 저장됨" } },
+          "el": { "stringUnit": { "state": "translated", "value": "Η εικόνα αποθηκεύτηκε" } },
+          "nl": { "stringUnit": { "state": "translated", "value": "Afbeelding bewaard" } }
         }
       },
       "journal.share.saveCancelled": {
@@ -20801,6 +20902,24 @@
           }
         }
       },
+      "journal.share.error.saveFileFailed": {
+        "comment": "macOS error shown when the generated share image cannot be written to the selected Finder destination.",
+        "localizations": {
+          "en": { "stringUnit": { "state": "translated", "value": "The image couldn’t be saved." } },
+          "zh-Hant": { "stringUnit": { "state": "translated", "value": "無法儲存圖片。" } },
+          "zh-Hans": { "stringUnit": { "state": "translated", "value": "无法存储图片。" } },
+          "de": { "stringUnit": { "state": "translated", "value": "Das Bild konnte nicht gesichert werden." } },
+          "fr": { "stringUnit": { "state": "translated", "value": "Impossible d’enregistrer l’image." } },
+          "ja": { "stringUnit": { "state": "translated", "value": "画像を保存できませんでした。" } },
+          "nb": { "stringUnit": { "state": "translated", "value": "Bildet kunne ikke arkiveres." } },
+          "sv": { "stringUnit": { "state": "translated", "value": "Det gick inte att spara bilden." } },
+          "fi": { "stringUnit": { "state": "translated", "value": "Kuvaa ei voitu tallentaa." } },
+          "da": { "stringUnit": { "state": "translated", "value": "Billedet kunne ikke gemmes." } },
+          "ko": { "stringUnit": { "state": "translated", "value": "이미지를 저장할 수 없습니다." } },
+          "el": { "stringUnit": { "state": "translated", "value": "Δεν ήταν δυνατή η αποθήκευση της εικόνας." } },
+          "nl": { "stringUnit": { "state": "translated", "value": "De afbeelding kon niet worden bewaard." } }
+        }
+      },
       "journal.share.error.unavailable": {
         "comment": "Journal share UI. Translate interface text only; never alter user-authored journal or post content.",
         "localizations": {
@@ -21380,6 +21499,24 @@
               "value": "Bewaard in Foto’s"
             }
           }
+        }
+      },
+      "journal.share.announcement.savedFile": {
+        "comment": "macOS accessibility announcement after the generated share image is saved to a Finder destination.",
+        "localizations": {
+          "en": { "stringUnit": { "state": "translated", "value": "Image saved" } },
+          "zh-Hant": { "stringUnit": { "state": "translated", "value": "已儲存圖片" } },
+          "zh-Hans": { "stringUnit": { "state": "translated", "value": "图片已存储" } },
+          "de": { "stringUnit": { "state": "translated", "value": "Bild gesichert" } },
+          "fr": { "stringUnit": { "state": "translated", "value": "Image enregistrée" } },
+          "ja": { "stringUnit": { "state": "translated", "value": "画像を保存しました" } },
+          "nb": { "stringUnit": { "state": "translated", "value": "Bildet er arkivert" } },
+          "sv": { "stringUnit": { "state": "translated", "value": "Bilden har sparats" } },
+          "fi": { "stringUnit": { "state": "translated", "value": "Kuva tallennettu" } },
+          "da": { "stringUnit": { "state": "translated", "value": "Billedet er gemt" } },
+          "ko": { "stringUnit": { "state": "translated", "value": "이미지가 저장됨" } },
+          "el": { "stringUnit": { "state": "translated", "value": "Η εικόνα αποθηκεύτηκε" } },
+          "nl": { "stringUnit": { "state": "translated", "value": "Afbeelding bewaard" } }
         }
       },
       "journal.share.announcement.saveFailed": {

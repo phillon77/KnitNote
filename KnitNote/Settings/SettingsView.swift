@@ -31,6 +31,10 @@ struct SettingsView: View {
     private var macSettingsContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: CGFloat(MacSettingsLayout.sectionSpacing)) {
+                MacSettingsSection(title: "access.title") {
+                    AccessSettingsContent(onShowUnlock: onShowUnlock)
+                }
+
                 MacSettingsSection(title: "settings.general") {
                     MacSettingsRow {
                         HStack(spacing: 16) {
@@ -187,62 +191,70 @@ struct SettingsView: View {
     }
 }
 
-#if os(iOS)
 private struct AccessSettingsSection: View {
+    let onShowUnlock: () -> Void
+
+    var body: some View {
+        Section("access.title") {
+            AccessSettingsContent(onShowUnlock: onShowUnlock)
+        }
+    }
+}
+
+struct AccessSettingsContent: View {
     @EnvironmentObject private var coordinator: EntitlementCoordinator
     @Environment(\.locale) private var locale
     @State private var isRestoring = false
     @State private var restoreResultKey: String?
     let onShowUnlock: () -> Void
 
+    @ViewBuilder
     var body: some View {
-        Section("access.title") {
-            TimelineView(.periodic(from: .now, by: 60)) { context in
-                let status = AccessStatusPresentation(
-                    snapshot: coordinator.verifiedSnapshot,
-                    verificationUnavailable: coordinator.purchaseVerificationAvailability == .unavailable,
-                    now: context.date
-                )
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(LocalizedStringKey(status.statusKey))
-                        .font(.headline)
-                        .accessibilityIdentifier("access.status")
-                    if let days = status.remainingDays, let expiry = status.expiresAt {
-                        Text(LocaleAwareText.format("access.remaining.format", locale: locale, days))
-                        Text("access.expires") + Text(" ") + Text(expiry, format: .dateTime.year().month().day().hour().minute())
-                    }
-                    if status.showsVerificationWarning && status.statusKey != "access.unavailable" {
-                        Text("access.unavailable")
-                            .foregroundStyle(.secondary)
-                    }
-                    if status.statusKey == "access.expired" {
-                        Text("unlock.readOnly")
-                            .foregroundStyle(.secondary)
-                    }
+        TimelineView(.periodic(from: .now, by: 60)) { context in
+            let status = AccessStatusPresentation(
+                snapshot: coordinator.verifiedSnapshot,
+                verificationUnavailable: coordinator.purchaseVerificationAvailability == .unavailable,
+                now: context.date
+            )
+            VStack(alignment: .leading, spacing: 8) {
+                Text(LocalizedStringKey(status.statusKey))
+                    .font(.headline)
+                    .accessibilityIdentifier("access.status")
+                if let days = status.remainingDays, let expiry = status.expiresAt {
+                    Text(LocaleAwareText.format("access.remaining.format", locale: locale, days))
+                    Text("access.expires") + Text(" ") + Text(expiry, format: .dateTime.year().month().day().hour().minute())
                 }
+                if status.showsVerificationWarning && status.statusKey != "access.unavailable" {
+                    Text("access.unavailable")
+                        .foregroundStyle(.secondary)
+                }
+                if status.statusKey == "access.expired" {
+                    Text("unlock.readOnly")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            if status.canPurchase {
+                Button("access.purchase", action: onShowUnlock)
+                    .disabled(isRestoring)
+                    .accessibilityIdentifier("access.purchase")
+            }
+        }
+
+        Button(action: restore) {
+            HStack {
+                Text("unlock.restore")
+                if isRestoring { ProgressView() }
+            }
+        }
+        .disabled(isRestoring)
+        .accessibilityIdentifier("access.restore")
+
+        if let restoreResultKey {
+            Text(LocalizedStringKey(restoreResultKey))
+                .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-                if status.canPurchase {
-                    Button("access.purchase", action: onShowUnlock)
-                        .disabled(isRestoring)
-                        .accessibilityIdentifier("access.purchase")
-                }
-            }
-
-            Button(action: restore) {
-                HStack {
-                    Text("unlock.restore")
-                    if isRestoring { ProgressView() }
-                }
-            }
-            .disabled(isRestoring)
-            .accessibilityIdentifier("access.restore")
-
-            if let restoreResultKey {
-                Text(LocalizedStringKey(restoreResultKey))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityIdentifier("access.restoreResult")
-            }
+                .accessibilityIdentifier("access.restoreResult")
         }
     }
 
@@ -267,7 +279,6 @@ private struct AccessSettingsSection: View {
         }
     }
 }
-#endif
 
 private struct KnitNoteStoryView: View {
     var body: some View {

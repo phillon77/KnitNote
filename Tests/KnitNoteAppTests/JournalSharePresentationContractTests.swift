@@ -27,6 +27,18 @@ struct JournalSharePresentationContractTests {
         #expect(activity.contains("completionWithItemsHandler"))
     }
 
+    #if os(macOS)
+    @Test func macSharePickerOpensFromMouseDownAndReportsServiceFailure() throws {
+        let activity = try projectSource(named: "JournalSharing/JournalActivityView")
+
+        #expect(activity.contains("override func mouseDown(with event: NSEvent)"))
+        #expect(activity.contains("picker.show(relativeTo:"))
+        #expect(!activity.contains("DispatchQueue.main.async"))
+        #expect(activity.contains("finish(.failed)"))
+        #expect(activity.contains("finish(.cancelled)"))
+    }
+    #endif
+
     @Test func previewHasStableIdentifiersAndAccessibleCombinedImage() throws {
         let source = try projectSource(named: "JournalSharing/JournalSharePreviewView")
         for identifier in [
@@ -44,6 +56,13 @@ struct JournalSharePresentationContractTests {
         #expect(source.contains(".frame(minHeight: 44)"))
         #expect(source.contains("UIAccessibility.post(notification: .announcement"))
         #expect(source.contains("UIApplication.openSettingsURLString"))
+    }
+
+    @Test func failedCopyClearsPriorSuccessFeedback() throws {
+        let source = try projectSource(named: "JournalSharing/JournalSharePreviewView")
+
+        #expect(source.contains("if model.copyText()"))
+        #expect(source.contains("} else {\n                showsCopyFeedback = false"))
     }
 
     private var repositoryRoot: URL {

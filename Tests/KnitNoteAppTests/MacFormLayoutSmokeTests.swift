@@ -1,8 +1,55 @@
 import Foundation
 import Testing
+#if os(macOS)
+import AppKit
+import SwiftUI
+#endif
 @testable import KnitNote
 
 @Suite struct MacFormLayoutSmokeTests {
+    @MainActor
+    @Test func macCanHostTheSharedAccessStatusAndRestoreContent() {
+        let coordinator = EntitlementCoordinator.configured(screenshotMode: true)
+        let host = NSHostingView(rootView: AccessSettingsContent(onShowUnlock: {})
+            .environmentObject(coordinator))
+        let window = NSWindow(
+            contentRect: NSRect(x: -10_000, y: -10_000, width: 640, height: 360),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = host
+        window.layoutIfNeeded()
+        host.layoutSubtreeIfNeeded()
+
+        #expect(host.fittingSize.width > 0)
+        #expect(host.fittingSize.height > 0)
+    }
+
+    @MainActor
+    @Test func macCanHostJournalDetailActionsWithShareAvailableInReadOnlyHistory() {
+        var shareCount = 0
+        let host = NSHostingView(rootView: MacJournalDetailActionBar(
+            isCompleted: true,
+            onShare: { shareCount += 1 },
+            onEdit: {},
+            onDelete: {}
+        ))
+        let window = NSWindow(
+            contentRect: NSRect(x: -10_000, y: -10_000, width: 460, height: 100),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = host
+        window.layoutIfNeeded()
+        host.layoutSubtreeIfNeeded()
+
+        #expect(host.fittingSize.width > 0)
+        #expect(host.fittingSize.height >= 44)
+        #expect(shareCount == 0)
+    }
+
     @Test func macFormLayoutSourcesExposeTheRequiredAdaptiveStructure() throws {
         let settings = try source(named: "SettingsView.swift", in: "Settings")
         let project = try source(named: "CreateProjectView.swift", in: "Projects")

@@ -221,12 +221,11 @@ struct ProjectJournalViewContractTests {
         #expect(detail.contains("Label(\"journal.readOnly.completed\", systemImage: \"lock.fill\")"))
     }
 
-    @Test func detailSharesActiveAndCompletedEntriesOnIOS() throws {
+    @Test func detailSharesActiveAndCompletedEntriesOnApplePlatforms() throws {
         let detail = try projectSource(named: "ProjectJournalEntryDetailView")
         let share = try #require(detail.range(of: "Button(\"journal.share\", systemImage: \"square.and.arrow.up\")"))
         let mutationGate = try #require(detail.range(of: "if !project.isCompleted"))
 
-        #expect(detail.contains("#if os(iOS)"))
         #expect(detail.contains("JournalSharePreviewView("))
         #expect(detail.contains("store.journalPhotoURL(for: entry)"))
         #expect(share.lowerBound < mutationGate.lowerBound)

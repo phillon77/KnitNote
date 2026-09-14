@@ -27,7 +27,7 @@ import Testing
         model.includesHashtag = true
 
         await model.refreshPreview()
-        let payload = try await model.prepareShare()
+        let payload = try model.prepareShare()
 
         #expect(renderer.descriptions.last?.caption == "手動修改全文")
         #expect(renderer.descriptions.last?.caption?.contains("#KnitNote") == false)
@@ -146,17 +146,17 @@ import Testing
 
     @Test func sourceEntryAndPhotoBytesRemainUnchangedAcrossActions() async throws {
         let fixture = try Fixture()
-        let sourceEntryBefore = try JSONEncoder().encode(fixture.source.entry)
+        let sourceEntryBefore = fixture.source.entry
         let sourcePhotoBefore = try Data(contentsOf: fixture.photoURL)
         let model = fixture.makeModel()
 
         await model.refreshPreview()
-        let payload = try await model.prepareShare()
+        let payload = try model.prepareShare()
         model.copyText()
         model.finishSharing(payload)
         await model.saveToPhotos()
 
-        #expect(try JSONEncoder().encode(fixture.source.entry) == sourceEntryBefore)
+        #expect(fixture.source.entry == sourceEntryBefore)
         #expect(try Data(contentsOf: fixture.photoURL) == sourcePhotoBefore)
     }
 
@@ -186,12 +186,22 @@ import Testing
         #expect(fixture.copier.values == ["第一行\n第二行 🧶\n\n#KnitNote", "第一行\n第二行 🧶\n\n#KnitNote"])
     }
 
+    @Test func copyReportsWhetherThePlatformAcceptedThePasteboardWrite() throws {
+        let fixture = try Fixture()
+        let model = fixture.makeModel()
+
+        fixture.copier.result = false
+        #expect(model.copyText() == false)
+        fixture.copier.result = true
+        #expect(model.copyText() == true)
+    }
+
     @Test func duplicateShareAndSaveActionsAreRejectedWhileActive() async throws {
         let fixture = try Fixture()
         let model = fixture.makeModel()
         await model.refreshPreview()
-        let first = try await model.prepareShare()
-        await #expect(throws: JournalSharePreviewActionError.actionInProgress) { try await model.prepareShare() }
+        let first = try model.prepareShare()
+        #expect(throws: JournalSharePreviewActionError.actionInProgress) { try model.prepareShare() }
         model.finishSharing(first)
 
         fixture.photoSaver.suspend = true
@@ -225,11 +235,24 @@ import Testing
         #expect(!FileManager.default.fileExists(atPath: savedURL.path))
     }
 
+    @Test func cancelledImageDestinationPublishesCancellationWithoutAnError() async throws {
+        let fixture = try Fixture()
+        let model = fixture.makeModel()
+        await model.refreshPreview()
+        fixture.photoSaver.result = .success(.cancelled)
+
+        await model.saveToPhotos()
+
+        #expect(model.photoSaveState == .cancelled)
+        #expect(model.photoSaveError == nil)
+        #expect(model.canShare && model.canCopy)
+    }
+
     @Test func dismissalDefersActiveShareCleanupAndRejectsStaleAnnouncements() async throws {
         let fixture = try Fixture()
         let model = fixture.makeModel()
         await model.refreshPreview()
-        let payload = try await model.prepareShare()
+        let payload = try model.prepareShare()
 
         model.dismiss()
         #expect(FileManager.default.fileExists(atPath: payload.fileURL.path))
@@ -264,12 +287,12 @@ import Testing
         let fixture = try Fixture()
         let model = fixture.makeModel()
         await model.refreshPreview()
-        let payload = try await model.prepareShare()
+        let payload = try model.prepareShare()
         #expect(FileManager.default.fileExists(atPath: payload.fileURL.path))
         model.finishSharing(payload)
         #expect(!FileManager.default.fileExists(atPath: payload.fileURL.path))
 
-        let second = try await model.prepareShare()
+        let second = try model.prepareShare()
         model.finishSharing(second)
         model.dismiss()
         #expect(!FileManager.default.fileExists(atPath: second.fileURL.path))
@@ -319,14 +342,14 @@ private final class ControllableRenderer: JournalShareCardRendering {
 private final class PhotoSaverSpy: JournalPhotoSaving {
     var calls = 0
     var urls: [URL] = []
-    var result: Result<Void, Error> = .success(())
+    var result: Result<JournalImageSaveOutcome, Error> = .success(.saved)
     var suspend = false
     private var continuation: CheckedContinuation<Void, Never>?
-    func saveJPEG(at url: URL) async throws {
+    func saveJPEG(at url: URL) async throws -> JournalImageSaveOutcome {
         calls += 1
         urls.append(url)
         if suspend { await withCheckedContinuation { continuation = $0 } }
-        try result.get()
+        return try result.get()
     }
     func waitUntilCalled() async { while calls == 0 { await Task.yield() } }
     func resume() { continuation?.resume(); continuation = nil }
@@ -334,7 +357,11 @@ private final class PhotoSaverSpy: JournalPhotoSaving {
 
 @MainActor private final class CopierSpy: JournalTextCopying {
     var values: [String] = []
-    func copy(_ text: String) { values.append(text) }
+    var result = true
+    func copy(_ text: String) -> Bool {
+        values.append(text)
+        return result
+    }
 }
 
 private enum TestError: Error { case render }
@@ -388,3 +415,230 @@ private final class Fixture {
         JournalSharePreviewModel(source: source, locale: locale, renderer: renderer, exportService: exporter, photoSaver: photoSaver, textCopier: copier)
     }
 }
+
+#if os(macOS)
+import AppKit
+import SwiftUI
+
+@MainActor
+@Suite struct MacJournalImageSaverTests {
+    @Test func writesTheSelectedJPEGWithTheSuggestedFilename() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let source = root.appendingPathComponent("knitnote-journal.jpg")
+        let destination = root.appendingPathComponent("shared-card.jpg")
+        let jpeg = Data([0xFF, 0xD8, 0x12, 0x34, 0xFF, 0xD9])
+        try jpeg.write(to: source)
+        var suggestedFilename: String?
+        let saver = MacJournalImageSaver { suggestion in
+            suggestedFilename = suggestion
+            return destination
+        }
+
+        let outcome = try await saver.saveJPEG(at: source)
+
+        #expect(outcome == .saved)
+        #expect(suggestedFilename == "knitnote-journal.jpg")
+        #expect(try Data(contentsOf: destination) == jpeg)
+    }
+
+    @Test func returnsCancelledWithoutWritingWhenNoDestinationIsChosen() async throws {
+        let source = FileManager.default.temporaryDirectory
+            .appendingPathComponent("journal-share-\(UUID().uuidString).jpg")
+        try Data([0xFF, 0xD8, 0xFF, 0xD9]).write(to: source)
+        defer { try? FileManager.default.removeItem(at: source) }
+        let saver = MacJournalImageSaver { _ in nil }
+
+        let outcome = try await saver.saveJPEG(at: source)
+
+        #expect(outcome == .cancelled)
+    }
+}
+
+@Suite struct MacJournalSystemShareTests {
+    @MainActor
+    @Test func nativeShareControlIsAnAccessibleButton() {
+        let button = MacJournalShareMouseDownButton()
+        button.title = "Share"
+
+        #expect(button.accessibilityRole() == .button)
+        #expect(button.title == "Share")
+        #expect(button.isEnabled)
+    }
+
+    @Test func systemShareReceivesTheJPEGAndFullPostText() throws {
+        let fileURL = URL(fileURLWithPath: "/tmp/knitnote-share-card.jpg")
+        let payload = JournalSharePayload(
+            id: UUID(),
+            fileURL: fileURL,
+            text: "完成衣身 🧶\n\n#KnitNote"
+        )
+
+        let items = MacJournalSharingItems.items(for: payload)
+
+        #expect(items.count == 2)
+        #expect(items[0] as? URL == fileURL)
+        #expect(items[1] as? String == "完成衣身 🧶\n\n#KnitNote")
+    }
+
+    @MainActor
+    @Test func nativeMouseDownStartsTheShareAction() throws {
+        let view = MacJournalShareMouseDownButton()
+        var callCount = 0
+        view.shareAction = { callCount += 1 }
+        view.isEnabled = true
+        let event = try #require(NSEvent.mouseEvent(
+            with: .leftMouseDown,
+            location: .zero,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            eventNumber: 1,
+            clickCount: 1,
+            pressure: 1
+        ))
+
+        view.mouseDown(with: event)
+
+        #expect(callCount == 1)
+    }
+
+    @MainActor
+    @Test func nativeAccessibilityPressStartsTheShareAction() {
+        let view = MacJournalShareMouseDownButton()
+        var callCount = 0
+        view.shareAction = { callCount += 1 }
+        view.isEnabled = false
+
+        #expect(view.accessibilityPerformPress() == false)
+        #expect(callCount == 0)
+
+        view.isEnabled = true
+
+        let handled = view.accessibilityPerformPress()
+
+        #expect(handled)
+        #expect(callCount == 1)
+    }
+
+    @MainActor
+    @Test func serviceFailureCompletesWithTheExactPayloadAndFailureOutcome() {
+        let payload = JournalSharePayload(
+            fileURL: URL(fileURLWithPath: "/tmp/knitnote-share-card.jpg"),
+            text: "完成衣身"
+        )
+        var didPresent = false
+        var completion: (JournalSharePayload?, JournalShareActivityOutcome)?
+        let coordinator = JournalActivityView.Coordinator(
+            preparePayload: { payload },
+            completion: { completion = ($0, $1) },
+            pickerPresenter: { _, _ in didPresent = true }
+        )
+
+        coordinator.present(from: NSView())
+        coordinator.sharingService(
+            NSSharingService(
+                title: "Test",
+                image: NSImage(size: NSSize(width: 1, height: 1)),
+                alternateImage: nil,
+                handler: {}
+            ),
+            didFailToShareItems: [],
+            error: TestError.render
+        )
+
+        #expect(didPresent)
+        #expect(completion?.0?.id == payload.id)
+        #expect(completion?.1 == .failed)
+    }
+
+    @MainActor
+    @Test func userCancelledServiceFailureCompletesAsCancellation() {
+        let payload = JournalSharePayload(
+            fileURL: URL(fileURLWithPath: "/tmp/knitnote-share-card.jpg"),
+            text: "完成衣身"
+        )
+        var outcome: JournalShareActivityOutcome?
+        let coordinator = JournalActivityView.Coordinator(
+            preparePayload: { payload },
+            completion: { _, result in outcome = result },
+            pickerPresenter: { _, _ in }
+        )
+
+        coordinator.present(from: NSView())
+        coordinator.sharingService(
+            NSSharingService(
+                title: "Test",
+                image: NSImage(size: NSSize(width: 1, height: 1)),
+                alternateImage: nil,
+                handler: {}
+            ),
+            didFailToShareItems: [],
+            error: CocoaError(.userCancelled)
+        )
+
+        #expect(outcome == .cancelled)
+    }
+
+    @MainActor
+    @Test func dismantlingWhileAServiceIsActiveDefersCleanupUntilTheServiceFinishes() {
+        let payload = JournalSharePayload(
+            fileURL: URL(fileURLWithPath: "/tmp/knitnote-share-card.jpg"),
+            text: "完成衣身"
+        )
+        var completions: [(JournalSharePayload?, JournalShareActivityOutcome)] = []
+        let coordinator = JournalActivityView.Coordinator(
+            preparePayload: { payload },
+            completion: { completions.append(($0, $1)) },
+            pickerPresenter: { _, _ in }
+        )
+        let service = NSSharingService(
+            title: "Test",
+            image: NSImage(size: NSSize(width: 1, height: 1)),
+            alternateImage: nil,
+            handler: {}
+        )
+
+        coordinator.present(from: NSView())
+        coordinator.sharingServicePicker(
+            NSSharingServicePicker(items: []),
+            didChoose: service
+        )
+        coordinator.cancelActiveShare()
+
+        #expect(completions.isEmpty)
+
+        coordinator.sharingService(service, didShareItems: [])
+
+        #expect(completions.count == 1)
+        #expect(completions.first?.0?.id == payload.id)
+        #expect(completions.first?.1 == .completed)
+    }
+}
+
+@MainActor
+@Suite struct MacJournalSharePreviewHostingTests {
+    @Test func sharePreviewCanBeHostedAsANativeMacView() throws {
+        let fixture = try Fixture()
+        let host = NSHostingView(rootView: JournalSharePreviewView(
+            source: fixture.source,
+            locale: fixture.locale
+        ))
+        let window = NSWindow(
+            contentRect: NSRect(x: -10_000, y: -10_000, width: 760, height: 760),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = host
+        window.layoutIfNeeded()
+        host.layoutSubtreeIfNeeded()
+
+        #expect(host.fittingSize.width > 0)
+        #expect(host.fittingSize.height > 0)
+    }
+}
+#endif

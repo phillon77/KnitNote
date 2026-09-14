@@ -1,6 +1,9 @@
-#if os(iOS)
 import SwiftUI
+#if os(iOS)
 import UIKit
+#elseif os(macOS)
+import AppKit
+#endif
 
 @MainActor
 struct JournalSharePreviewView: View {
@@ -16,17 +19,36 @@ struct JournalSharePreviewView: View {
     init(source: JournalShareSource, locale: Locale) {
         let exportRoot = FileManager.default.temporaryDirectory
             .appending(path: "KnitNoteJournalShareExports", directoryHint: .isDirectory)
+        #if os(iOS)
+        let imageSaver: any JournalPhotoSaving = IOSJournalPhotoSaver()
+        let textCopier: any JournalTextCopying = IOSJournalTextCopier()
+        #elseif os(macOS)
+        let imageSaver: any JournalPhotoSaving = MacJournalImageSaver()
+        let textCopier: any JournalTextCopying = MacJournalTextCopier()
+        #endif
         _model = State(initialValue: JournalSharePreviewModel(
             source: source,
             locale: locale,
             renderer: SwiftUIJournalShareCardRenderer(),
             exportService: JournalShareTemporaryExportService(root: exportRoot),
-            photoSaver: IOSJournalPhotoSaver(),
-            textCopier: IOSJournalTextCopier()
+            photoSaver: imageSaver,
+            textCopier: textCopier
         ))
     }
 
     var body: some View {
+        #if os(iOS)
+        shareContent
+            .sheet(item: $activityPayload, onDismiss: finishPresentedShare) { payload in
+                JournalActivityView(payload: payload) { finishShare(payload) }
+            }
+        #elseif os(macOS)
+        shareContent
+            .frame(minWidth: 620, minHeight: 680)
+        #endif
+    }
+
+    private var shareContent: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
@@ -58,9 +80,6 @@ struct JournalSharePreviewView: View {
         .task(id: previewSettings) { await model.refreshPreview() }
         .task(id: model.photoSaveState) { announcePhotoSaveState() }
         .task(id: model.state) { announcePreviewFailure() }
-        .sheet(item: $activityPayload, onDismiss: finishPresentedShare) { payload in
-            JournalActivityView(payload: payload) { finishShare(payload) }
-        }
         .onDisappear { model.dismiss() }
         .alert("journal.share.error.title", isPresented: actionErrorIsPresented) {
             Button("common.ok", role: .cancel) {}
@@ -76,8 +95,8 @@ struct JournalSharePreviewView: View {
                 ProgressView("journal.share.loading")
                     .frame(maxWidth: .infinity, minHeight: 240)
             case .ready:
-                if let data = model.previewJPEG, let image = UIImage(data: data) {
-                    Image(uiImage: image)
+                if let data = model.previewJPEG, let image = platformImage(data) {
+                    image
                         .resizable()
                         .scaledToFit()
                         .accessibilityElement(children: .ignore)
@@ -156,32 +175,61 @@ struct JournalSharePreviewView: View {
     }
 
     @ViewBuilder private var actionButtons: some View {
-        Button("journal.share.action.share", systemImage: "square.and.arrow.up") {
-            Task { await prepareShare() }
-        }
-        .buttonStyle(YarnPrimaryButtonStyle())
-        .disabled(!(model.canShare && !model.isSavingPhoto))
-        .accessibilityIdentifier("journalShare.share")
+        shareActionButton
 
         Button {
             Task { await model.saveToPhotos() }
         } label: {
-            Label("journal.share.action.save", systemImage: "square.and.arrow.down")
-                .frame(minHeight: 44)
+            Group {
+                #if os(iOS)
+                Label("journal.share.action.save", systemImage: "square.and.arrow.down")
+                #elseif os(macOS)
+                Label("journal.share.action.saveFile", systemImage: "square.and.arrow.down")
+                #endif
+            }
+            .frame(minHeight: 44)
         }
         .disabled(!(model.canShare && !model.isSavingPhoto))
         .accessibilityIdentifier("journalShare.save")
 
         Button {
-            model.copyText()
-            showsCopyFeedback = true
-            announce("journal.share.announcement.copied")
+            if model.copyText() {
+                showsCopyFeedback = true
+                announce("journal.share.announcement.copied")
+            } else {
+                showsCopyFeedback = false
+                actionErrorKey = "journal.share.error.unavailable"
+                announce("journal.share.announcement.failed")
+            }
         } label: {
             Label("journal.share.action.copy", systemImage: "doc.on.doc")
                 .frame(minHeight: 44)
         }
         .disabled(!model.canCopy)
         .accessibilityIdentifier("journalShare.copy")
+    }
+
+    @ViewBuilder private var shareActionButton: some View {
+        #if os(iOS)
+        shareButton
+        #elseif os(macOS)
+        JournalActivityView(
+            isEnabled: model.canShare && !model.isSavingPhoto,
+            accessibilityLabel: LocaleAwareText.string("journal.share.action.share", locale: locale),
+            preparePayload: { try model.prepareShare() },
+            completion: finishShare
+        )
+        .frame(maxWidth: .infinity, minHeight: 44)
+        #endif
+    }
+
+    private var shareButton: some View {
+        Button("journal.share.action.share", systemImage: "square.and.arrow.up") {
+            prepareShare()
+        }
+        .buttonStyle(YarnPrimaryButtonStyle())
+        .disabled(!(model.canShare && !model.isSavingPhoto))
+        .accessibilityIdentifier("journalShare.share")
     }
 
     @ViewBuilder private var resultMessage: some View {
@@ -193,14 +241,18 @@ struct JournalSharePreviewView: View {
         case .saving:
             ProgressView("journal.share.saving")
         case .saved:
-            Label("journal.share.saved", systemImage: "checkmark.circle.fill")
+            Label {
+                Text(LocalizedStringKey(savedMessageKey))
+            } icon: {
+                Image(systemName: "checkmark.circle.fill")
+            }
         case .failed(.denied):
             VStack(alignment: .leading) {
                 Text("journal.share.error.photosDenied")
                 Button("journal.share.openSettings") { openSettings() }
             }
         case .failed(.writeFailed):
-            Text("journal.share.error.saveFailed")
+            Text(LocalizedStringKey(saveFailedMessageKey))
         case .cancelled:
             Text("journal.share.saveCancelled")
         case .idle:
@@ -228,9 +280,9 @@ struct JournalSharePreviewView: View {
         Binding(get: { model.visibility[keyPath: keyPath] }, set: { model.visibility[keyPath: keyPath] = $0 })
     }
 
-    private func prepareShare() async {
+    private func prepareShare() {
         do {
-            let payload = try await model.prepareShare()
+            let payload = try model.prepareShare()
             retainedActivityPayload = payload
             activityPayload = payload
         }
@@ -246,6 +298,19 @@ struct JournalSharePreviewView: View {
         if activityPayload?.id == payload.id { activityPayload = nil }
     }
 
+    #if os(macOS)
+    private func finishShare(
+        _ payload: JournalSharePayload?,
+        outcome: JournalShareActivityOutcome
+    ) {
+        if let payload { finishShare(payload) }
+        if outcome == .failed {
+            actionErrorKey = "journal.share.error.unavailable"
+            announce("journal.share.announcement.failed")
+        }
+    }
+    #endif
+
     private func finishPresentedShare() {
         guard let payload = retainedActivityPayload else { return }
         model.finishSharing(payload)
@@ -255,9 +320,9 @@ struct JournalSharePreviewView: View {
 
     private func announcePhotoSaveState() {
         switch model.photoSaveState {
-        case .saved: announce("journal.share.announcement.saved")
+        case .saved: announce(savedAnnouncementKey)
         case .failed(.denied): announce("journal.share.announcement.photosDenied")
-        case .failed(.writeFailed): announce("journal.share.announcement.saveFailed")
+        case .failed(.writeFailed): announce(saveFailedAnnouncementKey)
         case .cancelled: announce("journal.share.announcement.saveCancelled")
         case .idle, .saving: break
         }
@@ -272,16 +337,70 @@ struct JournalSharePreviewView: View {
     }
 
     private func announce(_ key: String) {
+        #if os(iOS)
         UIAccessibility.post(notification: .announcement, argument: LocaleAwareText.string(key, locale: locale))
+        #elseif os(macOS)
+        guard let app = NSApp else { return }
+        NSAccessibility.post(
+            element: app,
+            notification: .announcementRequested,
+            userInfo: [
+                .announcement: LocaleAwareText.string(key, locale: locale),
+                .priority: NSAccessibilityPriorityLevel.medium.rawValue,
+            ]
+        )
+        #endif
     }
 
     private func openSettings() {
+        #if os(iOS)
         guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
         UIApplication.shared.open(url)
+        #endif
+    }
+
+    private func platformImage(_ data: Data) -> Image? {
+        #if os(iOS)
+        UIImage(data: data).map(Image.init(uiImage:))
+        #elseif os(macOS)
+        NSImage(data: data).map(Image.init(nsImage:))
+        #endif
     }
 
     private var actionErrorIsPresented: Binding<Bool> {
         Binding(get: { actionErrorKey != nil }, set: { if !$0 { actionErrorKey = nil } })
+    }
+
+    private var savedMessageKey: String {
+        #if os(iOS)
+        "journal.share.saved"
+        #elseif os(macOS)
+        "journal.share.savedFile"
+        #endif
+    }
+
+    private var saveFailedMessageKey: String {
+        #if os(iOS)
+        "journal.share.error.saveFailed"
+        #elseif os(macOS)
+        "journal.share.error.saveFileFailed"
+        #endif
+    }
+
+    private var savedAnnouncementKey: String {
+        #if os(iOS)
+        "journal.share.announcement.saved"
+        #elseif os(macOS)
+        "journal.share.announcement.savedFile"
+        #endif
+    }
+
+    private var saveFailedAnnouncementKey: String {
+        #if os(iOS)
+        "journal.share.announcement.saveFailed"
+        #elseif os(macOS)
+        "journal.share.error.saveFileFailed"
+        #endif
     }
 }
 
@@ -296,4 +415,3 @@ private struct PreviewSettings: Equatable {
         self.editableText = editableText
     }
 }
-#endif

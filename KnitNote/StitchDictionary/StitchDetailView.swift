@@ -5,7 +5,6 @@ struct StitchDetailPresentation {
     let repetitions: Int?
     var consumes: Int { entry.consumes }
     var produces: Int { entry.produces }
-    var sectionKeys: [String] { ["names", "meaning", "symbols", "steps", "count", "notes", "sources", "related"] }
 }
 struct StitchDetailView: View {
     @Environment(\.locale) private var locale

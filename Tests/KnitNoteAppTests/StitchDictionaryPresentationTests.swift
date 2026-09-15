@@ -34,7 +34,6 @@ import AppKit
         #expect(detail.consumes == 1)
         #expect(detail.produces == 1)
         #expect(detail.repetitions == Int.max)
-        #expect(detail.sectionKeys == ["names", "meaning", "symbols", "steps", "count", "notes", "sources", "related"])
     }
     #if os(macOS)
     @MainActor @Test func injectedFailureHostsErrorContent() throws {

@@ -1863,13 +1863,13 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aucun symbole vérifié n’est inclus. Consultez les étapes et la légende du modèle."
+            "value": "Aucun symbole vérifié n’est inclus. Consultez les étapes et la légende du patron."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "確認できた記号は未掲載です。手順と作品の凡例を参照してください。"
+            "value": "確認できた記号は未掲載です。手順と編み図の凡例を参照してください。"
           }
         },
         "ko": {
@@ -1881,7 +1881,7 @@
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ingen bekreftet symbolvariant er tatt med. Se trinnene og oppskriftens tegnforklaring."
+            "value": "Ingen bekreftet symbolvariant er tatt med. Se trinnene og mønsterets tegnforklaring."
           }
         },
         "nl": {
@@ -1899,7 +1899,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "未收录已核实的符号，请参考步骤及原织图图例。"
+            "value": "未收录已核实的符号，请参考步骤及原图解图例。"
           }
         },
         "zh-Hant": {
@@ -3914,7 +3914,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Abheberichtung und Fadenlage sind unabhängig. Die Anleitung bestimmt vorn oder hinten; den Faden zwischen den Spitzen verlegen."
+            "value": "Abheberichtung und Fadenlage sind unabhängig. Das Muster bestimmt vorn oder hinten; den Faden zwischen den Spitzen verlegen."
           }
         },
         "el": {
@@ -3938,13 +3938,13 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Le sens de glissement et la position du fil sont indépendants. Suivre le modèle pour le fil devant ou derrière ; le déplacer entre les pointes."
+            "value": "Le sens de glissement et la position du fil sont indépendants. Suivre le patron pour le fil devant ou derrière ; le déplacer entre les pointes."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "すべらせる向きと糸の位置は別の指定です。糸を手前・向こうに置く指示に従い、糸は針先の間で移動します。"
+            "value": "すべらせる向きと糸の位置は別の指定です。編み図の糸を手前・向こうに置く指示に従い、糸は針先の間で移動します。"
           }
         },
         "ko": {
@@ -3956,7 +3956,7 @@
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Retningen ved avløfting og garnets plassering er uavhengige. Følg oppskriften for garn foran eller bak; flytt garnet mellom spissene."
+            "value": "Retningen ved avløfting og garnets plassering er uavhengige. Følg mønsteret for garn foran eller bak; flytt garnet mellom spissene."
           }
         },
         "nl": {
@@ -3974,7 +3974,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "滑针方向与线的位置是两件事。线放前或后须依织图；换线位时从两针尖之间移动。"
+            "value": "滑针方向与线的位置是两件事。线放前或后须依图解；换线位时从两针尖之间移动。"
           }
         },
         "zh-Hant": {
@@ -3997,7 +3997,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Symbole unterscheiden sich je nach Verlag. Eine beschreibende Übersetzung ist kein Normname. Immer die Legende der Anleitung verwenden."
+            "value": "Symbole unterscheiden sich je nach Verlag. Eine beschreibende Übersetzung ist kein Normname. Immer die Legende des Musters verwenden."
           }
         },
         "el": {
@@ -4021,13 +4021,13 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Les symboles varient selon l’éditeur. Une traduction descriptive n’est pas un nom normalisé. Utiliser la légende du modèle."
+            "value": "Les symboles varient selon l’éditeur. Une traduction descriptive n’est pas un nom normalisé. Utiliser la légende du patron."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "記号は出版社により異なります。「説明訳」は標準名称ではありません。必ず作品の凡例を確認してください。"
+            "value": "記号は出版社により異なります。「説明訳」は標準名称ではありません。必ず編み図の凡例を確認してください。"
           }
         },
         "ko": {
@@ -4039,7 +4039,7 @@
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Symboler varierer mellom utgivere. En beskrivende oversettelse er ikke et standardnavn. Bruk alltid oppskriftens egen tegnforklaring."
+            "value": "Symboler varierer mellom utgivere. En beskrivende oversettelse er ikke et standardnavn. Bruk alltid mønsterets egen tegnforklaring."
           }
         },
         "nl": {
@@ -4057,7 +4057,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "符号因出版社而异。标为说明译名的名称并非标准术语；请以原织图图例为准。"
+            "value": "符号因出版社而异。标为说明译名的名称并非标准术语；请以原图解图例为准。"
           }
         },
         "zh-Hant": {
@@ -5835,7 +5835,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Wrap the yarn around the right needle and draw a new loop away from you through the old loop."
+            "value": "Wrap the yarn over the right needle and draw a new loop away from you through the old loop."
           }
         },
         "fi": {
@@ -5918,7 +5918,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Drawing: Wrap the yarn around the right needle and draw a new loop away from you through the old loop."
+            "value": "Drawing: Wrap the yarn over the right needle and draw a new loop away from you through the old loop."
           }
         },
         "fi": {
@@ -8207,7 +8207,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "同针目前后各织一下针"
+            "value": "在同一针的前侧和后侧各织一下针"
           }
         },
         "zh-Hant": {

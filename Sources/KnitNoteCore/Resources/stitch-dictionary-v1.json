@@ -62,56 +62,64 @@
       "title": "SSK and SSSK — Tin Can Knits",
       "url": "https://blog.tincanknits.com/2013/10/03/ssk/",
       "checkedOn": "2026-09-15",
-      "scope": "Classic SSK: slip twice individually knitwise, insert left needle through fronts, knit together. Does not teach SKP; no Japanese/Korean alias claim."
+      "scope": "Classic SSK: slip twice individually knitwise, insert left needle through fronts, knit together. Does not teach SKP; no Japanese/Korean alias claim.",
+      "videoLanguage": "en"
     },
     {
       "id": "gosyo-purl",
       "title": "裏目 — ごしょう産業",
       "url": "https://www.gosyo.co.jp/kiso-movie-bou/5-12",
       "checkedOn": "2026-09-15",
-      "scope": "Yarn in front, draw loop away and release; one stitch remains. Japanese name and operation; no Gosyo glyph selected."
+      "scope": "Yarn in front, draw loop away and release; one stitch remains. Japanese name and operation; no Gosyo glyph selected.",
+      "videoLanguage": "ja"
     },
     {
       "id": "gosyo-skp",
       "title": "右上2目一度 — ごしょう産業",
       "url": "https://www.gosyo.co.jp/kiso-movie-bou/5-15",
       "checkedOn": "2026-09-15",
-      "scope": "Slip one, knit next, pass slipped stitch over: two become one. Combined with CYC explicit knitwise slip. This page is not evidence for SSK."
+      "scope": "Slip one, knit next, pass slipped stitch over: two become one. Combined with CYC explicit knitwise slip. This page is not evidence for SSK.",
+      "videoLanguage": "ja"
     },
     {
       "id": "gosyo-k2tog",
       "title": "左上2目一度 — ごしょう産業",
       "url": "https://www.gosyo.co.jp/kiso-movie-bou/5-16",
       "checkedOn": "2026-09-15",
-      "scope": "Work two loops together knitwise; two become one. Japanese name and operation."
+      "scope": "Work two loops together knitwise; two become one. Japanese name and operation.",
+      "videoLanguage": "ja"
     },
     {
       "id": "gosyo-cdd",
       "title": "中上3目一度 — ごしょう産業",
       "url": "https://www.gosyo.co.jp/kiso-movie-bou/5-17",
       "checkedOn": "2026-09-15",
-      "scope": "Slip two together, knit next and pass both over; center stitch on top, three become one. CYC establishes explicit as-if-k2tog insertion."
+      "scope": "Slip two together, knit next and pass both over; center stitch on top, three become one. CYC establishes explicit as-if-k2tog insertion.",
+      "videoLanguage": "ja"
     },
     {
       "id": "gosyo-yo",
       "title": "かけ目 — ごしょう産業",
       "url": "https://www.gosyo.co.jp/kiso-movie-bou/5-20",
       "checkedOn": "2026-09-15",
-      "scope": "Knit-to-knit yarn-over: bring yarn forward, lay over right needle, then knit next separately."
+      "scope": "Knit-to-knit yarn-over: bring yarn forward, lay over right needle, then knit next separately.",
+      "videoLanguage": "ja"
     },
     {
       "id": "gosyo-lc",
       "title": "右上1目交差 — ごしょう産業",
       "url": "https://www.gosyo.co.jp/kiso-movie-bou/5-22",
       "checkedOn": "2026-09-15",
-      "scope": "First stitch held in front; knit next then held stitch. Exact 1/1 LC operation despite Japanese right-on-top naming."
+      "scope": "First stitch held in front; knit next then held stitch. Exact 1/1 LC operation despite Japanese right-on-top naming.",
+      "videoLanguage": "ja"
     },
     {
       "id": "gosyo-rc",
       "title": "左上1目交差 — ごしょう産業",
       "url": "https://www.gosyo.co.jp/kiso-movie-bou/5-23",
       "checkedOn": "2026-09-15",
-      "scope": "First stitch held behind; knit next then held stitch. Exact 1/1 RC operation despite Japanese left-on-top naming."
+      "scope": "First stitch held behind; knit next then held stitch. Exact 1/1 RC operation despite Japanese left-on-top naming.",
+      "videoLanguage": "ja"
     },
     {
       "id": "knitter-academy-legend",
@@ -125,7 +133,8 @@
       "title": "表目：動画と手順 — ごしょう産業",
       "url": "https://www.gosyo.co.jp/kiso-movie-bou/5-11",
       "checkedOn": "2026-09-15",
-      "scope": "Knit stitch tutorial with video and step illustrations on the original provider website."
+      "scope": "Knit stitch tutorial with video and step illustrations on the original provider website.",
+      "videoLanguage": "ja"
     },
     {
       "id": "vogue-knit-video",
@@ -133,6 +142,46 @@
       "url": "https://amimono.me/article/detail.html?id=148",
       "checkedOn": "2026-09-15",
       "scope": "Knit stitch tutorial with video and step illustrations on the original provider website."
+    },
+    {
+      "id": "kh-slip-knitwise",
+      "title": "Slip Knit-wise — KnittingHelp",
+      "url": "https://knittinghelp.com/video/play/slip-knit-wise-english",
+      "checkedOn": "2026-09-15",
+      "scope": "Silent video demonstrating a stitch slipped knitwise, without working it.",
+      "videoLanguage": "zxx"
+    },
+    {
+      "id": "kh-slip-purlwise",
+      "title": "Slip Purl-wise — KnittingHelp",
+      "url": "https://knittinghelp.com/video/play/slip-purl-wise-english",
+      "checkedOn": "2026-09-15",
+      "scope": "Silent video demonstrating a stitch slipped purlwise, without working it.",
+      "videoLanguage": "zxx"
+    },
+    {
+      "id": "purlsoho-kfb-video",
+      "title": "Knit Front And Back (kfb) — Purl Soho",
+      "url": "https://www.purlsoho.com/create/knit-front-and-back-kfb/",
+      "checkedOn": "2026-09-15",
+      "scope": "Video and transcript demonstrate knitting into front then back of the same stitch.",
+      "videoLanguage": "en"
+    },
+    {
+      "id": "purlsoho-m1-video",
+      "title": "Make 1 Right + Make 1 Left — Purl Soho",
+      "url": "https://www.purlsoho.com/create/make-one-right-m1r-make-one-left-m1l/",
+      "checkedOn": "2026-09-15",
+      "scope": "Video demonstrates both knitwise M1L and M1R, with transcript identifying each direction.",
+      "videoLanguage": "en"
+    },
+    {
+      "id": "kh-p2tog",
+      "title": "Purl 2 Together — KnittingHelp",
+      "url": "https://knittinghelp.com/video/play/purl-2-together-english",
+      "checkedOn": "2026-09-15",
+      "scope": "Silent video demonstrating purling two stitches together through the front loops.",
+      "videoLanguage": "zxx"
     }
   ],
   "entries": [
@@ -266,9 +315,9 @@
         "p2tog"
       ],
       "sourceIDs": [
+        "gosyo-purl",
         "cyc-abbreviations",
         "banul-book",
-        "gosyo-purl",
         "knitter-academy-legend",
         "cyc-symbols"
       ],
@@ -341,6 +390,7 @@
         "skp"
       ],
       "sourceIDs": [
+        "kh-slip-knitwise",
         "cyc-abbreviations",
         "banul-book"
       ],
@@ -393,6 +443,7 @@
         "cable-left-two"
       ],
       "sourceIDs": [
+        "kh-slip-purlwise",
         "cyc-abbreviations",
         "banul-book",
         "cyc-symbols"
@@ -456,9 +507,9 @@
         "make-one-right"
       ],
       "sourceIDs": [
+        "gosyo-yo",
         "cyc-abbreviations",
         "banul-book",
-        "gosyo-yo",
         "cyc-symbols"
       ],
       "symbols": [
@@ -520,6 +571,7 @@
         "make-one-left"
       ],
       "sourceIDs": [
+        "purlsoho-kfb-video",
         "cyc-abbreviations",
         "banul-book",
         "cyc-symbols"
@@ -583,6 +635,7 @@
         "knit-front-back"
       ],
       "sourceIDs": [
+        "purlsoho-m1-video",
         "cyc-abbreviations",
         "banul-book",
         "purlsoho-m1",
@@ -647,6 +700,7 @@
         "knit-front-back"
       ],
       "sourceIDs": [
+        "purlsoho-m1-video",
         "cyc-abbreviations",
         "banul-book",
         "purlsoho-m1",
@@ -710,9 +764,9 @@
         "p2tog"
       ],
       "sourceIDs": [
+        "gosyo-k2tog",
         "cyc-abbreviations",
         "banul-book",
-        "gosyo-k2tog",
         "cyc-symbols"
       ],
       "symbols": [
@@ -775,9 +829,9 @@
         "slip-knitwise"
       ],
       "sourceIDs": [
+        "tincanknits-ssk",
         "cyc-abbreviations",
         "banul-book",
-        "tincanknits-ssk",
         "cyc-symbols"
       ],
       "symbols": [
@@ -840,9 +894,9 @@
         "slip-knitwise"
       ],
       "sourceIDs": [
+        "gosyo-skp",
         "cyc-abbreviations",
-        "banul-book",
-        "gosyo-skp"
+        "banul-book"
       ],
       "symbols": []
     },
@@ -891,6 +945,7 @@
         "k2tog"
       ],
       "sourceIDs": [
+        "kh-p2tog",
         "cyc-abbreviations",
         "banul-book",
         "cyc-symbols"
@@ -955,9 +1010,9 @@
         "k2tog"
       ],
       "sourceIDs": [
+        "gosyo-cdd",
         "cyc-abbreviations",
         "banul-book",
-        "gosyo-cdd",
         "cyc-symbols"
       ],
       "symbols": [
@@ -1020,9 +1075,9 @@
         "slip-purlwise"
       ],
       "sourceIDs": [
+        "gosyo-lc",
         "cyc-abbreviations",
         "banul-book",
-        "gosyo-lc",
         "cyc-symbols"
       ],
       "symbols": [
@@ -1085,9 +1140,9 @@
         "slip-purlwise"
       ],
       "sourceIDs": [
+        "gosyo-rc",
         "cyc-abbreviations",
         "banul-book",
-        "gosyo-rc",
         "cyc-symbols"
       ],
       "symbols": [

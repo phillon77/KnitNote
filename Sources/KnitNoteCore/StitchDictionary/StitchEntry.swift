@@ -55,6 +55,8 @@ public struct StitchEntry: Codable, Equatable, Sendable, Identifiable {
     public let order: Int
     public let names: [String: String]
     public let aliases: [String]
+    /// Explicit source-backed notation for display; search aliases are not ranked.
+    public let displayNotation: String?
     public let titleKey: String
     public let summaryKey: String
     public let steps: [StitchStep]
@@ -68,12 +70,13 @@ public struct StitchEntry: Codable, Equatable, Sendable, Identifiable {
     public init(id: String, category: StitchCategory, order: Int, names: [String: String],
                 aliases: [String], titleKey: String, summaryKey: String, steps: [StitchStep],
                 consumes: Int, produces: Int, noteKeys: [String], relatedIDs: [String],
-                sourceIDs: [String], symbols: [StitchSymbol]) {
+                sourceIDs: [String], symbols: [StitchSymbol], displayNotation: String? = nil) {
         self.id = id
         self.category = category
         self.order = order
         self.names = names
         self.aliases = aliases
+        self.displayNotation = displayNotation
         self.titleKey = titleKey
         self.summaryKey = summaryKey
         self.steps = steps

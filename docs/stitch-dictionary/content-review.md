@@ -13,7 +13,7 @@ Reviewed 2026-09-15. This audit covers the 15 bundled operations, their selected
 
 ## Operation-by-operation evidence and visual review
 
-The `sourceIDs` in the JSON identify the precise source records and their claim limits. Counts are input stitches consumed → output stitches; the strand used for M1 and YO is not a consumed next stitch. Neighboring stitches visible in an M1 drawing are context only.
+The `sourceIDs` in the JSON identify the precise source records and their claim limits. The explicit optional `displayNotation` field selects an already recorded, source-backed English notation for list/detail display; search aliases remain unranked. All 15 bundled entries specify `k`, `p`, `sl1k`, `sl1p`, `yo`, `kfb`, `m1l`, `m1r`, `k2tog`, `ssk`, `skp`, `p2tog`, `cdd`, `1/1 LC`, or `1/1 RC` respectively. CDD is the recorded display alias for the CYC S2KP2 operation described below; the operation is unchanged. Counts are input stitches consumed → output stitches; the strand used for M1 and YO is not a consumed next stitch. Neighboring stitches visible in an M1 drawing are context only.
 
 | Stable ID | Count | Operation and name evidence | Step image checks, final light and dark |
 | --- | --- | --- | --- |

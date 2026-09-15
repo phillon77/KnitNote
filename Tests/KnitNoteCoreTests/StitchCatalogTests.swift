@@ -110,6 +110,27 @@ struct StitchCatalogTests {
     @Test func propagatesMalformedJSON() {
         #expect(throws: DecodingError.self) { try StitchCatalog.decode(Data("{".utf8)) }
     }
+    @Test func bundledEntriesHaveExplicitReviewedNotation() throws {
+        let catalog = try StitchCatalog.bundled()
+        let entries = catalog.entries
+        let expected = ["k", "p", "sl1k", "sl1p", "yo", "kfb", "m1l", "m1r", "k2tog", "ssk", "skp", "p2tog", "cdd", "1/1 LC", "1/1 RC"]
+        #expect(entries.count == expected.count)
+        for (entry, notation) in zip(entries, expected) {
+            #expect(entry.displayNotation == notation)
+        }
+    }
+    @Test(arguments: ["", "   ", "unrecorded"])
+    func rejectsInvalidDisplayNotation(notation: String) throws {
+        #expect(throws: StitchCatalogError.invalidEntry("knit")) {
+            try StitchCatalog.decode(entryMutation { $0["displayNotation"] = notation })
+        }
+    }
+    @Test func displayNotationIsOptionalAndAcceptsRecordedCaseVariant() throws {
+        let legacy = try StitchCatalog.decode(entryMutation { $0.removeValue(forKey: "displayNotation") })
+        #expect(legacy.entry(id: "knit")?.displayNotation == nil)
+        let variant = try StitchCatalog.decode(entryMutation { $0["displayNotation"] = "K" })
+        #expect(variant.entry(id: "knit")?.displayNotation == "K")
+    }
     private func keys(_ catalog: StitchCatalog) -> Set<String> {
         Set(catalog.entries.flatMap { entry in
             [entry.titleKey, entry.summaryKey] + entry.noteKeys

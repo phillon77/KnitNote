@@ -70,6 +70,30 @@ import AppKit
         let knit = try #require(catalog.entry(id: "knit"))
         #expect(collector.content["stitchDictionary.entry.knit"] == LocaleAwareText.string(knit.summaryKey, locale: Locale(identifier: "en")))
         #expect(collector.content["stitchDictionary.error"] == nil)
+        #expect(collector.content["stitchDictionary.notation.knit"] == "k")
+    }
+    @MainActor @Test func countedPurlHostRendersNotationAndPerOperationCounts() throws {
+        let catalog = try StitchCatalog.bundled()
+        let result = try #require(StitchSearch.results(query: "p3", category: nil, in: catalog).first)
+        let entry = try #require(catalog.entry(id: result.entryID))
+        let collector = ContentCollector()
+        let host = NSHostingView(rootView: StitchDetailView(entry: entry, repetitions: result.repetitions, catalog: catalog, diagrams: try StitchDiagram.loadBundled())
+            .environment(\.locale, Locale(identifier: "en"))
+            .onPreferenceChange(StitchDictionaryContentPreferenceKey.self) { collector.content = $0 })
+        let window = NSWindow(contentRect: NSRect(x: -10000, y: -10000, width: 620, height: 1600), styleMask: [.titled], backing: .buffered, defer: false)
+        window.contentView = host
+        window.isReleasedWhenClosed = false
+        window.orderFrontRegardless()
+        defer { window.close() }
+        window.layoutIfNeeded()
+        host.layoutSubtreeIfNeeded()
+        for _ in 0..<10 { RunLoop.main.run(until: Date().addingTimeInterval(0.02)) }
+        #expect(collector.content["stitchDictionary.notation.purl"] == "p")
+        #expect(collector.content["stitchDictionary.repeat"] == "Repeat 3 times")
+        #expect(collector.content["stitchDictionary.count.heading"] == "Stitch count per operation")
+        #expect(collector.content["stitchDictionary.count.consumes"] == "1")
+        #expect(collector.content["stitchDictionary.count.produces"] == "1")
+        #expect(collector.content["stitchDictionary.count.net"] == "0")
     }
     private final class ContentCollector {
         var content: [String: String] = [:]

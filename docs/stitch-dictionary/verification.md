@@ -1,6 +1,6 @@
 # 棒針織法字典驗證記錄
 
-日期：2026-09-15。分支 `feature/knitting-stitch-dictionary`，工作目錄 `.worktrees/main-mac-share-merge`。功能基準 HEAD `640c08e337130531b42ad682ce889cec4b7f0364`；本次測試另包含 App 資源測試、Xcode 專案測試檔案登錄、刪除未使用的 `sectionKeys`／對應鏡像斷言、17 個字串修正與明列 185 個新增鍵的 oracle 允許清單。不是發布或實機驗收記錄。
+日期：2026-09-15。分支 `feature/knitting-stitch-dictionary`，工作目錄 `.worktrees/main-mac-share-merge`。功能基準 HEAD `640c08e337130531b42ad682ce889cec4b7f0364`；本次測試另包含 App 資源測試、Xcode 專案測試檔案登錄、刪除未使用的 `sectionKeys`／對應鏡像斷言、17 個字串修正與明列 185 個新增鍵的 oracle 允許清單。不是發布或實機驗收記錄。文末「final review fixwave」記錄在 `8f3e709d1bf6f570501e09cbc1cc0c5c490afbf9` 之後的縮寫 metadata／標題／測試修正；前面的完整 Core aggregate 是該基準的歷史證據。
 
 ## 命令與結果
 
@@ -41,4 +41,28 @@ Controller 在先前 iPhone Simulator build 實際看到「計算器 → 字典 
 
 首次完整執行 `swift test --no-parallel`（功能 HEAD 640c08e）自然完成 exit 1，2992 tests／220 suites，2231.481 秒，恰有上述 17 issues；没有額外失敗。證據 `/private/tmp/knitnote-stitch-final-core.log`。此執行沒有被中斷。
 
-Controller 另以已建置的修正後執行檔執行完整 aggregate：`PATH=/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:$PATH PYTHONPATH=/private/tmp/knitnote-stitch-python-fixture swift test --scratch-path /private/tmp/knitnote-stitch-catalog --skip-build --no-parallel`。證據 `/private/tmp/knitnote-stitch-corrected-core.log`；完整執行 exit 0，2992 tests／220 suites，2206.305 秒，全部通過。執行檔為上述 96 contracts 修正驗證建置的最新版本；之後沒有功能／資料變更。
+Controller 另以已建置的修正後執行檔執行完整 aggregate：`PATH=/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:$PATH PYTHONPATH=/private/tmp/knitnote-stitch-python-fixture swift test --scratch-path /private/tmp/knitnote-stitch-catalog --skip-build --no-parallel`。證據 `/private/tmp/knitnote-stitch-corrected-core.log`；完整執行 exit 0，2992 tests／220 suites，2206.305 秒，全部通過。執行檔為上述 96 contracts 修正驗證建置的最新版本；這是 `8f3e709d1bf6f570501e09cbc1cc0c5c490afbf9` 基準的完整測試證據；後續 final review fixwave 新增顯示 metadata 並修改標題，因此不能把這次完整通過描述為最終 metadata snapshot 的完整重跑。
+
+
+## final review fixwave
+
+基準 `8f3e709d1bf6f570501e09cbc1cc0c5c490afbf9`。修正列表／詳情漏掉英文縮寫、`p3` 針數沒有明列每次操作，以及缺圖反例可能因無效翻譯鍵而通過的三個 review findings。
+
+- `StitchEntry.displayNotation` 為可省略欄位，synthetic initializer 預設 nil；既有 fixture 仍可解碼。提供時必須非空且與已記錄 alias 相符（忽略大小寫）。15 條 bundled metadata 是明確選定的現有 notation，沒有從 alias 排序推測標準。
+- 列表與英文名稱區實際 Text 顯示 notation；`stitchDictionary.detail.count` 原有鍵改為明確的每次操作文字，涵蓋 13 語。重複次數與 consumes／produces／net 的原有未乘算值保持一致；圖形與操作方法未改動。
+- hosted SwiftUI probe 附在實際顯示的 Text／標題 view 上；列表 summary probe 由父層移到 summary Text，避免蓋掉子層 notation preference。測試實際 `p3` 查詢結果的詳情內容，而非新增未使用的 presentation 鏡像屬性。
+- 缺圖反例先以 App bundle 英文非空翻譯鍵驗證原始目錄，再移除已記錄圖 ID，精確斷言 `.missingReference(removedDiagramID)`。
+
+RED：修改測試後、產品修正前，`swift test --no-parallel --scratch-path /private/tmp/knitnote-stitch-catalog --filter StitchCatalogTests` exit 1，12 tests／1 suite、18 issues（15 個 missing metadata 與 3 個非法 metadata 未拒絕），`/private/tmp/knitnote-stitch-final-fix-core-red.log`。App presentation hosted tests exit 65，5 tests／1 suite、7 issues，列表／詳情 notation 缺漏與新增 counted-detail semantic probe 缺漏；初始 count／repeat 的 nil 是尚未加 probe，不能解讀為原本沒有 count／repeat Text，`/private/tmp/knitnote-stitch-final-fix-app-red.log`。Python 加入 blank-notation 反例後 exit 1，因 validator 接受非法 metadata 而 self-test failed，`/private/tmp/knitnote-stitch-final-fix-validator-red.log`。皆使用正確需求預期；沒有假造錯誤預期來製造 RED。既有缺圖測試本身的精確化屬測試修正，未虛構產品 RED。
+
+GREEN：
+
+| 驗證 | 命令 | exit／結果 |
+| --- | --- | --- |
+| 四組字典與翻譯契約 | `PATH=/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:$PATH PYTHONPATH=/private/tmp/knitnote-stitch-python-fixture swift test --no-parallel --scratch-path /private/tmp/knitnote-stitch-catalog --filter 'StitchCatalogTests\|StitchSearchTests\|StitchDiagramTests\|StitchDictionaryContentTests\|LocalizationContractTests\|KnittingTerminologyContractTests'` | exit 0；128 tests／8 suites，1.788 秒；`/private/tmp/knitnote-stitch-final-fix-core-green.log`。filter 亦包含兩組相關 localization suites。 |
+| Python 實際內容與反例 | `/usr/bin/python3 scripts/validate_stitch_dictionary.py --self-test` | exit 0；15 operations／61 diagrams／185 keys × 13，valid fixture exit 0、原有五個與新增兩個非法 notation fixture 均 exit 1；`/private/tmp/knitnote-stitch-final-fix-validator-green.log`。 |
+
+最終 App focused 命令沿用上表六個既有測試的 `xcodebuild` 命令，新增 counted-purl hosted 測試；exit 0，7 tests／2 suites，1.255 秒。證據 `/private/tmp/knitnote-stitch-final-fix-app-green.log`；xcresult `/private/tmp/knitnote-stitch-mac/Logs/Test/Test-KnitNote-2026.09.15_15-44-10-+0800.xcresult`。包括缺圖反例的原始目錄有效性檢查。macOS／iOS build 結果列在本節後續記錄。此次依 review 建議僅重跑受影響範圍，未重跑 37 分鐘完整 Core aggregate；前述 2992 tests／220 suites 全綠保留其 `8f3e709` 基準 provenance。Mac locked 的互動限制持續存在；hosted semantic tests 不等於 manual QA，未新增實機、VoiceOver 或全平台互動驗收聲明。
+
+
+最終 macOS build：`xcodebuild -project KnitNote.xcodeproj -scheme KnitNote -destination 'platform=macOS' -derivedDataPath /private/tmp/knitnote-stitch-mac build CODE_SIGNING_ALLOWED=NO`，exit 0，BUILD SUCCEEDED，`/private/tmp/knitnote-stitch-final-fix-mac-build.log`。Controller 最終 iOS incremental build：`xcodebuild -project KnitNote.xcodeproj -scheme KnitNote -destination 'generic/platform=iOS Simulator' -derivedDataPath /private/tmp/knitnote-stitch-ios build CODE_SIGNING_ALLOWED=NO`，session 24464 exit 0，`/private/tmp/knitnote-stitch-final-fix-ios-build-2.log` line 154 BUILD SUCCEEDED；在 summary preference 移到 Text 之後執行。`git diff --check` exit 0。

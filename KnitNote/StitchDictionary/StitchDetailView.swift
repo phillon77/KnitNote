@@ -20,12 +20,17 @@ struct StitchDetailView: View {
             VStack(alignment: .leading, spacing: 22) {
                 if let repetitions {
                     Text(LocaleAwareText.format("stitchDictionary.repeat.format", locale: locale, Int64(repetitions))).font(.headline)
+                        .preference(key: StitchDictionaryContentPreferenceKey.self, value: ["stitchDictionary.repeat": LocaleAwareText.format("stitchDictionary.repeat.format", locale: locale, Int64(repetitions))])
                 }
                 heading("names")
                 ForEach(["zh-Hant", "zh-Hans", "en", "ja", "ko"], id: \.self) { language in
                     VStack(alignment: .leading, spacing: 4) {
                         Text(text("stitchDictionary.name." + language)).font(.caption).foregroundStyle(.secondary)
                         Text(entry.names[language] ?? "")
+                        if language == "en", let notation = entry.displayNotation {
+                            Text(notation).font(.body.monospaced())
+                                .preference(key: StitchDictionaryContentPreferenceKey.self, value: ["stitchDictionary.notation." + entry.id: notation])
+                        }
                     }
                 }
                 heading("meaning")
@@ -57,6 +62,7 @@ struct StitchDetailView: View {
                     Text(text("stitchDictionary.legend." + role))
                 }
                 heading("count")
+                    .preference(key: StitchDictionaryContentPreferenceKey.self, value: ["stitchDictionary.count.heading": text("stitchDictionary.detail.count")])
                 count("consumes", presentation.consumes)
                 count("produces", presentation.produces)
                 count("net", presentation.produces - presentation.consumes)
@@ -84,6 +90,7 @@ struct StitchDetailView: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(text("stitchDictionary.count." + key)).font(.subheadline)
             Text(LocaleAwareText.format("stitchDictionary.count.value", locale: locale, Int64(value)))
+                .preference(key: StitchDictionaryContentPreferenceKey.self, value: ["stitchDictionary.count." + key: LocaleAwareText.format("stitchDictionary.count.value", locale: locale, Int64(value))])
         }
     }
     private func sources(_ ids: [String]) -> some View {

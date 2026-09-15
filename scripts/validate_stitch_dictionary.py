@@ -85,6 +85,11 @@ def validate(catalog, diagrams, strings, fixture=False):
             raise ValueError('invalid operation ' + entry['id'])
         if any(not entry['names'].get(l, '').strip() for l in ('zh-Hant', 'zh-Hans', 'en', 'ja', 'ko')):
             raise ValueError('missing learning name ' + entry['id'])
+        notation = entry.get('displayNotation')
+        if notation is not None and (not isinstance(notation, str) or not notation.strip() or notation.lower() not in [a.lower() for a in entry['aliases']]):
+            raise ValueError('invalid display notation ' + entry['id'])
+        if not fixture and notation != dict(zip(ENTRY_IDS, ['k', 'p', 'sl1k', 'sl1p', 'yo', 'kfb', 'm1l', 'm1r', 'k2tog', 'ssk', 'skp', 'p2tog', 'cdd', '1/1 LC', '1/1 RC']))[entry['id']]:
+            raise ValueError('missing reviewed display notation ' + entry['id'])
         if not entry['sourceIDs'] or not set(entry['sourceIDs']) <= sources:
             raise ValueError('missing entry source ' + entry['id'])
         if not set(entry['relatedIDs']) <= entry_ids:
@@ -147,7 +152,7 @@ def self_test(catalog, diagrams, localizations):
     diagrams = {'schemaVersion': 1, 'diagrams': [d for d in diagrams['diagrams'] if d['id'] in ids]}
     with tempfile.TemporaryDirectory(prefix='stitch-validator-') as directory:
         paths = [Path(directory) / n for n in ('catalog.json', 'diagrams.json', 'strings.xcstrings')]
-        for case in ('valid', 'missing-korean-step', 'bad-format-type', 'missing-diagram', 'blank-translation', 'bad-coordinate'):
+        for case in ('valid', 'missing-korean-step', 'bad-format-type', 'missing-diagram', 'blank-translation', 'bad-coordinate', 'blank-notation', 'unrecorded-notation'):
             c, d, s = copy.deepcopy(catalog), copy.deepcopy(diagrams), copy.deepcopy(strings)
             step_key = c['entries'][0]['steps'][0]['textKey']
             if case == 'missing-korean-step':
@@ -158,6 +163,10 @@ def self_test(catalog, diagrams, localizations):
                 c['entries'][0]['steps'][0]['diagramID'] = 'missing.step'
             elif case == 'blank-translation':
                 s[step_key]['localizations']['fr']['stringUnit']['value'] = '  '
+            elif case == 'blank-notation':
+                c['entries'][0]['displayNotation'] = '   '
+            elif case == 'unrecorded-notation':
+                c['entries'][0]['displayNotation'] = 'unrecorded'
             elif case == 'bad-coordinate':
                 d['diagrams'][0]['strokes'][0]['commands'][0]['move']['_0']['x'] = 2
             for path, value in zip(paths, (c, d, {'strings': s})):

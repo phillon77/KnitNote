@@ -124,6 +124,7 @@
   "entries": [
     {
       "id": "knit",
+      "displayNotation": "k",
       "category": "basic",
       "order": 10,
       "names": {
@@ -204,6 +205,7 @@
     },
     {
       "id": "purl",
+      "displayNotation": "p",
       "category": "basic",
       "order": 20,
       "names": {
@@ -277,6 +279,7 @@
     },
     {
       "id": "slip-knitwise",
+      "displayNotation": "sl1k",
       "category": "basic",
       "order": 30,
       "names": {
@@ -329,6 +332,7 @@
     },
     {
       "id": "slip-purlwise",
+      "displayNotation": "sl1p",
       "category": "basic",
       "order": 40,
       "names": {
@@ -391,6 +395,7 @@
     },
     {
       "id": "yarn-over",
+      "displayNotation": "yo",
       "category": "increase",
       "order": 50,
       "names": {
@@ -454,6 +459,7 @@
     },
     {
       "id": "knit-front-back",
+      "displayNotation": "kfb",
       "category": "increase",
       "order": 60,
       "names": {
@@ -516,6 +522,7 @@
     },
     {
       "id": "make-one-left",
+      "displayNotation": "m1l",
       "category": "increase",
       "order": 70,
       "names": {
@@ -579,6 +586,7 @@
     },
     {
       "id": "make-one-right",
+      "displayNotation": "m1r",
       "category": "increase",
       "order": 80,
       "names": {
@@ -642,6 +650,7 @@
     },
     {
       "id": "k2tog",
+      "displayNotation": "k2tog",
       "category": "decrease",
       "order": 90,
       "names": {
@@ -704,6 +713,7 @@
     },
     {
       "id": "ssk",
+      "displayNotation": "ssk",
       "category": "decrease",
       "order": 100,
       "names": {
@@ -768,6 +778,7 @@
     },
     {
       "id": "skp",
+      "displayNotation": "skp",
       "category": "decrease",
       "order": 110,
       "names": {
@@ -821,6 +832,7 @@
     },
     {
       "id": "p2tog",
+      "displayNotation": "p2tog",
       "category": "decrease",
       "order": 120,
       "names": {
@@ -881,6 +893,7 @@
     },
     {
       "id": "centered-double-decrease",
+      "displayNotation": "cdd",
       "category": "decrease",
       "order": 130,
       "names": {
@@ -945,6 +958,7 @@
     },
     {
       "id": "cable-left-two",
+      "displayNotation": "1/1 LC",
       "category": "cable",
       "order": 140,
       "names": {
@@ -1009,6 +1023,7 @@
     },
     {
       "id": "cable-right-two",
+      "displayNotation": "1/1 RC",
       "category": "cable",
       "order": 150,
       "names": {

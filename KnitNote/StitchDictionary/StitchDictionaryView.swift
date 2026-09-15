@@ -104,7 +104,12 @@ struct StitchDictionaryView: View {
                                         VStack(alignment: .leading, spacing: 8) {
                                             Text(LocaleAwareText.string(entry.titleKey, locale: locale)).font(.headline)
                                             Text(entry.names["en"] ?? "").font(.subheadline)
+                                            if let notation = entry.displayNotation {
+                                                Text(notation).font(.subheadline.monospaced())
+                                                    .preference(key: StitchDictionaryContentPreferenceKey.self, value: ["stitchDictionary.notation." + entry.id: notation])
+                                            }
                                             Text(LocaleAwareText.string(entry.summaryKey, locale: locale))
+                                                .preference(key: StitchDictionaryContentPreferenceKey.self, value: ["stitchDictionary.entry." + entry.id: LocaleAwareText.string(entry.summaryKey, locale: locale)])
                                             if let repetitions = result.repetitions {
                                                 Text(LocaleAwareText.format("stitchDictionary.repeat.format", locale: locale, Int64(repetitions)))
                                             }
@@ -118,7 +123,6 @@ struct StitchDictionaryView: View {
                                         }.frame(maxWidth: .infinity, alignment: .leading)
                                     }
                                 }.buttonStyle(.plain).accessibilityIdentifier("stitchDictionary.entry." + entry.id)
-                                .preference(key: StitchDictionaryContentPreferenceKey.self, value: ["stitchDictionary.entry." + entry.id: LocaleAwareText.string(entry.summaryKey, locale: locale)])
                             }
                         }
                     }

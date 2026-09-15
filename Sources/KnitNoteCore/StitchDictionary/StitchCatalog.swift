@@ -70,6 +70,11 @@ public struct StitchCatalog: Codable, Equatable, Sendable {
                   entry.symbols.allSatisfy({ Self.hasText($0.id) && Self.hasText($0.diagramID) }) else {
                 throw StitchCatalogError.invalidEntry(entry.id)
             }
+            if let notation = entry.displayNotation {
+                guard Self.hasText(notation), entry.aliases.contains(where: {
+                    $0.lowercased() == notation.lowercased()
+                }) else { throw StitchCatalogError.invalidEntry(entry.id) }
+            }
             try Self.requireReferences(entry.relatedIDs, in: entryIDs)
             try Self.requireReferences(entry.sourceIDs, in: sourceIDs)
             for symbol in entry.symbols { try Self.requireReferences(symbol.sourceIDs, in: sourceIDs) }

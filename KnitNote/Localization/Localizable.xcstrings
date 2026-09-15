@@ -1501,79 +1501,79 @@
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Maskeantal"
+            "value": "Maskeantal pr. handling"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Maschenzahl"
+            "value": "Maschenzahl pro Vorgang"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Αριθμός πόντων"
+            "value": "Αριθμός πόντων ανά ενέργεια"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Stitch count"
+            "value": "Stitch count per operation"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Silmukkamäärä"
+            "value": "Silmukkamäärä yhtä työvaihetta kohti"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nombre de mailles"
+            "value": "Nombre de mailles par opération"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "目数の変化"
+            "value": "1回の操作あたりの目数"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "코 수 변화"
+            "value": "한 번의 동작당 코 수"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Maskeantall"
+            "value": "Maskeantall per handling"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Stekenaantal"
+            "value": "Aantal steken per handeling"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Maskantal"
+            "value": "Maskantal per moment"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "针数变化"
+            "value": "每次操作的针数"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "針數變化"
+            "value": "每次操作的針數"
           }
         }
       }

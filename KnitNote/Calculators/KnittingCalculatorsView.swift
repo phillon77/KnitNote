@@ -7,6 +7,10 @@ struct KnittingCalculatorsView: View {
 
             ScrollView {
                 VStack(spacing: 18) {
+                    calculatorLink(title: "stitchDictionary.title", systemImage: "book") {
+                        StitchDictionaryView()
+                    }
+
                     calculatorLink(
                         title: "calculator.gauge.title",
                         systemImage: "ruler"

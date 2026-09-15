@@ -48,6 +48,8 @@ struct SettingsView: View {
                 }
 
                 MacSettingsSection(title: "calculator.tools.title") {
+                    calculatorLink(title: "stitchDictionary.title", systemImage: "book", destination: StitchDictionaryView())
+                    Divider()
                     calculatorLink(
                         title: "calculator.gauge.title",
                         systemImage: "ruler",
@@ -141,6 +143,12 @@ struct SettingsView: View {
             }
 
             Section("calculator.tools.title") {
+                NavigationLink {
+                    StitchDictionaryView()
+                } label: {
+                    Label("stitchDictionary.title", systemImage: "book")
+                }
+
                 NavigationLink {
                     GaugeCalculatorView()
                 } label: {

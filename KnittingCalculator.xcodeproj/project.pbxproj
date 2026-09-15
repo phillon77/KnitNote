@@ -33,18 +33,23 @@
 		98673D067C3E535E4D5A2DF1 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = C89784E982AD4396ED7D15ED /* InfoPlist.xcstrings */; };
 		99B4BFA42FC0A5CDE8F669FA /* CalculatorField.swift in Sources */ = {isa = PBXBuildFile; fileRef = D267A2265CFAED4F39D789F6 /* CalculatorField.swift */; };
 		A00E80A64214FD6D2BE3A8BE /* OneRowAdjustmentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E604A30100F426F1026FEB4A /* OneRowAdjustmentView.swift */; };
+		A1B74AA8D19ECB11B7802D20 /* StitchDictionaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75D4AE90F8FE00B070C4EB0B /* StitchDictionaryView.swift */; };
+		A765FD8782173E4765258592 /* StitchSymbolGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9198074D9224C07D2B62473 /* StitchSymbolGrid.swift */; };
 		A8C67B75EFABFA3BCE30A8A4 /* CalculatorStoreScreenshotMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE091CAE46AD4C036F74C4A4 /* CalculatorStoreScreenshotMode.swift */; };
 		B0C8359FA89951A148E585D7 /* RowIntervalAdjustmentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C3C79DE7768B231034C1E22 /* RowIntervalAdjustmentView.swift */; };
 		B341ECAD55257006FFC1A6E1 /* AdjustmentPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC4D8A339BFC2D1EC5BEFE83 /* AdjustmentPresentationTests.swift */; };
+		B9C6F4FE017B7E4AB4498A08 /* StitchDictionaryText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74E2931D65F4BB3F4A84F9C5 /* StitchDictionaryText.swift */; };
 		BBDC321DD09541F758ED357A /* KnittingCalculatorCore in Frameworks */ = {isa = PBXBuildFile; productRef = CB5ED2280E8C5EA03483AED4 /* KnittingCalculatorCore */; };
 		BD1A95C0B7CD1C93D88B2C02 /* GaugeDraftBehaviorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AA9DD2F2912F229D77F0F4C /* GaugeDraftBehaviorTests.swift */; };
 		BEBDC8BD523B9F59730C5C08 /* CalculatorShareTextTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F6AE5D9A70C334ECA5722F1 /* CalculatorShareTextTests.swift */; };
 		BF0F924F00D2C9738B77C4FE /* LocalizedNumberCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = D391784C10069F0F4E0F2DAB /* LocalizedNumberCodec.swift */; };
 		C73B2276027E7F6991F296EB /* CalculatorSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C338444B048B4B309CC37EF7 /* CalculatorSettingsView.swift */; };
+		C869F0D28C86A3768152F2C8 /* StitchDiagramView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBE742DCF79B4E6A4621BC9C /* StitchDiagramView.swift */; };
 		CE9976F7A7961E0CAC7DDA6E /* KnitNoteLinkRouterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59887B6F3D9D7437E6F29749 /* KnitNoteLinkRouterTests.swift */; };
 		EBD9C3CBA1F8E3EB3C324D29 /* CalculatorStoreScreenshotRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CEF588915E2CDB5E2FDE59B /* CalculatorStoreScreenshotRootView.swift */; };
 		F20940ED1D5FC0835C904E06 /* KnitNoteLinkRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12E422CEF77E0E0282D1CE3B /* KnitNoteLinkRouter.swift */; };
 		F739B38C2B6C25BA8E9B0CCA /* CalculatorPreferencesStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F80FA30996770A367AF58F9E /* CalculatorPreferencesStoreTests.swift */; };
+		F773A2B94F2BEE50EF70604A /* StitchDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5FC53571673B3A21C7B3EB0 /* StitchDetailView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -74,12 +79,15 @@
 		5CEF588915E2CDB5E2FDE59B /* CalculatorStoreScreenshotRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorStoreScreenshotRootView.swift; sourceTree = "<group>"; };
 		678B47F19E16C71BFA247A1B /* GaugeCalculatorScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GaugeCalculatorScreen.swift; sourceTree = "<group>"; };
 		6C3C79DE7768B231034C1E22 /* RowIntervalAdjustmentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RowIntervalAdjustmentView.swift; sourceTree = "<group>"; };
+		74E2931D65F4BB3F4A84F9C5 /* StitchDictionaryText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StitchDictionaryText.swift; sourceTree = "<group>"; };
+		75D4AE90F8FE00B070C4EB0B /* StitchDictionaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StitchDictionaryView.swift; sourceTree = "<group>"; };
 		774788D3314820E6F78E0398 /* RatingEligibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RatingEligibilityTests.swift; sourceTree = "<group>"; };
 		7E05F293B95238F708F7B3AB /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		7F6AE5D9A70C334ECA5722F1 /* CalculatorShareTextTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorShareTextTests.swift; sourceTree = "<group>"; };
 		8686344FB6C98C27BAD8B94A /* CalculatorHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorHomeView.swift; sourceTree = "<group>"; };
 		96398E6E8319DD6CA0F7D8ED /* CalculatorStoreScreenshotModeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorStoreScreenshotModeTests.swift; sourceTree = "<group>"; };
 		AF2AD2FB05242E1F7F852D62 /* KnitNotePromotionCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNotePromotionCard.swift; sourceTree = "<group>"; };
+		B9198074D9224C07D2B62473 /* StitchSymbolGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StitchSymbolGrid.swift; sourceTree = "<group>"; };
 		BCC10D1246E91DC3CDA53A0C /* CalculatorLocalization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorLocalization.swift; sourceTree = "<group>"; };
 		C338444B048B4B309CC37EF7 /* CalculatorSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorSettingsView.swift; sourceTree = "<group>"; };
 		C4F71B9B873EBA44DA12F9BA /* KnittingCalculatorApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnittingCalculatorApp.swift; sourceTree = "<group>"; };
@@ -92,7 +100,9 @@
 		DE091CAE46AD4C036F74C4A4 /* CalculatorStoreScreenshotMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorStoreScreenshotMode.swift; sourceTree = "<group>"; };
 		E604A30100F426F1026FEB4A /* OneRowAdjustmentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OneRowAdjustmentView.swift; sourceTree = "<group>"; };
 		E65F03154A4E2DA4C6EBC07A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		EBE742DCF79B4E6A4621BC9C /* StitchDiagramView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StitchDiagramView.swift; sourceTree = "<group>"; };
 		EC4D8A339BFC2D1EC5BEFE83 /* AdjustmentPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdjustmentPresentationTests.swift; sourceTree = "<group>"; };
+		F5FC53571673B3A21C7B3EB0 /* StitchDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StitchDetailView.swift; sourceTree = "<group>"; };
 		F6C91343CF366DE4619B994E /* KnittingCalculatorCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = KnittingCalculatorCore; path = Packages/KnittingCalculatorCore; sourceTree = SOURCE_ROOT; };
 		F79E162E56CAA60C5DE91964 /* LocalizedNumberCodecTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizedNumberCodecTests.swift; sourceTree = "<group>"; };
 		F80FA30996770A367AF58F9E /* CalculatorPreferencesStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorPreferencesStoreTests.swift; sourceTree = "<group>"; };
@@ -239,6 +249,19 @@
 			path = KnittingCalculator/Adjustment;
 			sourceTree = "<group>";
 		};
+		E118661A8C0BB775C4F94E3B /* StitchDictionary */ = {
+			isa = PBXGroup;
+			children = (
+				F5FC53571673B3A21C7B3EB0 /* StitchDetailView.swift */,
+				EBE742DCF79B4E6A4621BC9C /* StitchDiagramView.swift */,
+				74E2931D65F4BB3F4A84F9C5 /* StitchDictionaryText.swift */,
+				75D4AE90F8FE00B070C4EB0B /* StitchDictionaryView.swift */,
+				B9198074D9224C07D2B62473 /* StitchSymbolGrid.swift */,
+			);
+			name = StitchDictionary;
+			path = KnittingCalculator/StitchDictionary;
+			sourceTree = "<group>";
+		};
 		E62E0CDEBCD3BFED6CF1C2DC /* KnittingCalculator */ = {
 			isa = PBXGroup;
 			children = (
@@ -281,6 +304,7 @@
 				7FFE87F83956FA6CBC2F77E2 /* Model */,
 				F7867C3A87CD20A85F8A2174 /* Packages */,
 				18C08FA129E747D18C6B4E29 /* Settings */,
+				E118661A8C0BB775C4F94E3B /* StitchDictionary */,
 				C01D227B65AA1570DA5CAB5F /* Theme */,
 				270E4BFBCCB120AD5F61229C /* Products */,
 			);
@@ -422,6 +446,11 @@
 				A00E80A64214FD6D2BE3A8BE /* OneRowAdjustmentView.swift in Sources */,
 				7B79307F2E9DAC87D1206D27 /* RatingEligibility.swift in Sources */,
 				B0C8359FA89951A148E585D7 /* RowIntervalAdjustmentView.swift in Sources */,
+				F773A2B94F2BEE50EF70604A /* StitchDetailView.swift in Sources */,
+				C869F0D28C86A3768152F2C8 /* StitchDiagramView.swift in Sources */,
+				B9C6F4FE017B7E4AB4498A08 /* StitchDictionaryText.swift in Sources */,
+				A1B74AA8D19ECB11B7802D20 /* StitchDictionaryView.swift in Sources */,
+				A765FD8782173E4765258592 /* StitchSymbolGrid.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

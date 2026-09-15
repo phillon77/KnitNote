@@ -15,7 +15,7 @@ let package = Package(
         ),
     ],
     targets: [
-        .target(name: "KnittingCalculatorCore"),
+        .target(name: "KnittingCalculatorCore", resources: [.process("Resources")]),
         .testTarget(
             name: "KnittingCalculatorCoreTests",
             dependencies: ["KnittingCalculatorCore"]

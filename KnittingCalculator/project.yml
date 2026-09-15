@@ -36,6 +36,7 @@ targets:
       - path: KnittingCalculator/Help
       - path: KnittingCalculator/Home
       - path: KnittingCalculator/Model
+      - path: KnittingCalculator/StitchDictionary
       - path: KnittingCalculator/Settings
       - path: KnittingCalculator/Theme
       - path: KnittingCalculator/PrivacyInfo.xcprivacy

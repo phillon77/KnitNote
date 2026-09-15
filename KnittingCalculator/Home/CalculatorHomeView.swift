@@ -49,6 +49,18 @@ struct CalculatorHomeView: View {
                         }
                         .buttonStyle(.plain)
 
+                        NavigationLink {
+                            StitchDictionaryView()
+                        } label: {
+                            CalculatorToolCard(
+                                title: "stitchDictionary.title",
+                                description: "stitchDictionary.search.prompt",
+                                symbol: "book.closed"
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("calculator.stitchDictionary")
+
                         KnitNotePromotionCard()
                             .id("promotion")
                     }

@@ -10,13 +10,16 @@ public struct StitchSource: Codable, Equatable, Sendable {
     public let url: URL
     public let checkedOn: String
     public let scope: String
+    /// A reviewed tutorial page containing video; nil denotes a reference source.
+    public let videoLanguage: String?
 
-    public init(id: String, title: String, url: URL, checkedOn: String, scope: String) {
+    public init(id: String, title: String, url: URL, checkedOn: String, scope: String, videoLanguage: String? = nil) {
         self.id = id
         self.title = title
         self.url = url
         self.checkedOn = checkedOn
         self.scope = scope
+        self.videoLanguage = videoLanguage
     }
 }
 

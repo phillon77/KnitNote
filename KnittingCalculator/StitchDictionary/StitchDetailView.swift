@@ -23,6 +23,7 @@ struct StitchDetailView: View {
                     Text(StitchDictionaryText.format("stitchDictionary.repeat.format", locale: locale, Int64(repetitions))).font(.headline)
                         .preference(key: StitchDictionaryContentPreferenceKey.self, value: ["stitchDictionary.repeat": StitchDictionaryText.format("stitchDictionary.repeat.format", locale: locale, Int64(repetitions))])
                 }
+                videoTutorials
                 heading("names")
                 ForEach(["zh-Hant", "zh-Hans", "en", "ja", "ko"], id: \.self) { language in
                     VStack(alignment: .leading, spacing: 4) {
@@ -49,7 +50,7 @@ struct StitchDetailView: View {
                     }
                 }
                 heading("steps")
-                sources(entry.sourceIDs)
+                sources(entry.sourceIDs.filter { id in catalog.sources.first(where: { $0.id == id })?.videoLanguage == nil })
                 heading("count")
                     .preference(key: StitchDictionaryContentPreferenceKey.self, value: ["stitchDictionary.count.heading": text("stitchDictionary.detail.count")])
                 count("consumes", presentation.consumes)
@@ -67,6 +68,25 @@ struct StitchDetailView: View {
                 }
             }.frame(maxWidth: 620, alignment: .leading).padding().frame(maxWidth: .infinity)
         }.background(CalculatorWatercolorBackground()).navigationTitle(text(entry.titleKey))
+    }
+    private var videoTutorials: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            heading("videos")
+            ForEach(entry.sourceIDs, id: \.self) { id in
+                if let source = catalog.sources.first(where: { $0.id == id }), let language = source.videoLanguage {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Link(destination: source.url) {
+                            Label(StitchDictionaryText.format("stitchDictionary.video.watch", locale: locale, text(entry.titleKey)), systemImage: "play.circle.fill")
+                                .font(.headline)
+                        }
+                        .accessibilityIdentifier("stitchDictionary.video." + entry.id + "." + source.id)
+                        Text(source.title).font(.subheadline)
+                        Text(text("stitchDictionary.video.language." + language)).font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            Text(text("stitchDictionary.video.external")).font(.caption).foregroundStyle(.secondary)
+        }
     }
     @ViewBuilder private func drawing(_ id: String, alternative: String) -> some View {
         if let diagram = diagrams.first(where: { $0.id == id }) {

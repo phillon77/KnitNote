@@ -17,6 +17,8 @@ PLACEHOLDER = re.compile(
     r"%(?:\d+\$)?(?:[-+0 #]*\d*(?:\.\d+)?)?(?:hh|h|ll|l|L|z|t|j)?[@diuoxXfFeEgGaAcCsSp]"
 )
 INVARIANT_PAIRS = frozenset({
+    ("stitchDictionary.count.value", "%lld"),
+    ("stitchDictionary.detail.sources", "Sources"),
     ("calculator.title", "KnitNote"),
     ("app.name", "KnitNote"),
     ("support.url", "https://knitnote.app"),

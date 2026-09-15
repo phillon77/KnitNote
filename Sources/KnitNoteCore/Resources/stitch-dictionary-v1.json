@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "sources": [
+    {"id":"cyc-abbreviations","title":"Knitting Abbreviations Master List — Craft Yarn Council","url":"https://www.craftyarncouncil.com/standards/knitting-abbreviations","checkedOn":"2026-09-15","scope":"US abbreviation k means knit."},
+    {"id":"cyc-knit","title":"Learn Knit Stitch (Garter Stitch) — Craft Yarn Council","url":"https://craftyarncouncil.com/instructions_kn.php3","checkedOn":"2026-09-15","scope":"First Knit Row: right-hand yarn, insert front to back, wrap under and over, pull through, slip old loop."},
+    {"id":"nihon-vogue-symbols","title":"編み目記号の編み方 — 日本ヴォーグ社","url":"https://www.tezukuritown.com/nv/c/ckihonkb5/","checkedOn":"2026-09-15","scope":"表目 name and illustrated sequence; vertical-stroke glyph for knit as shown on the right side. Controller visually checked original illustrations."},
+    {"id":"banul-basic","title":"(온라인) 대바늘 무료 기초 강의 — 바늘아카데미","url":"https://banulacademy.com/product/free_basic_course/","checkedOn":"2026-09-15","scope":"Original Korean teaching provider's curriculum explicitly names lesson 2 겉뜨기. This source verifies terminology only, not glyph or needle-direction details."},
+    {"id":"excelcraft-basics","title":"棒針基礎教學 — 智廣實業／SO EASY手藝世界","url":"https://www.excelcraft.com.tw/teaching/8e2997c2.php","checkedOn":"2026-09-15","scope":"Chinese teaching explicitly maps 表目 to 下針. 下针 is its simplified-character conversion."}
+  ],
+  "entries": [
+    {
+      "id":"knit", "category":"basic", "order":10,
+      "names":{"zh-Hant":"下針","zh-Hans":"下针","en":"Knit","ja":"表目","ko":"겉뜨기"},
+      "aliases":["k","knit stitch","下針","下针","表目","表編み","겉뜨기"],
+      "titleKey":"stitchDictionary.knit.title", "summaryKey":"stitchDictionary.knit.summary",
+      "steps":[
+        {"textKey":"stitchDictionary.knit.step.1","diagramID":"knit.step.1","accessibilityKey":"stitchDictionary.knit.accessibility.1"},
+        {"textKey":"stitchDictionary.knit.step.2","diagramID":"knit.step.2","accessibilityKey":"stitchDictionary.knit.accessibility.2"},
+        {"textKey":"stitchDictionary.knit.step.3","diagramID":"knit.step.3","accessibilityKey":"stitchDictionary.knit.accessibility.3"},
+        {"textKey":"stitchDictionary.knit.step.4","diagramID":"knit.step.4","accessibilityKey":"stitchDictionary.knit.accessibility.4"}
+      ],
+      "consumes":1, "produces":1,
+      "noteKeys":["stitchDictionary.knit.note.englishMethod"], "relatedIDs":[],
+      "sourceIDs":["cyc-abbreviations","cyc-knit","nihon-vogue-symbols","banul-basic","excelcraft-basics"],
+      "symbols":[{"id":"knit.symbol.jp.rs","diagramID":"knit.symbol.jp.rs","traditionKey":"stitchDictionary.symbol.japanese","conditionKey":"stitchDictionary.symbol.rightSide","sourceIDs":["nihon-vogue-symbols"]}]
+    }
+  ]
+}

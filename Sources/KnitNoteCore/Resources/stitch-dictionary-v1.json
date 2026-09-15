@@ -1,28 +1,1075 @@
 {
   "schemaVersion": 1,
   "sources": [
-    {"id":"cyc-abbreviations","title":"Knitting Abbreviations Master List — Craft Yarn Council","url":"https://www.craftyarncouncil.com/standards/knitting-abbreviations","checkedOn":"2026-09-15","scope":"US abbreviation k means knit."},
-    {"id":"cyc-knit","title":"Learn Knit Stitch (Garter Stitch) — Craft Yarn Council","url":"https://craftyarncouncil.com/instructions_kn.php3","checkedOn":"2026-09-15","scope":"First Knit Row: right-hand yarn, insert front to back, wrap under and over, pull through, slip old loop."},
-    {"id":"nihon-vogue-symbols","title":"編み目記号の編み方 — 日本ヴォーグ社","url":"https://www.tezukuritown.com/nv/c/ckihonkb5/","checkedOn":"2026-09-15","scope":"表目 name and illustrated sequence; vertical-stroke glyph for knit as shown on the right side. Controller visually checked original illustrations."},
-    {"id":"banul-basic","title":"(온라인) 대바늘 무료 기초 강의 — 바늘아카데미","url":"https://banulacademy.com/product/free_basic_course/","checkedOn":"2026-09-15","scope":"Original Korean teaching provider's curriculum explicitly names lesson 2 겉뜨기. This source verifies terminology only, not glyph or needle-direction details."},
-    {"id":"excelcraft-basics","title":"棒針基礎教學 — 智廣實業／SO EASY手藝世界","url":"https://www.excelcraft.com.tw/teaching/8e2997c2.php","checkedOn":"2026-09-15","scope":"Chinese teaching explicitly maps 表目 to 下針. 下针 is its simplified-character conversion."}
+    {
+      "id": "cyc-abbreviations",
+      "title": "Knitting Abbreviations Master List — Craft Yarn Council",
+      "url": "https://www.craftyarncouncil.com/standards/knitting-abbreviations",
+      "checkedOn": "2026-09-15",
+      "scope": "US operation definitions: k/p, sl1k/sl1p, kfb, k2tog/p2tog, classic SSK, SKP and S2KP2. Distinct operation sequences and their stitch arithmetic; not proof of Japanese or Korean glyphs."
+    },
+    {
+      "id": "cyc-knit",
+      "title": "Learn Knit Stitch (Garter Stitch) — Craft Yarn Council",
+      "url": "https://craftyarncouncil.com/instructions_kn.php3",
+      "checkedOn": "2026-09-15",
+      "scope": "First Knit Row: right-hand yarn, insert front to back, wrap under and over, pull through, slip old loop."
+    },
+    {
+      "id": "nihon-vogue-symbols",
+      "title": "編み目記号の編み方 — 日本ヴォーグ社",
+      "url": "https://www.tezukuritown.com/nv/c/ckihonkb5/",
+      "checkedOn": "2026-09-15",
+      "scope": "表目 name and illustrated sequence; vertical-stroke glyph for knit as shown on the right side. Controller visually checked original illustrations."
+    },
+    {
+      "id": "banul-basic",
+      "title": "(온라인) 대바늘 무료 기초 강의 — 바늘아카데미",
+      "url": "https://banulacademy.com/product/free_basic_course/",
+      "checkedOn": "2026-09-15",
+      "scope": "Original Korean teaching provider's curriculum explicitly names lesson 2 겉뜨기. This source verifies terminology only, not glyph or needle-direction details."
+    },
+    {
+      "id": "excelcraft-basics",
+      "title": "棒針基礎教學 — 智廣實業／SO EASY手藝世界",
+      "url": "https://www.excelcraft.com.tw/teaching/8e2997c2.php",
+      "checkedOn": "2026-09-15",
+      "scope": "Chinese teaching explicitly maps 表目 to 下針. 下针 is its simplified-character conversion."
+    },
+    {
+      "id": "cyc-symbols",
+      "title": "Knit Chart Symbols — Craft Yarn Council",
+      "url": "https://www.craftyarncouncil.com/standards/knit-chart-symbols",
+      "checkedOn": "2026-09-15",
+      "scope": "Original table and linked glyph images visually checked. First drawn variants selected for purl, YO, kfb, M1L/R, k2tog, SSK, p2tog, purlwise slip, S2KP2 and version-1 1/1 cables. Source-specific RS/WS conditions. No separate SKP or knitwise-slip glyph asserted."
+    },
+    {
+      "id": "banul-book",
+      "title": "김대리의 데일리 뜨개 — 바늘이야기",
+      "url": "https://en.banul.co.kr/Mobile/Product/Detail/detail/pid/1221",
+      "checkedOn": "2026-09-15",
+      "scope": "Original book listing and Korean contents confirm 겉뜨기, 안뜨기, 바늘비우기, KFB, M1L, M1R, K2TOG and SSK labels. Terminology only, not step or glyph evidence. Remaining Korean names explicitly marked explanatory translations."
+    },
+    {
+      "id": "purlsoho-m1",
+      "title": "Lightweight Raglan Pullover — Purl Soho",
+      "url": "https://www.purlsoho.com/create/2022/01/18/lightweight-raglan-pullover-in-new-colors/",
+      "checkedOn": "2026-09-15",
+      "scope": "Special Instructions: M1L lifts bar front-to-back and knits back leg; M1R lifts back-to-front and knits front leg. Each adds one stitch without consuming the next stitch. Only technique instructions used; garment instructions not reproduced."
+    },
+    {
+      "id": "tincanknits-ssk",
+      "title": "SSK and SSSK — Tin Can Knits",
+      "url": "https://blog.tincanknits.com/2013/10/03/ssk/",
+      "checkedOn": "2026-09-15",
+      "scope": "Classic SSK: slip twice individually knitwise, insert left needle through fronts, knit together. Does not teach SKP; no Japanese/Korean alias claim."
+    },
+    {
+      "id": "gosyo-purl",
+      "title": "裏目 — ごしょう産業",
+      "url": "https://www.gosyo.co.jp/kiso-movie-bou/5-12",
+      "checkedOn": "2026-09-15",
+      "scope": "Yarn in front, draw loop away and release; one stitch remains. Japanese name and operation; no Gosyo glyph selected."
+    },
+    {
+      "id": "gosyo-skp",
+      "title": "右上2目一度 — ごしょう産業",
+      "url": "https://www.gosyo.co.jp/kiso-movie-bou/5-15",
+      "checkedOn": "2026-09-15",
+      "scope": "Slip one, knit next, pass slipped stitch over: two become one. Combined with CYC explicit knitwise slip. This page is not evidence for SSK."
+    },
+    {
+      "id": "gosyo-k2tog",
+      "title": "左上2目一度 — ごしょう産業",
+      "url": "https://www.gosyo.co.jp/kiso-movie-bou/5-16",
+      "checkedOn": "2026-09-15",
+      "scope": "Work two loops together knitwise; two become one. Japanese name and operation."
+    },
+    {
+      "id": "gosyo-cdd",
+      "title": "中上3目一度 — ごしょう産業",
+      "url": "https://www.gosyo.co.jp/kiso-movie-bou/5-17",
+      "checkedOn": "2026-09-15",
+      "scope": "Slip two together, knit next and pass both over; center stitch on top, three become one. CYC establishes explicit as-if-k2tog insertion."
+    },
+    {
+      "id": "gosyo-yo",
+      "title": "かけ目 — ごしょう産業",
+      "url": "https://www.gosyo.co.jp/kiso-movie-bou/5-20",
+      "checkedOn": "2026-09-15",
+      "scope": "Knit-to-knit yarn-over: bring yarn forward, lay over right needle, then knit next separately."
+    },
+    {
+      "id": "gosyo-lc",
+      "title": "右上1目交差 — ごしょう産業",
+      "url": "https://www.gosyo.co.jp/kiso-movie-bou/5-22",
+      "checkedOn": "2026-09-15",
+      "scope": "First stitch held in front; knit next then held stitch. Exact 1/1 LC operation despite Japanese right-on-top naming."
+    },
+    {
+      "id": "gosyo-rc",
+      "title": "左上1目交差 — ごしょう産業",
+      "url": "https://www.gosyo.co.jp/kiso-movie-bou/5-23",
+      "checkedOn": "2026-09-15",
+      "scope": "First stitch held behind; knit next then held stitch. Exact 1/1 RC operation despite Japanese left-on-top naming."
+    },
+    {
+      "id": "knitter-academy-legend",
+      "title": "손뜨개 마스터 과정 5강 — 박형아는 뜨개쟁이 아카데미",
+      "url": "https://www.knitteracademy.kr/wp-content/uploads/2025/07/%EC%86%90%EB%9C%A8%EA%B0%9C%EB%A7%88%EC%8A%A4%ED%84%B0-5%EA%B0%95-%EC%95%84%EB%9E%80%EB%AC%B4%EB%8A%AC-%ED%9B%84%EB%93%9C%EC%A1%B0%EB%81%BC-%EA%B5%90%EC%9E%AC.pdf",
+      "checkedOn": "2026-09-15",
+      "scope": "PDF page 4 (printed 2) legend personally visually inspected: vertical stroke = 겉뜨기, horizontal stroke OR blank cell = 안뜨기 in this source. Only vertical/horizontal variants independently redrawn. No inferred universal RS/WS rule and no Korean cable-operation mapping. Original PDF/images remain research-only."
+    }
   ],
   "entries": [
     {
-      "id":"knit", "category":"basic", "order":10,
-      "names":{"zh-Hant":"下針","zh-Hans":"下针","en":"Knit","ja":"表目","ko":"겉뜨기"},
-      "aliases":["k","knit stitch","下針","下针","表目","表編み","겉뜨기"],
-      "titleKey":"stitchDictionary.knit.title", "summaryKey":"stitchDictionary.knit.summary",
-      "steps":[
-        {"textKey":"stitchDictionary.knit.step.1","diagramID":"knit.step.1","accessibilityKey":"stitchDictionary.knit.accessibility.1"},
-        {"textKey":"stitchDictionary.knit.step.2","diagramID":"knit.step.2","accessibilityKey":"stitchDictionary.knit.accessibility.2"},
-        {"textKey":"stitchDictionary.knit.step.3","diagramID":"knit.step.3","accessibilityKey":"stitchDictionary.knit.accessibility.3"},
-        {"textKey":"stitchDictionary.knit.step.4","diagramID":"knit.step.4","accessibilityKey":"stitchDictionary.knit.accessibility.4"}
+      "id": "knit",
+      "category": "basic",
+      "order": 10,
+      "names": {
+        "zh-Hant": "下針",
+        "zh-Hans": "下针",
+        "en": "Knit",
+        "ja": "表目",
+        "ko": "겉뜨기"
+      },
+      "aliases": [
+        "k",
+        "knit stitch",
+        "表編み"
       ],
-      "consumes":1, "produces":1,
-      "noteKeys":["stitchDictionary.knit.note.englishMethod"], "relatedIDs":[],
-      "sourceIDs":["cyc-abbreviations","cyc-knit","nihon-vogue-symbols","banul-basic","excelcraft-basics"],
-      "symbols":[{"id":"knit.symbol.jp.rs","diagramID":"knit.symbol.jp.rs","traditionKey":"stitchDictionary.symbol.japanese","conditionKey":"stitchDictionary.symbol.rightSide","sourceIDs":["nihon-vogue-symbols"]}]
+      "titleKey": "stitchDictionary.knit.title",
+      "summaryKey": "stitchDictionary.knit.summary",
+      "steps": [
+        {
+          "textKey": "stitchDictionary.knit.step.1",
+          "diagramID": "knit.step.1",
+          "accessibilityKey": "stitchDictionary.knit.accessibility.1"
+        },
+        {
+          "textKey": "stitchDictionary.knit.step.2",
+          "diagramID": "knit.step.2",
+          "accessibilityKey": "stitchDictionary.knit.accessibility.2"
+        },
+        {
+          "textKey": "stitchDictionary.knit.step.3",
+          "diagramID": "knit.step.3",
+          "accessibilityKey": "stitchDictionary.knit.accessibility.3"
+        },
+        {
+          "textKey": "stitchDictionary.knit.step.4",
+          "diagramID": "knit.step.4",
+          "accessibilityKey": "stitchDictionary.knit.accessibility.4"
+        }
+      ],
+      "consumes": 1,
+      "produces": 1,
+      "noteKeys": [
+        "stitchDictionary.knit.note.englishMethod",
+        "stitchDictionary.note.legend"
+      ],
+      "relatedIDs": [
+        "purl",
+        "slip-knitwise",
+        "knit-front-back"
+      ],
+      "sourceIDs": [
+        "cyc-abbreviations",
+        "cyc-knit",
+        "nihon-vogue-symbols",
+        "banul-basic",
+        "excelcraft-basics",
+        "knitter-academy-legend"
+      ],
+      "symbols": [
+        {
+          "id": "knit.symbol.jp.rs",
+          "diagramID": "knit.symbol.jp.rs",
+          "traditionKey": "stitchDictionary.symbol.japanese",
+          "conditionKey": "stitchDictionary.symbol.rightSide",
+          "sourceIDs": [
+            "nihon-vogue-symbols"
+          ]
+        },
+        {
+          "id": "knit.symbol.ko.source",
+          "diagramID": "knit.symbol.ko.source",
+          "traditionKey": "stitchDictionary.symbol.korean",
+          "conditionKey": "stitchDictionary.symbol.koreanCondition",
+          "sourceIDs": [
+            "knitter-academy-legend"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "purl",
+      "category": "basic",
+      "order": 20,
+      "names": {
+        "zh-Hant": "上針",
+        "zh-Hans": "上针",
+        "en": "Purl",
+        "ja": "裏目",
+        "ko": "안뜨기"
+      },
+      "aliases": [
+        "p",
+        "purl stitch"
+      ],
+      "titleKey": "stitchDictionary.purl.title",
+      "summaryKey": "stitchDictionary.purl.summary",
+      "steps": [
+        {
+          "textKey": "stitchDictionary.purl.step.1",
+          "diagramID": "purl.step.1",
+          "accessibilityKey": "stitchDictionary.purl.accessibility.1"
+        },
+        {
+          "textKey": "stitchDictionary.purl.step.2",
+          "diagramID": "purl.step.2",
+          "accessibilityKey": "stitchDictionary.purl.accessibility.2"
+        },
+        {
+          "textKey": "stitchDictionary.purl.step.3",
+          "diagramID": "purl.step.3",
+          "accessibilityKey": "stitchDictionary.purl.accessibility.3"
+        }
+      ],
+      "consumes": 1,
+      "produces": 1,
+      "noteKeys": [
+        "stitchDictionary.note.context",
+        "stitchDictionary.note.legend"
+      ],
+      "relatedIDs": [
+        "knit",
+        "slip-purlwise",
+        "p2tog"
+      ],
+      "sourceIDs": [
+        "cyc-abbreviations",
+        "banul-book",
+        "gosyo-purl",
+        "knitter-academy-legend",
+        "cyc-symbols"
+      ],
+      "symbols": [
+        {
+          "id": "purl.symbol.ko.source",
+          "diagramID": "purl.symbol.ko.source",
+          "traditionKey": "stitchDictionary.symbol.korean",
+          "conditionKey": "stitchDictionary.symbol.koreanCondition",
+          "sourceIDs": [
+            "knitter-academy-legend"
+          ]
+        },
+        {
+          "id": "purl.symbol.cyc",
+          "diagramID": "purl.symbol.cyc",
+          "traditionKey": "stitchDictionary.symbol.cyc",
+          "conditionKey": "stitchDictionary.symbol.condition.purl",
+          "sourceIDs": [
+            "cyc-symbols"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "slip-knitwise",
+      "category": "basic",
+      "order": 30,
+      "names": {
+        "zh-Hant": "以下針方向滑針",
+        "zh-Hans": "以下针方向滑针",
+        "en": "Slip knitwise",
+        "ja": "表目の向きにすべらせる（説明訳）",
+        "ko": "겉뜨기 방향으로 걸러뜨기 (설명)"
+      },
+      "aliases": [
+        "sl1k",
+        "sl 1 knitwise"
+      ],
+      "titleKey": "stitchDictionary.slip-knitwise.title",
+      "summaryKey": "stitchDictionary.slip-knitwise.summary",
+      "steps": [
+        {
+          "textKey": "stitchDictionary.slip-knitwise.step.1",
+          "diagramID": "slip-knitwise.step.1",
+          "accessibilityKey": "stitchDictionary.slip-knitwise.accessibility.1"
+        },
+        {
+          "textKey": "stitchDictionary.slip-knitwise.step.2",
+          "diagramID": "slip-knitwise.step.2",
+          "accessibilityKey": "stitchDictionary.slip-knitwise.accessibility.2"
+        },
+        {
+          "textKey": "stitchDictionary.slip-knitwise.step.3",
+          "diagramID": "slip-knitwise.step.3",
+          "accessibilityKey": "stitchDictionary.slip-knitwise.accessibility.3"
+        }
+      ],
+      "consumes": 1,
+      "produces": 1,
+      "noteKeys": [
+        "stitchDictionary.note.context",
+        "stitchDictionary.note.legend",
+        "stitchDictionary.note.slip"
+      ],
+      "relatedIDs": [
+        "slip-purlwise",
+        "ssk",
+        "skp"
+      ],
+      "sourceIDs": [
+        "cyc-abbreviations",
+        "banul-book"
+      ],
+      "symbols": []
+    },
+    {
+      "id": "slip-purlwise",
+      "category": "basic",
+      "order": 40,
+      "names": {
+        "zh-Hant": "以上針方向滑針",
+        "zh-Hans": "以上针方向滑针",
+        "en": "Slip purlwise",
+        "ja": "裏目の向きにすべらせる（説明訳）",
+        "ko": "안뜨기 방향으로 걸러뜨기 (설명)"
+      },
+      "aliases": [
+        "sl1p",
+        "sl 1 purlwise"
+      ],
+      "titleKey": "stitchDictionary.slip-purlwise.title",
+      "summaryKey": "stitchDictionary.slip-purlwise.summary",
+      "steps": [
+        {
+          "textKey": "stitchDictionary.slip-purlwise.step.1",
+          "diagramID": "slip-purlwise.step.1",
+          "accessibilityKey": "stitchDictionary.slip-purlwise.accessibility.1"
+        },
+        {
+          "textKey": "stitchDictionary.slip-purlwise.step.2",
+          "diagramID": "slip-purlwise.step.2",
+          "accessibilityKey": "stitchDictionary.slip-purlwise.accessibility.2"
+        },
+        {
+          "textKey": "stitchDictionary.slip-purlwise.step.3",
+          "diagramID": "slip-purlwise.step.3",
+          "accessibilityKey": "stitchDictionary.slip-purlwise.accessibility.3"
+        }
+      ],
+      "consumes": 1,
+      "produces": 1,
+      "noteKeys": [
+        "stitchDictionary.note.context",
+        "stitchDictionary.note.legend",
+        "stitchDictionary.note.slip"
+      ],
+      "relatedIDs": [
+        "slip-knitwise",
+        "cable-left-two"
+      ],
+      "sourceIDs": [
+        "cyc-abbreviations",
+        "banul-book",
+        "cyc-symbols"
+      ],
+      "symbols": [
+        {
+          "id": "slip-purlwise.symbol.cyc",
+          "diagramID": "slip-purlwise.symbol.cyc",
+          "traditionKey": "stitchDictionary.symbol.cyc",
+          "conditionKey": "stitchDictionary.symbol.condition.slip-purlwise",
+          "sourceIDs": [
+            "cyc-symbols"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "yarn-over",
+      "category": "increase",
+      "order": 50,
+      "names": {
+        "zh-Hant": "掛針",
+        "zh-Hans": "挂针",
+        "en": "Yarn over",
+        "ja": "かけ目",
+        "ko": "바늘비우기"
+      },
+      "aliases": [
+        "yo",
+        "yarn over"
+      ],
+      "titleKey": "stitchDictionary.yarn-over.title",
+      "summaryKey": "stitchDictionary.yarn-over.summary",
+      "steps": [
+        {
+          "textKey": "stitchDictionary.yarn-over.step.1",
+          "diagramID": "yarn-over.step.1",
+          "accessibilityKey": "stitchDictionary.yarn-over.accessibility.1"
+        },
+        {
+          "textKey": "stitchDictionary.yarn-over.step.2",
+          "diagramID": "yarn-over.step.2",
+          "accessibilityKey": "stitchDictionary.yarn-over.accessibility.2"
+        },
+        {
+          "textKey": "stitchDictionary.yarn-over.step.3",
+          "diagramID": "yarn-over.step.3",
+          "accessibilityKey": "stitchDictionary.yarn-over.accessibility.3"
+        }
+      ],
+      "consumes": 0,
+      "produces": 1,
+      "noteKeys": [
+        "stitchDictionary.note.context",
+        "stitchDictionary.note.legend",
+        "stitchDictionary.note.yarnOver"
+      ],
+      "relatedIDs": [
+        "make-one-left",
+        "make-one-right"
+      ],
+      "sourceIDs": [
+        "cyc-abbreviations",
+        "banul-book",
+        "gosyo-yo",
+        "cyc-symbols"
+      ],
+      "symbols": [
+        {
+          "id": "yarn-over.symbol.cyc",
+          "diagramID": "yarn-over.symbol.cyc",
+          "traditionKey": "stitchDictionary.symbol.cyc",
+          "conditionKey": "stitchDictionary.symbol.rightSide",
+          "sourceIDs": [
+            "cyc-symbols"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "knit-front-back",
+      "category": "increase",
+      "order": 60,
+      "names": {
+        "zh-Hant": "同針目前後各織一下針",
+        "zh-Hans": "同针目前后各织一下针",
+        "en": "Knit front and back",
+        "ja": "同じ目の前後を表編み（説明訳）",
+        "ko": "겉뜨기 코늘림 (KFB)"
+      },
+      "aliases": [
+        "kfb",
+        "k1fb"
+      ],
+      "titleKey": "stitchDictionary.knit-front-back.title",
+      "summaryKey": "stitchDictionary.knit-front-back.summary",
+      "steps": [
+        {
+          "textKey": "stitchDictionary.knit-front-back.step.1",
+          "diagramID": "knit-front-back.step.1",
+          "accessibilityKey": "stitchDictionary.knit-front-back.accessibility.1"
+        },
+        {
+          "textKey": "stitchDictionary.knit-front-back.step.2",
+          "diagramID": "knit-front-back.step.2",
+          "accessibilityKey": "stitchDictionary.knit-front-back.accessibility.2"
+        },
+        {
+          "textKey": "stitchDictionary.knit-front-back.step.3",
+          "diagramID": "knit-front-back.step.3",
+          "accessibilityKey": "stitchDictionary.knit-front-back.accessibility.3"
+        }
+      ],
+      "consumes": 1,
+      "produces": 2,
+      "noteKeys": [
+        "stitchDictionary.note.context",
+        "stitchDictionary.note.legend",
+        "stitchDictionary.note.kfb"
+      ],
+      "relatedIDs": [
+        "knit",
+        "make-one-left"
+      ],
+      "sourceIDs": [
+        "cyc-abbreviations",
+        "banul-book",
+        "cyc-symbols"
+      ],
+      "symbols": [
+        {
+          "id": "knit-front-back.symbol.cyc",
+          "diagramID": "knit-front-back.symbol.cyc",
+          "traditionKey": "stitchDictionary.symbol.cyc",
+          "conditionKey": "stitchDictionary.symbol.condition.knit-front-back",
+          "sourceIDs": [
+            "cyc-symbols"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "make-one-left",
+      "category": "increase",
+      "order": 70,
+      "names": {
+        "zh-Hant": "左傾扭加針",
+        "zh-Hans": "左倾扭加针",
+        "en": "Make one left",
+        "ja": "左傾斜のねじり増し目（説明訳）",
+        "ko": "왼코 늘리기-겉뜨기 (M1L)"
+      },
+      "aliases": [
+        "m1l",
+        "make 1 left"
+      ],
+      "titleKey": "stitchDictionary.make-one-left.title",
+      "summaryKey": "stitchDictionary.make-one-left.summary",
+      "steps": [
+        {
+          "textKey": "stitchDictionary.make-one-left.step.1",
+          "diagramID": "make-one-left.step.1",
+          "accessibilityKey": "stitchDictionary.make-one-left.accessibility.1"
+        },
+        {
+          "textKey": "stitchDictionary.make-one-left.step.2",
+          "diagramID": "make-one-left.step.2",
+          "accessibilityKey": "stitchDictionary.make-one-left.accessibility.2"
+        },
+        {
+          "textKey": "stitchDictionary.make-one-left.step.3",
+          "diagramID": "make-one-left.step.3",
+          "accessibilityKey": "stitchDictionary.make-one-left.accessibility.3"
+        }
+      ],
+      "consumes": 0,
+      "produces": 1,
+      "noteKeys": [
+        "stitchDictionary.note.context",
+        "stitchDictionary.note.legend"
+      ],
+      "relatedIDs": [
+        "make-one-right",
+        "yarn-over",
+        "knit-front-back"
+      ],
+      "sourceIDs": [
+        "cyc-abbreviations",
+        "banul-book",
+        "purlsoho-m1",
+        "cyc-symbols"
+      ],
+      "symbols": [
+        {
+          "id": "make-one-left.symbol.cyc",
+          "diagramID": "make-one-left.symbol.cyc",
+          "traditionKey": "stitchDictionary.symbol.cyc",
+          "conditionKey": "stitchDictionary.symbol.rightSide",
+          "sourceIDs": [
+            "cyc-symbols"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "make-one-right",
+      "category": "increase",
+      "order": 80,
+      "names": {
+        "zh-Hant": "右傾扭加針",
+        "zh-Hans": "右倾扭加针",
+        "en": "Make one right",
+        "ja": "右傾斜のねじり増し目（説明訳）",
+        "ko": "오른코 늘리기-겉뜨기 (M1R)"
+      },
+      "aliases": [
+        "m1r",
+        "make 1 right"
+      ],
+      "titleKey": "stitchDictionary.make-one-right.title",
+      "summaryKey": "stitchDictionary.make-one-right.summary",
+      "steps": [
+        {
+          "textKey": "stitchDictionary.make-one-right.step.1",
+          "diagramID": "make-one-right.step.1",
+          "accessibilityKey": "stitchDictionary.make-one-right.accessibility.1"
+        },
+        {
+          "textKey": "stitchDictionary.make-one-right.step.2",
+          "diagramID": "make-one-right.step.2",
+          "accessibilityKey": "stitchDictionary.make-one-right.accessibility.2"
+        },
+        {
+          "textKey": "stitchDictionary.make-one-right.step.3",
+          "diagramID": "make-one-right.step.3",
+          "accessibilityKey": "stitchDictionary.make-one-right.accessibility.3"
+        }
+      ],
+      "consumes": 0,
+      "produces": 1,
+      "noteKeys": [
+        "stitchDictionary.note.context",
+        "stitchDictionary.note.legend"
+      ],
+      "relatedIDs": [
+        "make-one-left",
+        "yarn-over",
+        "knit-front-back"
+      ],
+      "sourceIDs": [
+        "cyc-abbreviations",
+        "banul-book",
+        "purlsoho-m1",
+        "cyc-symbols"
+      ],
+      "symbols": [
+        {
+          "id": "make-one-right.symbol.cyc",
+          "diagramID": "make-one-right.symbol.cyc",
+          "traditionKey": "stitchDictionary.symbol.cyc",
+          "conditionKey": "stitchDictionary.symbol.rightSide",
+          "sourceIDs": [
+            "cyc-symbols"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "k2tog",
+      "category": "decrease",
+      "order": 90,
+      "names": {
+        "zh-Hant": "下針兩針併一針",
+        "zh-Hans": "下针两针并一针",
+        "en": "Knit two together",
+        "ja": "左上2目一度",
+        "ko": "코줄임 (K2TOG)"
+      },
+      "aliases": [
+        "k2tog"
+      ],
+      "titleKey": "stitchDictionary.k2tog.title",
+      "summaryKey": "stitchDictionary.k2tog.summary",
+      "steps": [
+        {
+          "textKey": "stitchDictionary.k2tog.step.1",
+          "diagramID": "k2tog.step.1",
+          "accessibilityKey": "stitchDictionary.k2tog.accessibility.1"
+        },
+        {
+          "textKey": "stitchDictionary.k2tog.step.2",
+          "diagramID": "k2tog.step.2",
+          "accessibilityKey": "stitchDictionary.k2tog.accessibility.2"
+        },
+        {
+          "textKey": "stitchDictionary.k2tog.step.3",
+          "diagramID": "k2tog.step.3",
+          "accessibilityKey": "stitchDictionary.k2tog.accessibility.3"
+        }
+      ],
+      "consumes": 2,
+      "produces": 1,
+      "noteKeys": [
+        "stitchDictionary.note.context",
+        "stitchDictionary.note.legend"
+      ],
+      "relatedIDs": [
+        "ssk",
+        "skp",
+        "p2tog"
+      ],
+      "sourceIDs": [
+        "cyc-abbreviations",
+        "banul-book",
+        "gosyo-k2tog",
+        "cyc-symbols"
+      ],
+      "symbols": [
+        {
+          "id": "k2tog.symbol.cyc",
+          "diagramID": "k2tog.symbol.cyc",
+          "traditionKey": "stitchDictionary.symbol.cyc",
+          "conditionKey": "stitchDictionary.symbol.condition.k2tog",
+          "sourceIDs": [
+            "cyc-symbols"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ssk",
+      "category": "decrease",
+      "order": 100,
+      "names": {
+        "zh-Hant": "滑、滑、下針併針",
+        "zh-Hans": "滑、滑、下针并针",
+        "en": "Slip, slip, knit",
+        "ja": "SSK：2目をすべらせて併せる（説明訳）",
+        "ko": "코줄임 (SSK)"
+      },
+      "aliases": [
+        "ssk",
+        "slip slip knit"
+      ],
+      "titleKey": "stitchDictionary.ssk.title",
+      "summaryKey": "stitchDictionary.ssk.summary",
+      "steps": [
+        {
+          "textKey": "stitchDictionary.ssk.step.1",
+          "diagramID": "ssk.step.1",
+          "accessibilityKey": "stitchDictionary.ssk.accessibility.1"
+        },
+        {
+          "textKey": "stitchDictionary.ssk.step.2",
+          "diagramID": "ssk.step.2",
+          "accessibilityKey": "stitchDictionary.ssk.accessibility.2"
+        },
+        {
+          "textKey": "stitchDictionary.ssk.step.3",
+          "diagramID": "ssk.step.3",
+          "accessibilityKey": "stitchDictionary.ssk.accessibility.3"
+        }
+      ],
+      "consumes": 2,
+      "produces": 1,
+      "noteKeys": [
+        "stitchDictionary.note.context",
+        "stitchDictionary.note.legend",
+        "stitchDictionary.note.sskSkp"
+      ],
+      "relatedIDs": [
+        "skp",
+        "k2tog",
+        "slip-knitwise"
+      ],
+      "sourceIDs": [
+        "cyc-abbreviations",
+        "banul-book",
+        "tincanknits-ssk",
+        "cyc-symbols"
+      ],
+      "symbols": [
+        {
+          "id": "ssk.symbol.cyc",
+          "diagramID": "ssk.symbol.cyc",
+          "traditionKey": "stitchDictionary.symbol.cyc",
+          "conditionKey": "stitchDictionary.symbol.condition.ssk",
+          "sourceIDs": [
+            "cyc-symbols"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "skp",
+      "category": "decrease",
+      "order": 110,
+      "names": {
+        "zh-Hant": "滑針、下針、套收",
+        "zh-Hans": "滑针、下针、套收",
+        "en": "Slip, knit, pass over",
+        "ja": "右上2目一度（かぶせる方法）",
+        "ko": "걸러뜨고 겉뜨고 덮어씌우기 (SKP, 설명)"
+      },
+      "aliases": [
+        "skp",
+        "sl1 k1 psso"
+      ],
+      "titleKey": "stitchDictionary.skp.title",
+      "summaryKey": "stitchDictionary.skp.summary",
+      "steps": [
+        {
+          "textKey": "stitchDictionary.skp.step.1",
+          "diagramID": "skp.step.1",
+          "accessibilityKey": "stitchDictionary.skp.accessibility.1"
+        },
+        {
+          "textKey": "stitchDictionary.skp.step.2",
+          "diagramID": "skp.step.2",
+          "accessibilityKey": "stitchDictionary.skp.accessibility.2"
+        },
+        {
+          "textKey": "stitchDictionary.skp.step.3",
+          "diagramID": "skp.step.3",
+          "accessibilityKey": "stitchDictionary.skp.accessibility.3"
+        }
+      ],
+      "consumes": 2,
+      "produces": 1,
+      "noteKeys": [
+        "stitchDictionary.note.context",
+        "stitchDictionary.note.legend",
+        "stitchDictionary.note.sskSkp"
+      ],
+      "relatedIDs": [
+        "ssk",
+        "k2tog",
+        "slip-knitwise"
+      ],
+      "sourceIDs": [
+        "cyc-abbreviations",
+        "banul-book",
+        "gosyo-skp"
+      ],
+      "symbols": []
+    },
+    {
+      "id": "p2tog",
+      "category": "decrease",
+      "order": 120,
+      "names": {
+        "zh-Hant": "上針兩針併一針",
+        "zh-Hans": "上针两针并一针",
+        "en": "Purl two together",
+        "ja": "2目を一緒に裏編み（説明訳）",
+        "ko": "두 코 모아 안뜨기 (P2TOG, 설명)"
+      },
+      "aliases": [
+        "p2tog"
+      ],
+      "titleKey": "stitchDictionary.p2tog.title",
+      "summaryKey": "stitchDictionary.p2tog.summary",
+      "steps": [
+        {
+          "textKey": "stitchDictionary.p2tog.step.1",
+          "diagramID": "p2tog.step.1",
+          "accessibilityKey": "stitchDictionary.p2tog.accessibility.1"
+        },
+        {
+          "textKey": "stitchDictionary.p2tog.step.2",
+          "diagramID": "p2tog.step.2",
+          "accessibilityKey": "stitchDictionary.p2tog.accessibility.2"
+        },
+        {
+          "textKey": "stitchDictionary.p2tog.step.3",
+          "diagramID": "p2tog.step.3",
+          "accessibilityKey": "stitchDictionary.p2tog.accessibility.3"
+        }
+      ],
+      "consumes": 2,
+      "produces": 1,
+      "noteKeys": [
+        "stitchDictionary.note.context",
+        "stitchDictionary.note.legend"
+      ],
+      "relatedIDs": [
+        "purl",
+        "k2tog"
+      ],
+      "sourceIDs": [
+        "cyc-abbreviations",
+        "banul-book",
+        "cyc-symbols"
+      ],
+      "symbols": [
+        {
+          "id": "p2tog.symbol.cyc",
+          "diagramID": "p2tog.symbol.cyc",
+          "traditionKey": "stitchDictionary.symbol.cyc",
+          "conditionKey": "stitchDictionary.symbol.condition.p2tog",
+          "sourceIDs": [
+            "cyc-symbols"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "centered-double-decrease",
+      "category": "decrease",
+      "order": 130,
+      "names": {
+        "zh-Hant": "中上三針併一針",
+        "zh-Hans": "中上三针并一针",
+        "en": "Centered double decrease",
+        "ja": "中上3目一度",
+        "ko": "중심 세 코 줄이기 (CDD, 설명)"
+      },
+      "aliases": [
+        "cdd",
+        "s2kp2",
+        "sl2-k1-p2sso"
+      ],
+      "titleKey": "stitchDictionary.centered-double-decrease.title",
+      "summaryKey": "stitchDictionary.centered-double-decrease.summary",
+      "steps": [
+        {
+          "textKey": "stitchDictionary.centered-double-decrease.step.1",
+          "diagramID": "centered-double-decrease.step.1",
+          "accessibilityKey": "stitchDictionary.centered-double-decrease.accessibility.1"
+        },
+        {
+          "textKey": "stitchDictionary.centered-double-decrease.step.2",
+          "diagramID": "centered-double-decrease.step.2",
+          "accessibilityKey": "stitchDictionary.centered-double-decrease.accessibility.2"
+        },
+        {
+          "textKey": "stitchDictionary.centered-double-decrease.step.3",
+          "diagramID": "centered-double-decrease.step.3",
+          "accessibilityKey": "stitchDictionary.centered-double-decrease.accessibility.3"
+        }
+      ],
+      "consumes": 3,
+      "produces": 1,
+      "noteKeys": [
+        "stitchDictionary.note.context",
+        "stitchDictionary.note.legend"
+      ],
+      "relatedIDs": [
+        "ssk",
+        "skp",
+        "k2tog"
+      ],
+      "sourceIDs": [
+        "cyc-abbreviations",
+        "banul-book",
+        "gosyo-cdd",
+        "cyc-symbols"
+      ],
+      "symbols": [
+        {
+          "id": "centered-double-decrease.symbol.cyc",
+          "diagramID": "centered-double-decrease.symbol.cyc",
+          "traditionKey": "stitchDictionary.symbol.cyc",
+          "conditionKey": "stitchDictionary.symbol.condition.centered-double-decrease",
+          "sourceIDs": [
+            "cyc-symbols"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cable-left-two",
+      "category": "cable",
+      "order": 140,
+      "names": {
+        "zh-Hant": "兩針左交叉",
+        "zh-Hans": "两针左交叉",
+        "en": "1/1 left cable",
+        "ja": "右上1目交差",
+        "ko": "앞에 한 코 두고 교차뜨기 (1/1 LC, 설명)"
+      },
+      "aliases": [
+        "1/1 LC",
+        "C2F",
+        "2-st LC"
+      ],
+      "titleKey": "stitchDictionary.cable-left-two.title",
+      "summaryKey": "stitchDictionary.cable-left-two.summary",
+      "steps": [
+        {
+          "textKey": "stitchDictionary.cable-left-two.step.1",
+          "diagramID": "cable-left-two.step.1",
+          "accessibilityKey": "stitchDictionary.cable-left-two.accessibility.1"
+        },
+        {
+          "textKey": "stitchDictionary.cable-left-two.step.2",
+          "diagramID": "cable-left-two.step.2",
+          "accessibilityKey": "stitchDictionary.cable-left-two.accessibility.2"
+        },
+        {
+          "textKey": "stitchDictionary.cable-left-two.step.3",
+          "diagramID": "cable-left-two.step.3",
+          "accessibilityKey": "stitchDictionary.cable-left-two.accessibility.3"
+        }
+      ],
+      "consumes": 2,
+      "produces": 2,
+      "noteKeys": [
+        "stitchDictionary.note.context",
+        "stitchDictionary.note.legend",
+        "stitchDictionary.note.cable"
+      ],
+      "relatedIDs": [
+        "cable-right-two",
+        "slip-purlwise"
+      ],
+      "sourceIDs": [
+        "cyc-abbreviations",
+        "banul-book",
+        "gosyo-lc",
+        "cyc-symbols"
+      ],
+      "symbols": [
+        {
+          "id": "cable-left-two.symbol.cyc",
+          "diagramID": "cable-left-two.symbol.cyc",
+          "traditionKey": "stitchDictionary.symbol.cyc",
+          "conditionKey": "stitchDictionary.symbol.rightSide",
+          "sourceIDs": [
+            "cyc-symbols"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cable-right-two",
+      "category": "cable",
+      "order": 150,
+      "names": {
+        "zh-Hant": "兩針右交叉",
+        "zh-Hans": "两针右交叉",
+        "en": "1/1 right cable",
+        "ja": "左上1目交差",
+        "ko": "뒤에 한 코 두고 교차뜨기 (1/1 RC, 설명)"
+      },
+      "aliases": [
+        "1/1 RC",
+        "C2B",
+        "2-st RC"
+      ],
+      "titleKey": "stitchDictionary.cable-right-two.title",
+      "summaryKey": "stitchDictionary.cable-right-two.summary",
+      "steps": [
+        {
+          "textKey": "stitchDictionary.cable-right-two.step.1",
+          "diagramID": "cable-right-two.step.1",
+          "accessibilityKey": "stitchDictionary.cable-right-two.accessibility.1"
+        },
+        {
+          "textKey": "stitchDictionary.cable-right-two.step.2",
+          "diagramID": "cable-right-two.step.2",
+          "accessibilityKey": "stitchDictionary.cable-right-two.accessibility.2"
+        },
+        {
+          "textKey": "stitchDictionary.cable-right-two.step.3",
+          "diagramID": "cable-right-two.step.3",
+          "accessibilityKey": "stitchDictionary.cable-right-two.accessibility.3"
+        }
+      ],
+      "consumes": 2,
+      "produces": 2,
+      "noteKeys": [
+        "stitchDictionary.note.context",
+        "stitchDictionary.note.legend",
+        "stitchDictionary.note.cable"
+      ],
+      "relatedIDs": [
+        "cable-left-two",
+        "slip-purlwise"
+      ],
+      "sourceIDs": [
+        "cyc-abbreviations",
+        "banul-book",
+        "gosyo-rc",
+        "cyc-symbols"
+      ],
+      "symbols": [
+        {
+          "id": "cable-right-two.symbol.cyc",
+          "diagramID": "cable-right-two.symbol.cyc",
+          "traditionKey": "stitchDictionary.symbol.cyc",
+          "conditionKey": "stitchDictionary.symbol.rightSide",
+          "sourceIDs": [
+            "cyc-symbols"
+          ]
+        }
+      ]
     }
   ]
 }

@@ -26,7 +26,7 @@ struct StitchDiagramView: View {
                     }
                 }
                 let style = appearance(for: stroke.role, side: side)
-                let isNeedle = stroke.role == .leftNeedle || stroke.role == .rightNeedle
+                let isNeedle = stroke.role == .leftNeedle || stroke.role == .rightNeedle || stroke.role == .cableNeedle
                 if isNeedle, stroke.commands.last == .close {
                     context.fill(path, with: .color(style.color))
                 } else {
@@ -53,6 +53,9 @@ struct StitchDiagramView: View {
         case .rightNeedle:
             color = colorScheme == .dark ? Color(white: 0.9) : Color(white: 0.12)
             width = 8; dash = []
+        case .cableNeedle:
+            color = colorScheme == .dark ? Color(red: 0.76, green: 0.60, blue: 0.98) : Color(red: 0.43, green: 0.25, blue: 0.63)
+            width = 9; dash = []
         case .workingYarn:
             color = colorScheme == .dark ? Color(red: 0.98, green: 0.44, blue: 0.34) : Color(red: 0.78, green: 0.24, blue: 0.18)
             width = 5; dash = []

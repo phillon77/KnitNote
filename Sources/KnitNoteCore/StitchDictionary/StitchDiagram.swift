@@ -17,7 +17,7 @@ public enum DiagramCommand: Codable, Equatable, Sendable {
 }
 
 public enum DiagramRole: String, Codable, CaseIterable, Sendable {
-    case leftNeedle, rightNeedle, workingYarn, oldLoop, newLoop, arrow
+    case leftNeedle, rightNeedle, cableNeedle, workingYarn, oldLoop, newLoop, arrow
 }
 
 public struct DiagramStroke: Codable, Equatable, Sendable {

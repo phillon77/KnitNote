@@ -67,6 +67,12 @@ targets:
         buildPhase: resources
         destinationFilters: [iOS]
       - path: Sources/KnitNoteCore
+        excludes:
+          - Resources
+      - path: Sources/KnitNoteCore/Resources
+        excludes:
+          - .keep
+        buildPhase: resources
     dependencies:
       - target: KnitNoteWatch
         embed: true
@@ -112,6 +118,7 @@ targets:
         buildPhase: resources
       - path: Sources/KnitNoteCore
         excludes:
+          - Resources
           - App/AppVersion.swift
           - App/AppVersionInfo.swift
           - App/AppStoreUpdateLookup.swift

@@ -24,3 +24,4 @@ Build processing and final review submission are still pending at this checkpoin
 - Automatic approval review rejected selecting/submitting the answer that none of the listed non-Apple encryption algorithms are used. No declaration was changed.
 - Follow-up technical check found no CryptoKit/CommonCrypto/Security imports, custom encryption APIs, URLSession or NWConnection in Calculator production Swift sources. The package has no external dependencies; archived binary links only Apple frameworks and Swift/system libraries. Tutorial links use SwiftUI Link to open external provider pages.
 - User confirmation of the exact export declaration is required before proceeding. No App Review submission has occurred at this checkpoint.
+- A subsequent attempt to associate Build 4 with the version was also rejected by automatic approval review because export compliance was still missing. Build association remains pending; no workaround was attempted.

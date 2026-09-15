@@ -1418,79 +1418,79 @@
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Trin"
+            "value": "Vejledninger og referencer"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Schritte"
+            "value": "Anleitungen und Referenzen"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Βήματα"
+            "value": "Οδηγίες και πηγές"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Steps"
+            "value": "Tutorials and references"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vaiheet"
+            "value": "Ohjeet ja lähteet"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Étapes"
+            "value": "Tutoriels et références"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "手順"
+            "value": "編み方と参考リンク"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "단계"
+            "value": "뜨개 방법 및 참고 링크"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Trinn"
+            "value": "Veiledninger og referanser"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Stappen"
+            "value": "Uitleg en bronnen"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Steg"
+            "value": "Instruktioner och referenser"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "操作步骤"
+            "value": "教学与参考链接"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "操作步驟"
+            "value": "教學與參考連結"
           }
         }
       }

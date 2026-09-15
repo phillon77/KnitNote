@@ -25,6 +25,66 @@ Xcode logs 有既有 `AppIntents` metadata extraction skipped warning（沒有 A
 
 ## Runtime 與未驗證範圍
 
+### 使用者回饋後改為外部教學連結
+
+教學連結版更新後，使用者對「設定 → 字典 → 下針，確認操作流程圖已移除，並試點 Gosyo 或日本 Vogue 教學連結」回覆「正常」。記錄為 iPad 新介面及所試外部連結的使用者驗收通過；未指定試點哪個來源，不能據此宣稱兩個網址或所有條目連結均經實機測試。原站教學需要網路，舊版內建流程圖的離線驗收不適用於外部教學內容。
+
+使用者重新接上 iPad 後，devicectl 顯示 Lzzipadair5 available (paired)；教學連結版 install 成功（exit 0，databaseSequenceNumber 1740）。先前裝置 unavailable 的安裝阻礙已解除。新介面與外部連結仍待實機操作確認。
+
+使用者與太太指出原操作圖無法理解，後續生成樣稿亦有穿針錯誤；前述操作／無障礙验收不構成教學正確性認可。使用者明確要求「放教學連結，不要做流程圖」。已從詳情移除整個操作步驟、流程圖與配色圖例，移除只適用於自繪操作圖的注意事項。保留名稱、縮寫、含義、來源限定的織圖符號、針數及相關織法。
+
+詳情以「教學與參考連結」顯示原站來源（13 語標題同步修改）；下針優先加入已開啟查證的 Gosyo 表目及日本 Vogue 表目影片／插圖頁。來源包含術語、符號、書籍參考，並非所有來源都是影片。原操作圖資料暫留在內部資源供既有資料契約相容，詳情不再呈現，也未加入後續生成的錯誤樣稿。
+
+`/usr/bin/python3 scripts/validate_stitch_dictionary.py --self-test` 完成 valid 與反例檢查，log `/private/tmp/knitnote-links-validator.log`；實機 xcodebuild exit 0、BUILD SUCCEEDED，log `/private/tmp/knitnote-links-build.log`；git diff --check 通過。嘗試更新指定 iPad 時 CoreDevice 回報找不到裝置，未安裝這次變更。需要裝置重新連線後確認新介面；不能沿用舊版實機驗收聲明。
+
+### iPad 實機候選已安裝，等待使用者操作驗收
+
+使用者依後續 VoiceOver 驗收步驟（開啟 VoiceOver、字典逐項移動焦點、開啟下針、朗讀名稱／步驟／圖解說明、返回列表）回覆「正常」。記錄為此 iPad Air 5 候選的 VoiceOver 流程使用者驗收通過。至此本輪安排的 iPad 離線與 VoiceOver 驗收完成；不外推至全部條目、語言、iPhone 或 macOS VoiceOver。早期段落所述這兩項待驗收狀態由本紀錄更新。
+
+後續使用者對「確認原作品、飛航模式且 Wi-Fi 關閉、重開 App、搜尋 k1 並查看圖文與滑動」的驗收步驟回覆「正常」。記錄為此 iPad Air 5 候選的離線流程使用者驗收通過；非自動化觀察，不外推至所有條目或其他裝置。VoiceOver 仍待驗收。
+
+使用者選擇並連接 Lzzipadair5（iPad Air 第 5 代，iPadOS 27.0），原 KnitNote 為 1.7.0（15）。功能 HEAD 838f5c8，`xcodebuild -project KnitNote.xcodeproj -scheme KnitNote -destination 'generic/platform=iOS' -derivedDataPath /private/tmp/knitnote-stitch-device build` exit 0，log `/private/tmp/knitnote-stitch-device-build.log`；codesign --verify --deep --strict 無錯誤。使用既有開發簽署與 bundle ID，版本號未變。
+
+devicectl 第一次 install 遇連線失效；重新列舉裝置後重試成功（exit 0），未卸載或清除 App。一般 launch 成功（exit 0）。這只證明安裝與啟動命令成功，資料保留狀況及離線／VoiceOver 功能仍待使用者實際確認，不宣稱實機驗收通過。
+
+### 最大文字尺寸與模擬器能力確認
+
+在 signed iPad 一般模式，先讀取 content_size 為 extra-large，改設 accessibility-extra-extra-extra-large。實際截圖確認下針步驟 1 的文字完整換行、圖形可見，來源韓文換行，返回列表後搜尋欄與下針／上針摘要可讀，未見文字截斷。這是上述頁面的最大字體抽查，不外推至全條目／全語言。測試後已還原 extra-large。
+
+開啟此 iOS 26.5 模擬器的 Settings：VoiceOver 搜尋無結果；實際進入輔助使用頁，視覺區只有懸浮文字、顯示與文字大小、動態效果、語音內容，未提供 VoiceOver。設定側邊欄亦未提供 Wi-Fi／飛航模式；沒有透過關閉宿主 Mac 網路來模擬離線。因此 VoiceOver 和實際斷網驗收仍需可提供這些能力的裝置，不能以 AX tree 或本地 Bundle 靜態檢查代替。
+
+### 後續手勢與文字抽查
+
+使用者後續回覆「可以滑動」，確認目前 signed iPad 模擬器下針教學頁可手動滑動。本項以使用者實測回報通過；先前自動 drag 無位移不再視為此頁的產品阻礙。此結果不外推至 iPhone、實機或 VoiceOver 手勢。離線、最大輔助文字尺寸及 VoiceOver 驗收仍未完成。
+
+在 signed iPad 一般模式進入下針詳情，Raise 視窗後的自動 drag 仍未造成截圖位移。AX 點選後段圖解後，再透過 Simulator Features → Increase Preferred Text Size 放大一級，截圖已顯示步驟 2、3 與部分步驟 4；可見的文字與圖形未截斷。此結果證明後段可呈現，但不能證明觸控拖曳成功，也不是最大輔助文字尺寸驗收。
+
+已請使用者在保留的 iPad 模擬器教學頁實際拖曳，以分辨控制工具限制與產品問題，尚待回覆。模擬器 simctl 公開命令提供 content_size，但未列出網路停用或 VoiceOver 控制；尚未執行離線／VoiceOver 驗收。原始碼仍由本機 Bundle 載入字典與圖解，這項靜態證據不代替離線裝置測試。
+
+### iPad 一般啟動阻礙已解除
+
+使用者批准資料庫診斷後，確認先前 QA 使用 `CODE_SIGNING_ALLOWED=NO`。iOS 的 `PatternStorageLocations.live()` 必須取得 `group.com.phillon.KnitNote`，否則拋出 appGroupUnavailable，再由 JSONProjectStore.live 轉為 archiveUnavailable。
+
+相同功能 HEAD 838f5c8，以 `xcodebuild -project KnitNote.xcodeproj -scheme KnitNote -destination 'generic/platform=iOS Simulator' -derivedDataPath /private/tmp/knitnote-stitch-ios build CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=-` 重建，exit 0、BUILD SUCCEEDED；log `/private/tmp/knitnote-stitch-ipad-signed-build.log`。生成的 KnitNote.app-Simulated.xcent 明列既有 App Group，link 命令將 simulator entitlements 嵌入 Mach-O；不能僅以 codesign 顯示空字典判斷模擬器權限。
+
+安裝到原任務專用 iPad，未執行卸載或資料清除。一般 launch 不帶示範參數，CUA 實際看到作品空狀態，原錯誤消失；設定 → 棒針織法字典成功顯示 15 項。此次是空白 QA 環境，沒有驗證使用者資料遷移；simctl install 後容器 UUID 改變，不宣稱容器路徑相同。
+
+本次問題由 QA 建置權限缺失造成，恢復既有模擬器簽署流程後解除，無產品程式碼修改。後續 iOS 操作驗收使用此 signed build。其餘手勢、離線、大字體、VoiceOver 等仍待驗證；以下先前資料庫阻礙文字為歷史紀錄。
+
+### 2026-09-15 解鎖後補驗（功能 HEAD 838f5c8）
+
+以下新觀察取代本節後方的「Mac locked」現況；後方文字保留先前驗證歷史。使用上述最新 iOS／macOS build，未改產品程式碼。
+
+- iPhone 17 Pro：計算工具進入字典成功，列表顯示明確縮寫；搜尋 `p3` 僅回傳上針並顯示重複 3 次。進入詳情，截圖確認單一標題、五語名稱及 `p`；AX 讀到三步、來源，以及「每次操作的針數」1／1／0。AX 讀到頁尾不等於實際已捲到頁尾。
+- iPad Pro 13 M4：計算工具進入字典、搜尋 `k1`、進入下針詳情成功。截圖確認重複 1 次、五語名稱、`k`、日本出版社符號與來源文字；AX 包含四步及韓國來源。搜尋後索引失效時已重新取得 AX，未當作產品故障。
+- macOS：計算工具與一般模式 Settings → Stitch dictionary 入口均實際開啟。`k2tog` 搜尋後切換符號模式、點卡片進詳情成功；捲動區的 Scroll Down 動作實際移動到步驟、圖例、針數、注意事項、來源與相關織法，截圖確認。返回保留 `k2tog`／符號模式；清除後保留模式；選擇交叉針並 Return 套用後僅有左右兩卡，再清除恢復全部。切回列表搜尋 `k1` 顯示重複 1 次。
+- macOS 原有計算工具回歸：密度輸入樣片 10 公分／20 針、目標 30 公分，結果 60 針、每公分 2 針；等距加針輸入 20 → 24、保留左右邊針，結果加 4 針，展開完整指示並返回成功。
+- macOS 語言抽查：以隔離示範參數載入德文、芬蘭文。德文列表、SSK 長標題及第一步換行，芬蘭文列表截圖未見截斷；日韓名稱字形亦可見。這不是全部語言／視窗尺寸／裝置的排版通過聲明。
+
+剩餘限制：iPhone 的 scroll 與 iPad 的 drag 均未造成截圖位移；macOS 同一功能可捲動，但尚無證據判定 iOS 手勢問題的原因，不能宣稱 iOS 長頁驗收通過。任務專用 iPad 不帶示範參數的一般啟動顯示「無法開啟已儲存的資料庫」，Settings／專案正常路徑未驗收；未覆寫或清除資料以繞過問題。曾誤傳 `-storeScreenshotMode NO`，依現有 resolve 契約屬 invalid，已改以不帶參數重啟，不能把該次退出算成產品缺陷。
+
+仍待驗證：iOS 完整手勢與設定／專案雙入口、停用網路後重跑、大字體、VoiceOver、完整 macOS 鍵盤導覽、更多語言／尺寸，以及任何實機操作。一般 Mac 模式只唯讀進入設定與字典；沒有更改設定或資料。未合併、推送或上傳；Task 6 手動驗收仍未全部完成。
+
 Controller 在先前 iPhone Simulator build 實際看到「計算器 → 字典 → 搜尋 k1 → Knit 重複 1」，AX 內容包含四步及日／韓來源。之後刪除重複導覽標題並完成新版 iOS build；不能把先前檢視視為新版全部 runtime 流程通過。
 
 隔離 iOS 26.5 simulators：iPhone 17 Pro `ECE985CD-4DFE-4286-B541-1BC05A8D9A30`；iPad Pro 13 M4 `063BDACC-27DA-472E-9D4E-D18D46A522EF`。新版已安裝兩者並啟動 iPhone demo。後續 CUA 回報 Mac locked，無法自動解鎖，互動 QA 暫無新證據。

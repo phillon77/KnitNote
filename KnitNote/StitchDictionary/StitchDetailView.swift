@@ -48,28 +48,14 @@ struct StitchDetailView: View {
                     }
                 }
                 heading("steps")
-                ForEach(Array(entry.steps.enumerated()), id: \.offset) { index, step in
-                    WatercolorCard {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text(LocaleAwareText.format("stitchDictionary.step.format", locale: locale, Int64(index + 1))).font(.headline)
-                            Text(text(step.textKey))
-                            drawing(step.diagramID, alternative: step.accessibilityKey)
-                        }
-                    }
-                }
-                Text(text("stitchDictionary.legend.title")).font(.headline)
-                ForEach(["leftNeedle", "rightNeedle", "cableNeedle", "workingYarn", "oldLoop", "newLoop", "arrow"], id: \.self) { role in
-                    Text(text("stitchDictionary.legend." + role))
-                }
+                sources(entry.sourceIDs)
                 heading("count")
                     .preference(key: StitchDictionaryContentPreferenceKey.self, value: ["stitchDictionary.count.heading": text("stitchDictionary.detail.count")])
                 count("consumes", presentation.consumes)
                 count("produces", presentation.produces)
                 count("net", presentation.produces - presentation.consumes)
                 heading("notes")
-                ForEach(entry.noteKeys, id: \.self) { key in Text(text(key)) }
-                heading("sources")
-                sources(entry.sourceIDs)
+                ForEach(entry.noteKeys.filter { $0 != "stitchDictionary.note.context" && $0 != "stitchDictionary.knit.note.englishMethod" }, id: \.self) { key in Text(text(key)) }
                 heading("related")
                 ForEach(entry.relatedIDs, id: \.self) { id in
                     if let related = catalog.entry(id: id) {

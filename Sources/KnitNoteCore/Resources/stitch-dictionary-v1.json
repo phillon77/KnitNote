@@ -119,6 +119,20 @@
       "url": "https://www.knitteracademy.kr/wp-content/uploads/2025/07/%EC%86%90%EB%9C%A8%EA%B0%9C%EB%A7%88%EC%8A%A4%ED%84%B0-5%EA%B0%95-%EC%95%84%EB%9E%80%EB%AC%B4%EB%8A%AC-%ED%9B%84%EB%93%9C%EC%A1%B0%EB%81%BC-%EA%B5%90%EC%9E%AC.pdf",
       "checkedOn": "2026-09-15",
       "scope": "PDF page 4 (printed 2) legend personally visually inspected: vertical stroke = 겉뜨기, horizontal stroke OR blank cell = 안뜨기 in this source. Only vertical/horizontal variants independently redrawn. No inferred universal RS/WS rule and no Korean cable-operation mapping. Original PDF/images remain research-only."
+    },
+    {
+      "id": "gosyo-knit",
+      "title": "表目：動画と手順 — ごしょう産業",
+      "url": "https://www.gosyo.co.jp/kiso-movie-bou/5-11",
+      "checkedOn": "2026-09-15",
+      "scope": "Knit stitch tutorial with video and step illustrations on the original provider website."
+    },
+    {
+      "id": "vogue-knit-video",
+      "title": "表目：動画とイラスト — 日本ヴォーグ社",
+      "url": "https://amimono.me/article/detail.html?id=148",
+      "checkedOn": "2026-09-15",
+      "scope": "Knit stitch tutorial with video and step illustrations on the original provider website."
     }
   ],
   "entries": [
@@ -175,6 +189,8 @@
         "knit-front-back"
       ],
       "sourceIDs": [
+        "gosyo-knit",
+        "vogue-knit-video",
         "cyc-abbreviations",
         "cyc-knit",
         "nihon-vogue-symbols",

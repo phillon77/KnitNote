@@ -2,6 +2,7 @@ import KnittingCalculatorCore
 import SwiftUI
 
 struct CalculatorSettingsView: View {
+    @EnvironmentObject private var advertising: CalculatorAdConsent
     @EnvironmentObject private var preferences: CalculatorPreferencesStore
     @Environment(\.locale) private var locale
     @State private var showsResetConfirmation = false
@@ -53,11 +54,25 @@ struct CalculatorSettingsView: View {
                         .frame(minHeight: 44)
                     Link(
                         "calculator.settings.privacy",
-                        destination: URL(string: "https://phillon77.github.io/KnitNote/knitting-calculator-privacy.html")!
+                        destination: URL(string: "https://phillon77.github.io/knitting-calculator-ads-privacy.html")!
                     )
                     .frame(minHeight: 44)
                 }
                 .id("privacy")
+
+                if advertising.configuration != .disabled {
+                    Section("calculator.advertising.section") {
+                        if advertising.requiresPrivacyOptions {
+                            Button("calculator.advertising.privacy") {
+                                Task { await advertising.showPrivacyOptions() }
+                            }
+                            .disabled(advertising.isUpdatingPrivacy)
+                            .frame(minHeight: 44)
+                        }
+                        Link("calculator.advertising.report", destination: URL(string: "mailto:lzz.1999@icloud.com?subject=Knitting%20Calculator%20ad%20report")!)
+                            .frame(minHeight: 44)
+                    }
+                }
 
                 Section("calculator.settings.about.section") {
                     LabeledContent("calculator.settings.version", value: versionText)
@@ -72,6 +87,9 @@ struct CalculatorSettingsView: View {
 #endif
         }
         .navigationTitle("app.settings.title")
+        .alert("calculator.advertising.privacyError", isPresented: $advertising.showsPrivacyError) {
+            Button("calculator.advertising.ok", role: .cancel) {}
+        }
         .confirmationDialog(
             "calculator.settings.reset.confirmation.title",
             isPresented: $showsResetConfirmation,

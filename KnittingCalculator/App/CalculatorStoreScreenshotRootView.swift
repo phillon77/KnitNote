@@ -5,6 +5,7 @@ import SwiftUI
 struct CalculatorStoreScreenshotRootView: View {
     let mode: CalculatorStoreScreenshotMode
     @StateObject private var ratingRequestContext = RatingRequestContext()
+    @StateObject private var advertising = CalculatorAdConsent(configuration: .disabled)
 
     var presentation: CalculatorStoreScreenshotPresentation {
         mode.scene.presentation
@@ -38,6 +39,7 @@ struct CalculatorStoreScreenshotRootView: View {
         }
         .environment(\.locale, mode.language.locale)
         .environmentObject(ratingRequestContext)
+        .environmentObject(advertising)
         .overlay(alignment: .bottomTrailing) {
             Text("Ready")
                 .opacity(0.001)

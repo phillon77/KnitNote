@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct KnittingCalculatorApp: App {
+    @StateObject private var advertising = CalculatorAdConsent()
     @StateObject private var preferences: CalculatorPreferencesStore
     @StateObject private var ratingCoordinator: RatingRequestCoordinator
 #if DEBUG
@@ -55,6 +56,7 @@ struct KnittingCalculatorApp: App {
             }
                 .environmentObject(preferences)
                 .environmentObject(ratingCoordinator)
+                .environmentObject(advertising)
         }
     }
 }

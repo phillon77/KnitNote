@@ -8,6 +8,14 @@ settings:
     SWIFT_VERSION: "6.0"
     DEVELOPMENT_TEAM: 9CFPAUL5N5
 packages:
+  ShortRowKit:
+    path: Packages/ShortRowKit
+  GoogleMobileAds:
+    url: https://github.com/googleads/swift-package-manager-google-mobile-ads.git
+    exactVersion: 13.9.0
+  GoogleUserMessagingPlatform:
+    url: https://github.com/googleads/swift-package-manager-google-user-messaging-platform.git
+    exactVersion: 3.1.0
   KnittingCalculatorCore:
     path: Packages/KnittingCalculatorCore
 targets:
@@ -20,6 +28,10 @@ targets:
         CFBundleDisplayName: $(PRODUCT_NAME)
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        GADApplicationIdentifier: $(CALCULATOR_ADMOB_APP_ID)
+        CalculatorBannerAdUnitID: $(CALCULATOR_BANNER_ID)
+        CalculatorAdsReady: $(CALCULATOR_ADS_READY)
+        GADDelayAppMeasurementInit: true
         LSApplicationCategoryType: public.app-category.utilities
         UILaunchStoryboardName: LaunchScreen
         UISupportedInterfaceOrientations:
@@ -46,15 +58,26 @@ targets:
       - path: KnittingCalculator/Localization
         buildPhase: resources
     dependencies:
+      - package: ShortRowKit
       - package: KnittingCalculatorCore
+      - package: GoogleMobileAds
+      - package: GoogleUserMessagingPlatform
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnittingCalculator
         PRODUCT_MODULE_NAME: KnittingCalculator
-        MARKETING_VERSION: 1.1.0
-        CURRENT_PROJECT_VERSION: 4
+        MARKETING_VERSION: 1.2.0
+        CURRENT_PROJECT_VERSION: 5
         PRODUCT_NAME: KnittingCalculator
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CALCULATOR_ADS_READY: "YES"
+        CALCULATOR_BANNER_ID: ca-app-pub-2353011769485623/1883207041
+        CALCULATOR_ADMOB_APP_ID: ca-app-pub-2353011769485623~3090056510
+      configs:
+        Debug:
+          # Debug uses Google's test app and unit, never production inventory.
+          CALCULATOR_ADMOB_APP_ID: ca-app-pub-3940256099942544~1458002511
+          CALCULATOR_BANNER_ID: ca-app-pub-3940256099942544/2934735716
   KnittingCalculatorTests:
     type: bundle.unit-test
     platform: iOS

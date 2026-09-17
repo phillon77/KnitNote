@@ -1,27 +1,31 @@
-# Knitting Calculator Privacy Policy／編織計算器隱私權政策
+# Knitting Calculator Privacy Policy／編織計算器隱私政策
 
-Effective date／生效日期：2026-07-28
-
-## English
-
-Knitting Calculator does not collect, transmit, sell, or share your personal data. It requires no account, has no ads, no analytics SDKs, and does not track you across apps or websites.
-
-Your calculator inputs, saved drafts, unit preference, and app-local rating state remain on your device in UserDefaults. They are not uploaded to the developer or another service. You can remove remembered inputs from the app’s Settings. If you delete the app, its local state is removed from that device, subject to the device’s own backup and restore settings.
-
-All calculations, help, copied text, and generated share text work offline. Choosing an App Store link, this privacy page, or the support email opens a destination outside the app and is then governed by that destination’s privacy practices.
-
-For privacy questions, contact [lzz.1999@icloud.com](mailto:lzz.1999@icloud.com).
+Published policy: https://phillon77.github.io/knitting-calculator-ads-privacy.html
 
 ## 繁體中文
 
-編織計算器不蒐集、傳送、出售或分享你的個人資料。不需要帳號、不含廣告、不含分析 SDK，也不會追蹤你（包括跨 App 或網站）。
+適用範圍：本政策說明 1.2.0 廣告版本的資料處理，從你使用該版本起適用。舊版 1.1.0 未整合廣告 SDK；此政策的廣告資料處理段落不適用於該舊版。
 
-你的計算輸入內容、儲存的草稿、單位偏好與 App 內的評分狀態，僅以 UserDefaults 保留在你的裝置上，不會上傳給開發者或其他服務。你可從 App 的「設定」移除記住的輸入內容；刪除 App 會移除該裝置上的本機狀態，但仍受裝置本身的備份與還原設定影響。
+編織計算器不要求建立 App 帳號。計算輸入、草稿、單位偏好與 App 內評分狀態儲存在你的裝置，不會由我們傳送給廣告服務。計算功能可離線使用，廣告無法載入時仍可正常操作。
 
-所有計算、說明、複製文字與產生的分享文字皆可離線使用。選擇 App Store 連結、本隱私權頁面或支援電子郵件時，會離開 App，之後適用該目的地的隱私權做法。
+廣告版本使用 Google AdMob 提供首頁橫幅，並使用 Google User Messaging Platform 管理適用的隱私選擇。Google 及提供或處理廣告的合作夥伴可能處理 IP 位址及推估的一般地區、裝置或 App 相關識別資訊、廣告曝光與互動、診斷和效能資料，用於提供廣告、衡量成效及維持服務。實際資料處理依 SDK、設定與你的選擇而定。非個人化廣告不代表完全不處理資料。
 
-如有隱私問題，請聯絡 [lzz.1999@icloud.com](mailto:lzz.1999@icloud.com)。
+廣告版本設定為請求非個人化廣告，不要求跨 App 追蹤權限。需要隱私選擇時，App 會提供相應訊息；適用時可在設定中重新開啟「廣告隱私選項」。廣告同意或網路錯誤不影響計算。
 
-## App Store declaration alignment／與 App Store 聲明的一致性
+廣告連結、外部教學、App Store、隱私政策與電子郵件連結會連到第三方服務；後續適用目的地的隱私做法。你可在設定清除記住的計算輸入；刪除 App 會移除本機狀態，但仍受裝置備份及還原設定影響。
 
-The shipped privacy manifest declares no tracking, no tracking domains, no collected data types, and only the app-local UserDefaults required-reason API (`CA92.1`). This policy and the App Store privacy answers must remain aligned with the shipped build. Apple’s current [App privacy guidance](https://developer.apple.com/help/app-store-connect/manage-app-information/manage-app-privacy/) and direct [required-reason API list](https://developer.apple.com/documentation/bundleresources/app-privacy-configuration/nsprivacyaccessedapitypes/nsprivacyaccessedapitypereasons?language=objc) were checked on 2026-07-28.
+Google 的資料做法請參閱 https://policies.google.com/privacy 及 https://policies.google.com/technologies/partner-sites 。聯絡方式：lzz.1999@icloud.com。
+
+## English
+
+Scope: This policy describes the advertising version, 1.2.0, and applies when you use that version. Version 1.1.0 does not integrate an advertising SDK; the advertising data-processing sections do not apply to that older version.
+
+Knitting Calculator does not require an app account. Calculation inputs, drafts, unit preferences, and local rating state stay on your device and are not sent by us to the advertising service. Calculations work offline and remain available when ads cannot load.
+
+The advertising version uses Google AdMob for a home-screen banner and Google's User Messaging Platform for applicable privacy choices. Google and partners that provide or process advertising may process IP addresses and approximate region, device or app identifiers, advertising impressions and interactions, and diagnostic and performance information to serve and measure advertising and maintain its services. Processing depends on the SDK, configuration, and your choices. Non-personalized advertising does not mean that no data is processed.
+
+The advertising version is configured to request non-personalized advertising without requesting cross-app tracking permission. Where privacy choices are needed, the app provides the appropriate message; where applicable, Advertising privacy options can be reopened in Settings. Consent or network errors do not block calculations.
+
+Advertisement links, external tutorials, App Store links, privacy pages, and email links lead to third-party services governed by their own privacy practices. You can clear remembered calculation inputs in Settings. Deleting the app removes local state, subject to your device's backup and restore settings.
+
+For Google's practices, see https://policies.google.com/privacy and https://policies.google.com/technologies/partner-sites . Contact: lzz.1999@icloud.com.

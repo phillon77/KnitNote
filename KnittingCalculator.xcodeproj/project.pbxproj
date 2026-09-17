@@ -15,13 +15,18 @@
 		1D55FB20081E9E6E8623E7D9 /* CalculatorHelpSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E4D8F8DBBA9DEBDF5DA0E37 /* CalculatorHelpSheet.swift */; };
 		1EC399A3CA3F68379EF0BFD0 /* KnittingCalculatorApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4F71B9B873EBA44DA12F9BA /* KnittingCalculatorApp.swift */; };
 		1FE0DC2B5B068F83AD395D51 /* CalculatorRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BAE0215EE937DE84DAECC7A /* CalculatorRootView.swift */; };
+		21A2F90EB22BF0EA61982466 /* CalculatorAdConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91ECD43C268EEC81F189EB84 /* CalculatorAdConfiguration.swift */; };
 		223826A82E5B74B18CEC0D04 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4E8725AFE478EE1C7A67FDB9 /* Assets.xcassets */; };
+		2D6114F876A8787AF3C6BFCE /* KnittingCalculatorCore in Frameworks */ = {isa = PBXBuildFile; productRef = DC0388B1BE9D16DF09EB129F /* KnittingCalculatorCore */; };
 		340D14CC1ED20C5E09188F89 /* CalculatorStoreScreenshotModeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96398E6E8319DD6CA0F7D8ED /* CalculatorStoreScreenshotModeTests.swift */; };
+		3AE5C1FA958C7024330DB378 /* GoogleMobileAds in Frameworks */ = {isa = PBXBuildFile; productRef = 64998EA63FA1010221B8F6DE /* GoogleMobileAds */; };
+		465BCDC8CF610D4FE14DF26F /* CalculatorAdSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 721547FFC07D3B54F18FCA96 /* CalculatorAdSession.swift */; };
 		4D9C1F9C24A37BB8A743343B /* CalculatorLocalization.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCC10D1246E91DC3CDA53A0C /* CalculatorLocalization.swift */; };
 		4EB0630361F26E5F71C21A8E /* TargetSmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D43710E75EB0C4AFEA38B067 /* TargetSmokeTests.swift */; };
 		546D8BB3EB24330266444C8A /* CalculatorShareText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E5CBBDFDE2B88B41A8295C7 /* CalculatorShareText.swift */; };
 		5AAA0589A51C69029F3121CE /* CalculatorResultActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EC67A96BDF7D146993A2D35 /* CalculatorResultActions.swift */; };
-		608F765CAABB543F3676916F /* KnittingCalculatorCore in Frameworks */ = {isa = PBXBuildFile; productRef = DC0388B1BE9D16DF09EB129F /* KnittingCalculatorCore */; };
+		608F765CAABB543F3676916F /* ShortRowKit in Frameworks */ = {isa = PBXBuildFile; productRef = D2934A8B00D86DEF48D81C9E /* ShortRowKit */; };
+		61ABEC7B14EDFE7C2977936B /* CalculatorBannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89E93B293243DFC966A78B73 /* CalculatorBannerView.swift */; };
 		61E0160541747E0D23DFC58C /* CalculatorLocalizationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 201CC785AE704B86265E93B6 /* CalculatorLocalizationTests.swift */; };
 		70393D56C4E8C1F6528430B3 /* KnitNotePromotionCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF2AD2FB05242E1F7F852D62 /* KnitNotePromotionCard.swift */; };
 		72D21F09FA93207706024C16 /* GaugeCalculatorScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 678B47F19E16C71BFA247A1B /* GaugeCalculatorScreen.swift */; };
@@ -30,6 +35,7 @@
 		81470339DE94F07434734BE5 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = E65F03154A4E2DA4C6EBC07A /* PrivacyInfo.xcprivacy */; };
 		8E6886D958977FD637A9DD00 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = F8B1F3A957EBA659B38AE13B /* LaunchScreen.storyboard */; };
 		920F5709CC90A8318E8A94D9 /* LocalizedNumberCodecTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F79E162E56CAA60C5DE91964 /* LocalizedNumberCodecTests.swift */; };
+		9793BBAEF117E56F90416CBB /* GoogleUserMessagingPlatform in Frameworks */ = {isa = PBXBuildFile; productRef = 03F49A870C2855044C525AE3 /* GoogleUserMessagingPlatform */; };
 		98673D067C3E535E4D5A2DF1 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = C89784E982AD4396ED7D15ED /* InfoPlist.xcstrings */; };
 		99B4BFA42FC0A5CDE8F669FA /* CalculatorField.swift in Sources */ = {isa = PBXBuildFile; fileRef = D267A2265CFAED4F39D789F6 /* CalculatorField.swift */; };
 		A00E80A64214FD6D2BE3A8BE /* OneRowAdjustmentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E604A30100F426F1026FEB4A /* OneRowAdjustmentView.swift */; };
@@ -37,8 +43,10 @@
 		A765FD8782173E4765258592 /* StitchSymbolGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9198074D9224C07D2B62473 /* StitchSymbolGrid.swift */; };
 		A8C67B75EFABFA3BCE30A8A4 /* CalculatorStoreScreenshotMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE091CAE46AD4C036F74C4A4 /* CalculatorStoreScreenshotMode.swift */; };
 		B0C8359FA89951A148E585D7 /* RowIntervalAdjustmentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C3C79DE7768B231034C1E22 /* RowIntervalAdjustmentView.swift */; };
+		B16CD8CCDE40C63639CA05EA /* CalculatorAdConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000842521F7F6B076B39A9B /* CalculatorAdConfigurationTests.swift */; };
 		B341ECAD55257006FFC1A6E1 /* AdjustmentPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC4D8A339BFC2D1EC5BEFE83 /* AdjustmentPresentationTests.swift */; };
 		B9C6F4FE017B7E4AB4498A08 /* StitchDictionaryText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74E2931D65F4BB3F4A84F9C5 /* StitchDictionaryText.swift */; };
+		BAC44322D4222B18A80A0552 /* CalculatorAdConsent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 057706E6EE4D9680478DC838 /* CalculatorAdConsent.swift */; };
 		BBDC321DD09541F758ED357A /* KnittingCalculatorCore in Frameworks */ = {isa = PBXBuildFile; productRef = CB5ED2280E8C5EA03483AED4 /* KnittingCalculatorCore */; };
 		BD1A95C0B7CD1C93D88B2C02 /* GaugeDraftBehaviorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AA9DD2F2912F229D77F0F4C /* GaugeDraftBehaviorTests.swift */; };
 		BEBDC8BD523B9F59730C5C08 /* CalculatorShareTextTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F6AE5D9A70C334ECA5722F1 /* CalculatorShareTextTests.swift */; };
@@ -46,6 +54,7 @@
 		C73B2276027E7F6991F296EB /* CalculatorSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C338444B048B4B309CC37EF7 /* CalculatorSettingsView.swift */; };
 		C869F0D28C86A3768152F2C8 /* StitchDiagramView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBE742DCF79B4E6A4621BC9C /* StitchDiagramView.swift */; };
 		CE9976F7A7961E0CAC7DDA6E /* KnitNoteLinkRouterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59887B6F3D9D7437E6F29749 /* KnitNoteLinkRouterTests.swift */; };
+		DBDF2D4F91FDB176AADA6F7B /* CalculatorAdSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE27CD4A1D3E0F3409CA5B58 /* CalculatorAdSessionTests.swift */; };
 		EBD9C3CBA1F8E3EB3C324D29 /* CalculatorStoreScreenshotRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CEF588915E2CDB5E2FDE59B /* CalculatorStoreScreenshotRootView.swift */; };
 		F20940ED1D5FC0835C904E06 /* KnitNoteLinkRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12E422CEF77E0E0282D1CE3B /* KnitNoteLinkRouter.swift */; };
 		F739B38C2B6C25BA8E9B0CCA /* CalculatorPreferencesStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F80FA30996770A367AF58F9E /* CalculatorPreferencesStoreTests.swift */; };
@@ -63,6 +72,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		057706E6EE4D9680478DC838 /* CalculatorAdConsent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorAdConsent.swift; sourceTree = "<group>"; };
 		12E422CEF77E0E0282D1CE3B /* KnitNoteLinkRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteLinkRouter.swift; sourceTree = "<group>"; };
 		18325852CC6870186908CD54 /* KnittingCalculator.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = KnittingCalculator.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1E5CBBDFDE2B88B41A8295C7 /* CalculatorShareText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorShareText.swift; sourceTree = "<group>"; };
@@ -79,18 +89,23 @@
 		5CEF588915E2CDB5E2FDE59B /* CalculatorStoreScreenshotRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorStoreScreenshotRootView.swift; sourceTree = "<group>"; };
 		678B47F19E16C71BFA247A1B /* GaugeCalculatorScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GaugeCalculatorScreen.swift; sourceTree = "<group>"; };
 		6C3C79DE7768B231034C1E22 /* RowIntervalAdjustmentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RowIntervalAdjustmentView.swift; sourceTree = "<group>"; };
+		721547FFC07D3B54F18FCA96 /* CalculatorAdSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorAdSession.swift; sourceTree = "<group>"; };
 		74E2931D65F4BB3F4A84F9C5 /* StitchDictionaryText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StitchDictionaryText.swift; sourceTree = "<group>"; };
 		75D4AE90F8FE00B070C4EB0B /* StitchDictionaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StitchDictionaryView.swift; sourceTree = "<group>"; };
 		774788D3314820E6F78E0398 /* RatingEligibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RatingEligibilityTests.swift; sourceTree = "<group>"; };
 		7E05F293B95238F708F7B3AB /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		7F6AE5D9A70C334ECA5722F1 /* CalculatorShareTextTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorShareTextTests.swift; sourceTree = "<group>"; };
 		8686344FB6C98C27BAD8B94A /* CalculatorHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorHomeView.swift; sourceTree = "<group>"; };
+		89E93B293243DFC966A78B73 /* CalculatorBannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorBannerView.swift; sourceTree = "<group>"; };
+		91ECD43C268EEC81F189EB84 /* CalculatorAdConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorAdConfiguration.swift; sourceTree = "<group>"; };
 		96398E6E8319DD6CA0F7D8ED /* CalculatorStoreScreenshotModeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorStoreScreenshotModeTests.swift; sourceTree = "<group>"; };
+		A000842521F7F6B076B39A9B /* CalculatorAdConfigurationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorAdConfigurationTests.swift; sourceTree = "<group>"; };
 		AF2AD2FB05242E1F7F852D62 /* KnitNotePromotionCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNotePromotionCard.swift; sourceTree = "<group>"; };
 		B9198074D9224C07D2B62473 /* StitchSymbolGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StitchSymbolGrid.swift; sourceTree = "<group>"; };
 		BCC10D1246E91DC3CDA53A0C /* CalculatorLocalization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorLocalization.swift; sourceTree = "<group>"; };
 		C338444B048B4B309CC37EF7 /* CalculatorSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorSettingsView.swift; sourceTree = "<group>"; };
 		C4F71B9B873EBA44DA12F9BA /* KnittingCalculatorApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnittingCalculatorApp.swift; sourceTree = "<group>"; };
+		C5A2CE43A3C0F7B25931AB3A /* ShortRowKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ShortRowKit; path = Packages/ShortRowKit; sourceTree = SOURCE_ROOT; };
 		C89784E982AD4396ED7D15ED /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
 		D267A2265CFAED4F39D789F6 /* CalculatorField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorField.swift; sourceTree = "<group>"; };
 		D391784C10069F0F4E0F2DAB /* LocalizedNumberCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizedNumberCodec.swift; sourceTree = "<group>"; };
@@ -107,6 +122,7 @@
 		F79E162E56CAA60C5DE91964 /* LocalizedNumberCodecTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizedNumberCodecTests.swift; sourceTree = "<group>"; };
 		F80FA30996770A367AF58F9E /* CalculatorPreferencesStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorPreferencesStoreTests.swift; sourceTree = "<group>"; };
 		F8B1F3A957EBA659B38AE13B /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		FE27CD4A1D3E0F3409CA5B58 /* CalculatorAdSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorAdSessionTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -114,7 +130,10 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				608F765CAABB543F3676916F /* KnittingCalculatorCore in Frameworks */,
+				608F765CAABB543F3676916F /* ShortRowKit in Frameworks */,
+				2D6114F876A8787AF3C6BFCE /* KnittingCalculatorCore in Frameworks */,
+				3AE5C1FA958C7024330DB378 /* GoogleMobileAds in Frameworks */,
+				9793BBAEF117E56F90416CBB /* GoogleUserMessagingPlatform in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -181,6 +200,9 @@
 		7FFE87F83956FA6CBC2F77E2 /* Model */ = {
 			isa = PBXGroup;
 			children = (
+				91ECD43C268EEC81F189EB84 /* CalculatorAdConfiguration.swift */,
+				057706E6EE4D9680478DC838 /* CalculatorAdConsent.swift */,
+				721547FFC07D3B54F18FCA96 /* CalculatorAdSession.swift */,
 				BCC10D1246E91DC3CDA53A0C /* CalculatorLocalization.swift */,
 				2CA8969DE88A0CFE40572AC8 /* CalculatorPreferencesStore.swift */,
 				1E5CBBDFDE2B88B41A8295C7 /* CalculatorShareText.swift */,
@@ -196,6 +218,8 @@
 			isa = PBXGroup;
 			children = (
 				EC4D8A339BFC2D1EC5BEFE83 /* AdjustmentPresentationTests.swift */,
+				A000842521F7F6B076B39A9B /* CalculatorAdConfigurationTests.swift */,
+				FE27CD4A1D3E0F3409CA5B58 /* CalculatorAdSessionTests.swift */,
 				201CC785AE704B86265E93B6 /* CalculatorLocalizationTests.swift */,
 				F80FA30996770A367AF58F9E /* CalculatorPreferencesStoreTests.swift */,
 				7F6AE5D9A70C334ECA5722F1 /* CalculatorShareTextTests.swift */,
@@ -212,6 +236,7 @@
 		99C281FD3A87F5DFB44D349A /* Home */ = {
 			isa = PBXGroup;
 			children = (
+				89E93B293243DFC966A78B73 /* CalculatorBannerView.swift */,
 				8686344FB6C98C27BAD8B94A /* CalculatorHomeView.swift */,
 				AF2AD2FB05242E1F7F852D62 /* KnitNotePromotionCard.swift */,
 			);
@@ -276,6 +301,7 @@
 			isa = PBXGroup;
 			children = (
 				F6C91343CF366DE4619B994E /* KnittingCalculatorCore */,
+				C5A2CE43A3C0F7B25931AB3A /* ShortRowKit */,
 			);
 			path = Packages;
 			sourceTree = "<group>";
@@ -347,7 +373,10 @@
 			);
 			name = KnittingCalculator;
 			packageProductDependencies = (
+				D2934A8B00D86DEF48D81C9E /* ShortRowKit */,
 				DC0388B1BE9D16DF09EB129F /* KnittingCalculatorCore */,
+				64998EA63FA1010221B8F6DE /* GoogleMobileAds */,
+				03F49A870C2855044C525AE3 /* GoogleUserMessagingPlatform */,
 			);
 			productName = KnittingCalculator;
 			productReference = 18325852CC6870186908CD54 /* KnittingCalculator.app */;
@@ -392,7 +421,10 @@
 			mainGroup = FA8EEDD9D859F1D91CA5A957;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				7C55CE198B73946A4839227A /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */,
+				DB64ECCB029CCC59A7C6A749 /* XCRemoteSwiftPackageReference "swift-package-manager-google-user-messaging-platform" */,
 				C4F296C8A2985100F7F0E51C /* XCLocalSwiftPackageReference "Packages/KnittingCalculatorCore" */,
+				B48339A58E29190B636830F6 /* XCLocalSwiftPackageReference "Packages/ShortRowKit" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 270E4BFBCCB120AD5F61229C /* Products */;
@@ -426,6 +458,10 @@
 			buildActionMask = 2147483647;
 			files = (
 				02A0DA4637399AD57FAEB03C /* AdjustmentCalculatorScreen.swift in Sources */,
+				21A2F90EB22BF0EA61982466 /* CalculatorAdConfiguration.swift in Sources */,
+				BAC44322D4222B18A80A0552 /* CalculatorAdConsent.swift in Sources */,
+				465BCDC8CF610D4FE14DF26F /* CalculatorAdSession.swift in Sources */,
+				61ABEC7B14EDFE7C2977936B /* CalculatorBannerView.swift in Sources */,
 				99B4BFA42FC0A5CDE8F669FA /* CalculatorField.swift in Sources */,
 				1D55FB20081E9E6E8623E7D9 /* CalculatorHelpSheet.swift in Sources */,
 				12DB8711E29833D146E7C714 /* CalculatorHomeView.swift in Sources */,
@@ -459,6 +495,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				B341ECAD55257006FFC1A6E1 /* AdjustmentPresentationTests.swift in Sources */,
+				B16CD8CCDE40C63639CA05EA /* CalculatorAdConfigurationTests.swift in Sources */,
+				DBDF2D4F91FDB176AADA6F7B /* CalculatorAdSessionTests.swift in Sources */,
 				61E0160541747E0D23DFC58C /* CalculatorLocalizationTests.swift in Sources */,
 				F739B38C2B6C25BA8E9B0CCA /* CalculatorPreferencesStoreTests.swift in Sources */,
 				BEBDC8BD523B9F59730C5C08 /* CalculatorShareTextTests.swift in Sources */,
@@ -520,14 +558,17 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CALCULATOR_ADMOB_APP_ID = "ca-app-pub-3940256099942544~1458002511";
+				CALCULATOR_ADS_READY = YES;
+				CALCULATOR_BANNER_ID = "ca-app-pub-3940256099942544/2934735716";
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 5;
 				INFOPLIST_FILE = KnittingCalculator/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.1.0;
+				MARKETING_VERSION = 1.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.phillon.KnittingCalculator;
 				PRODUCT_MODULE_NAME = KnittingCalculator;
 				PRODUCT_NAME = KnittingCalculator;
@@ -661,14 +702,17 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CALCULATOR_ADMOB_APP_ID = "ca-app-pub-2353011769485623~3090056510";
+				CALCULATOR_ADS_READY = YES;
+				CALCULATOR_BANNER_ID = "ca-app-pub-2353011769485623/1883207041";
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 5;
 				INFOPLIST_FILE = KnittingCalculator/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.1.0;
+				MARKETING_VERSION = 1.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.phillon.KnittingCalculator;
 				PRODUCT_MODULE_NAME = KnittingCalculator;
 				PRODUCT_NAME = KnittingCalculator;
@@ -710,16 +754,53 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
+		B48339A58E29190B636830F6 /* XCLocalSwiftPackageReference "Packages/ShortRowKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/ShortRowKit;
+		};
 		C4F296C8A2985100F7F0E51C /* XCLocalSwiftPackageReference "Packages/KnittingCalculatorCore" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/KnittingCalculatorCore;
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		7C55CE198B73946A4839227A /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/googleads/swift-package-manager-google-mobile-ads.git";
+			requirement = {
+				kind = exactVersion;
+				version = 13.9.0;
+			};
+		};
+		DB64ECCB029CCC59A7C6A749 /* XCRemoteSwiftPackageReference "swift-package-manager-google-user-messaging-platform" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/googleads/swift-package-manager-google-user-messaging-platform.git";
+			requirement = {
+				kind = exactVersion;
+				version = 3.1.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
+		03F49A870C2855044C525AE3 /* GoogleUserMessagingPlatform */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = DB64ECCB029CCC59A7C6A749 /* XCRemoteSwiftPackageReference "swift-package-manager-google-user-messaging-platform" */;
+			productName = GoogleUserMessagingPlatform;
+		};
+		64998EA63FA1010221B8F6DE /* GoogleMobileAds */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7C55CE198B73946A4839227A /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */;
+			productName = GoogleMobileAds;
+		};
 		CB5ED2280E8C5EA03483AED4 /* KnittingCalculatorCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = KnittingCalculatorCore;
+		};
+		D2934A8B00D86DEF48D81C9E /* ShortRowKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ShortRowKit;
 		};
 		DC0388B1BE9D16DF09EB129F /* KnittingCalculatorCore */ = {
 			isa = XCSwiftPackageProductDependency;

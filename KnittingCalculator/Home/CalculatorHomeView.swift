@@ -1,6 +1,9 @@
 import SwiftUI
+import ShortRowKit
 
 struct CalculatorHomeView: View {
+    @Environment(\.locale) private var locale
+    @State private var isHomeVisible = false
 #if DEBUG
     private let initialScrollTarget: String?
 
@@ -61,6 +64,18 @@ struct CalculatorHomeView: View {
                         .buttonStyle(.plain)
                         .accessibilityIdentifier("calculator.stitchDictionary")
 
+                        NavigationLink {
+                            ShortRowCalculatorView()
+                        } label: {
+                            CalculatorToolCard(
+                                title: LocalizedStringKey(ShortRowTool.title(locale: locale)),
+                                description: LocalizedStringKey(ShortRowTool.summary(locale: locale)),
+                                symbol: "stairs"
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("calculator.shortRows")
+
                         KnitNotePromotionCard()
                             .id("promotion")
                     }
@@ -79,6 +94,11 @@ struct CalculatorHomeView: View {
             }
         }
         .navigationTitle("app.title")
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            CalculatorBannerPlacement(isHomeVisible: isHomeVisible)
+        }
+        .onAppear { isHomeVisible = true }
+        .onDisappear { isHomeVisible = false }
     }
 }
 

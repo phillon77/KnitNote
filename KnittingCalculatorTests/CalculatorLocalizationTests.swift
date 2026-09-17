@@ -14,6 +14,8 @@ final class CalculatorLocalizationTests: XCTestCase {
             "calculator.adjustment.validation.positiveInteger",
             "calculator.adjustment.accessibility.summary.edge.format",
             "calculator.settings.privacy", "calculator.promotion.action",
+            "calculator.advertising.label", "calculator.advertising.privacy",
+            "calculator.advertising.report", "calculator.advertising.privacyError",
         ]
         for identifier in supportedLocales {
             for key in keys {

@@ -20,6 +20,14 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>CalculatorAdsReady</key>
+	<string>$(CALCULATOR_ADS_READY)</string>
+	<key>CalculatorBannerAdUnitID</key>
+	<string>$(CALCULATOR_BANNER_ID)</string>
+	<key>GADApplicationIdentifier</key>
+	<string>$(CALCULATOR_ADMOB_APP_ID)</string>
+	<key>GADDelayAppMeasurementInit</key>
+	<true/>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.utilities</string>
 	<key>UILaunchStoryboardName</key>

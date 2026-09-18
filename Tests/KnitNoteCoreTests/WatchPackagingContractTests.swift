@@ -6,7 +6,6 @@ import Testing
         let project = try source("project.yml")
 
         #expect(project.contains("""
-            dependencies:
               - target: KnitNoteWatch
                 embed: true
                 platformFilter: iOS
@@ -61,12 +60,12 @@ import Testing
 
         #expect(
             specification.components(
-                separatedBy: "CURRENT_PROJECT_VERSION: 15"
+                separatedBy: "CURRENT_PROJECT_VERSION: 16"
             ).count == 4
         )
         #expect(
             generatedProject.components(
-                separatedBy: "CURRENT_PROJECT_VERSION = 15;"
+                separatedBy: "CURRENT_PROJECT_VERSION = 16;"
             ).count == 7
         )
         #expect(!generatedProject.contains("CURRENT_PROJECT_VERSION = 11;"))
@@ -78,12 +77,12 @@ import Testing
 
         #expect(
             specification.components(
-                separatedBy: "MARKETING_VERSION: 1.7.0"
+                separatedBy: "MARKETING_VERSION: 1.7.1"
             ).count == 4
         )
         #expect(
             generatedProject.components(
-                separatedBy: "MARKETING_VERSION = 1.7.0;"
+                separatedBy: "MARKETING_VERSION = 1.7.1;"
             ).count == 7
         )
         #expect(!generatedProject.contains("MARKETING_VERSION = 1.5.1;"))

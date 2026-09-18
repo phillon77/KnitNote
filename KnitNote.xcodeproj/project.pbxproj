@@ -380,6 +380,7 @@
 		A8F65FDC2EB37F7CC35B551D /* WatercolorThemePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46BC18F10B8F996B71604BBF /* WatercolorThemePolicy.swift */; };
 		A92C9A99466AFDE777967306 /* YouTubePatternLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70D946E82169D361DB029610 /* YouTubePatternLink.swift */; };
 		A9B94479F09D796C52314585 /* EntitlementCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6982CA84DA83572E80508D41 /* EntitlementCoordinatorTests.swift */; };
+		AAA3F7CE0F98960225105829 /* ShortRowKit in Frameworks */ = {isa = PBXBuildFile; productRef = D42EE26CBC11B1E3DDF22807 /* ShortRowKit */; };
 		AAEAB15D602C4E5EA8CF7BCD /* ChoosePatternReadingContextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A4DC78289ACE6594449E656 /* ChoosePatternReadingContextView.swift */; };
 		AB816D7B42682685F83DCB6C /* SyncBootstrapHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30B211FCEE627F2B456BC9B /* SyncBootstrapHistory.swift */; };
 		ABA3AABF79B56CA98AB86ACD /* WatchStoreScreenshotMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA25A3C3521768D19250D31C /* WatchStoreScreenshotMode.swift */; };
@@ -983,6 +984,7 @@
 		E993310F5466BA6DAE24B6C7 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		E9F9AB70EA6020F2BECF5EFD /* KnitNoteBackupDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnitNoteBackupDocument.swift; sourceTree = "<group>"; };
 		EAED72D2A1EE8E706D4B8E5B /* AppSessionOwnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSessionOwnerTests.swift; sourceTree = "<group>"; };
+		EB137CAE58982EBB97EDA20D /* ShortRowKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ShortRowKit; path = Packages/ShortRowKit; sourceTree = SOURCE_ROOT; };
 		EC0AB225FBF5ECA218077945 /* KnittingReminderEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnittingReminderEditorView.swift; sourceTree = "<group>"; };
 		ED7B4D1F4565A0DCEF4074A5 /* YarnLabelCandidateReviewState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YarnLabelCandidateReviewState.swift; sourceTree = "<group>"; };
 		EEAE1704A7251E82F8B8BE2E /* StitchDictionaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StitchDictionaryView.swift; sourceTree = "<group>"; };
@@ -1022,6 +1024,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AAA3F7CE0F98960225105829 /* ShortRowKit in Frameworks */,
 				C33AF5A62DD1EEDA3D7F3B69 /* Security.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1064,6 +1067,14 @@
 				F424CC66033221DDAA5EA61E /* YouTubeLinkMetadataFetcher.swift */,
 			);
 			path = Patterns;
+			sourceTree = "<group>";
+		};
+		02583666822FAC6D7745626A /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				EB137CAE58982EBB97EDA20D /* ShortRowKit */,
+			);
+			path = Packages;
 			sourceTree = "<group>";
 		};
 		05636426C59DEAB3CEAD6A80 /* Localization */ = {
@@ -1628,6 +1639,7 @@
 				F3DF2D14907F79846E260ED2 /* KnitNoteMacUITests */,
 				C68BA2AF68B2E50206F56088 /* KnitNoteShare */,
 				A2875FC623ACA3B0597786CF /* KnitNoteWatch */,
+				02583666822FAC6D7745626A /* Packages */,
 				1B1F5FBC3969584A604B86A6 /* Resources */,
 				1151CD600D403B6BC5316E7A /* Frameworks */,
 				9BC10CC549E3CC0E29EE734A /* Products */,
@@ -1836,6 +1848,7 @@
 			);
 			name = KnitNote;
 			packageProductDependencies = (
+				D42EE26CBC11B1E3DDF22807 /* ShortRowKit */,
 			);
 			productName = KnitNote;
 			productReference = 14B46C9D90D2250C063CBEB9 /* KnitNote.app */;
@@ -1935,6 +1948,9 @@
 			);
 			mainGroup = BFE7ACE6E08F193BC58351A7;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				361C2E6431DCAA2E9A29E36E /* XCLocalSwiftPackageReference "Packages/ShortRowKit" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 9BC10CC549E3CC0E29EE734A /* Products */;
 			projectDirPath = "";
@@ -2618,9 +2634,9 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "Apple Development";
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 16;
 				INFOPLIST_FILE = KnitNoteWatch/Info.plist;
-				MARKETING_VERSION = 1.7.0;
+				MARKETING_VERSION = 1.7.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.phillon.KnitNote.watch;
 				PRODUCT_NAME = KnitNoteWatch;
 				SDKROOT = watchos;
@@ -2635,14 +2651,14 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = KnitNoteShare/KnitNoteShare.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 16;
 				INFOPLIST_FILE = KnitNoteShare/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.7.0;
+				MARKETING_VERSION = 1.7.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.phillon.KnitNote.share;
 				PRODUCT_NAME = KnitNoteShare;
 				SDKROOT = iphoneos;
@@ -2674,14 +2690,14 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = KnitNoteShare/KnitNoteShare.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 16;
 				INFOPLIST_FILE = KnitNoteShare/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.7.0;
+				MARKETING_VERSION = 1.7.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.phillon.KnitNote.share;
 				PRODUCT_NAME = KnitNoteShare;
 				SDKROOT = iphoneos;
@@ -2698,14 +2714,14 @@
 				"CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]" = "KnitNote/KnitNote-iOS.entitlements";
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "KnitNote/KnitNote-macOS.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 16;
 				INFOPLIST_FILE = KnitNote/Info.plist;
 				KNITNOTE_ICLOUD_CONTAINER_IDENTIFIER = iCloud.com.phillon.KnitNote;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.7.0;
+				MARKETING_VERSION = 1.7.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.phillon.KnitNote;
 				PRODUCT_NAME = KnitNote;
 				SDKROOT = auto;
@@ -2742,14 +2758,14 @@
 				"CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]" = "KnitNote/KnitNote-iOS.entitlements";
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "KnitNote/KnitNote-macOS.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 16;
 				INFOPLIST_FILE = KnitNote/Info.plist;
 				KNITNOTE_ICLOUD_CONTAINER_IDENTIFIER = iCloud.com.phillon.KnitNote;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.7.0;
+				MARKETING_VERSION = 1.7.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.phillon.KnitNote;
 				PRODUCT_NAME = KnitNote;
 				SDKROOT = auto;
@@ -2928,9 +2944,9 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "Apple Development";
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 16;
 				INFOPLIST_FILE = KnitNoteWatch/Info.plist;
-				MARKETING_VERSION = 1.7.0;
+				MARKETING_VERSION = 1.7.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.phillon.KnitNote.watch;
 				PRODUCT_NAME = KnitNoteWatch;
 				SDKROOT = watchos;
@@ -3023,6 +3039,20 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		361C2E6431DCAA2E9A29E36E /* XCLocalSwiftPackageReference "Packages/ShortRowKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/ShortRowKit;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		D42EE26CBC11B1E3DDF22807 /* ShortRowKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ShortRowKit;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = C3D817B8651440BF1170DB4F /* Project object */;
 }

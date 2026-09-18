@@ -7,7 +7,7 @@
 - Support URL: https://phillon77.github.io/KnitNote/support.html
 - Marketing URL: https://phillon77.github.io/KnitNote/
 - Privacy URL: https://phillon77.github.io/KnitNote/privacy.html
-- What's New: 分享編織日記，留住作品的每一步。 • 新增日記分享圖卡，提供 4:5 貼文與 9:16 直式兩種比例。 • 分享前可調整文字與圖卡顯示內容，不影響原始日記。 • 可將圖卡儲存至照片、複製分享文字，或透過系統分享選單分享至其他 App。
+- What's New: 新增肩斜引返計算器，可查看示意圖與逐排操作步驟。加入編織針法字典與教學連結。肩斜引返工具提供繁體中文與英文，其他語言顯示英文。
 - Description: |
   把注意力留給手上的毛線。KnitNote 把 Apple Watch 計數、作品進度、六組計數器與 PDF 織圖放在清楚、安靜的畫面裡。
 

@@ -17,6 +17,9 @@ settings:
     Release:
       CODE_SIGN_IDENTITY: Apple Development
       CODE_SIGN_STYLE: Automatic
+packages:
+  ShortRowKit:
+    path: Packages/ShortRowKit
 targets:
   KnitNote:
     type: application
@@ -74,6 +77,7 @@ targets:
           - .keep
         buildPhase: resources
     dependencies:
+      - package: ShortRowKit
       - target: KnitNoteWatch
         embed: true
         platformFilter: iOS
@@ -85,8 +89,8 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnitNote
         KNITNOTE_ICLOUD_CONTAINER_IDENTIFIER: iCloud.com.phillon.KnitNote
-        MARKETING_VERSION: 1.7.0
-        CURRENT_PROJECT_VERSION: 15
+        MARKETING_VERSION: 1.7.1
+        CURRENT_PROJECT_VERSION: 16
         PRODUCT_NAME: KnitNote
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         "CODE_SIGN_ENTITLEMENTS[sdk=macosx*]": KnitNote/KnitNote-macOS.entitlements
@@ -143,8 +147,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnitNote.watch
-        MARKETING_VERSION: 1.7.0
-        CURRENT_PROJECT_VERSION: 15
+        MARKETING_VERSION: 1.7.1
+        CURRENT_PROJECT_VERSION: 16
         PRODUCT_NAME: KnitNoteWatch
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
       configs:
@@ -197,8 +201,8 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnitNote.share
         CODE_SIGN_ENTITLEMENTS: KnitNoteShare/KnitNoteShare.entitlements
-        MARKETING_VERSION: 1.7.0
-        CURRENT_PROJECT_VERSION: 15
+        MARKETING_VERSION: 1.7.1
+        CURRENT_PROJECT_VERSION: 16
         PRODUCT_NAME: KnitNoteShare
         APPLICATION_EXTENSION_API_ONLY: YES
         SKIP_INSTALL: YES

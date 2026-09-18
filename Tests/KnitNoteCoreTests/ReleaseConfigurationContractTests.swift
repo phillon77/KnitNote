@@ -39,10 +39,10 @@ import Testing
         #expect(yaml.contains("PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnitNote.watch"))
         #expect(yaml.contains("PRODUCT_BUNDLE_IDENTIFIER: com.phillon.KnitNote.share"))
         #expect(
-            yaml.components(separatedBy: "MARKETING_VERSION: 1.7.0").count == 4
+            yaml.components(separatedBy: "MARKETING_VERSION: 1.7.1").count == 4
         )
         #expect(
-            yaml.components(separatedBy: "CURRENT_PROJECT_VERSION: 15").count == 4
+            yaml.components(separatedBy: "CURRENT_PROJECT_VERSION: 16").count == 4
         )
         #expect(yaml.contains("DEVELOPMENT_TEAM: 9CFPAUL5N5"))
     }
@@ -156,8 +156,8 @@ import Testing
             "AppStore/Verification/PatternLibraryVerification.md"
         )
 
-        #expect(audit.contains(#"EXPECTED_VERSION="1.7.0""#))
-        #expect(audit.contains(#"EXPECTED_BUILD="15""#))
+        #expect(audit.contains(#"EXPECTED_VERSION="1.7.1""#))
+        #expect(audit.contains(#"EXPECTED_BUILD="16""#))
         #expect(verification.contains("Candidate: `1.2.0` / Build `3`"))
         #expect(verification.contains("does not verify the pending `1.2.1`"))
     }
@@ -345,7 +345,7 @@ import Testing
     @Test func staticReleaseAuditPinsBuildFifteenAndChecksEveryStringCatalog() throws {
         let script = try sourceText("AppStore/Verification/release_audit.sh")
 
-        #expect(script.contains("EXPECTED_BUILD=\"15\""))
+        #expect(script.contains("EXPECTED_BUILD=\"16\""))
         #expect(script.contains("def localization_is_complete"))
         for catalog in [
             "KnitNote/Localization/Localizable.xcstrings",

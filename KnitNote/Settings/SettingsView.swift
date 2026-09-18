@@ -1,4 +1,5 @@
 import SwiftUI
+import ShortRowKit
 
 struct SettingsView: View {
     @Binding var storedLanguage: String
@@ -48,6 +49,12 @@ struct SettingsView: View {
                 }
 
                 MacSettingsSection(title: "calculator.tools.title") {
+                    calculatorLink(
+                        title: LocalizedStringKey(ShortRowTool.title(locale: locale)),
+                        systemImage: "stairs",
+                        destination: ShortRowCalculatorView()
+                    )
+                    Divider()
                     calculatorLink(title: "stitchDictionary.title", systemImage: "book", destination: StitchDictionaryView())
                     Divider()
                     calculatorLink(
@@ -143,6 +150,13 @@ struct SettingsView: View {
             }
 
             Section("calculator.tools.title") {
+                NavigationLink {
+                    ShortRowCalculatorView()
+                } label: {
+                    Label(ShortRowTool.title(locale: locale), systemImage: "stairs")
+                }
+                .accessibilityIdentifier("settings.shortRows")
+
                 NavigationLink {
                     StitchDictionaryView()
                 } label: {

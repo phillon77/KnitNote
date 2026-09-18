@@ -56,8 +56,8 @@ cleanup() {
   [[ -z "$ARTIFACTS" ]] || rm -rf "$ARTIFACTS"
 }
 trap cleanup EXIT
-ARTIFACTS="$("$MKTEMP" -d "$PARENT/.KnitNote-1.7.0.staging.XXXXXX")"
-WORKROOT="$("$MKTEMP" -d "$PARENT/.KnitNote-1.7.0.worktree.XXXXXX")"
+ARTIFACTS="$("$MKTEMP" -d "$PARENT/.KnitNote-1.7.1.staging.XXXXXX")"
+WORKROOT="$("$MKTEMP" -d "$PARENT/.KnitNote-1.7.1.worktree.XXXXXX")"
 WORKTREE="$WORKROOT/source"
 PUBLISHER="$WORKROOT/atomic_publish.py"
 

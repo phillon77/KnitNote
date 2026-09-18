@@ -7,7 +7,7 @@
 - Support URL: https://phillon77.github.io/KnitNote/support.html
 - Marketing URL: https://phillon77.github.io/KnitNote/
 - Privacy URL: https://phillon77.github.io/KnitNote/privacy.html
-- What's New: Partagez votre journal de tricot et gardez une trace de chaque étape de votre projet. • Créez des cartes à partager à partir de votre journal, au format publication 4:5 ou vertical 9:16. • Ajustez le texte et les éléments affichés sur la carte avant de la partager, sans modifier l’entrée d’origine du journal. • Enregistrez les cartes dans Photos, copiez le texte de partage ou partagez-les avec d’autres apps via le menu de partage du système.
+- What's New: Ajout d’un calculateur de rangs raccourcis pour les épaules, avec schémas et instructions rang par rang, ainsi que d’un dictionnaire de points avec des liens vers des tutoriels. Le calculateur est disponible en anglais et en chinois traditionnel ; les autres langues affichent l’anglais.
 - Description: |
   Gardez votre attention sur le fil entre vos mains. KnitNote réunit le comptage sur Apple Watch, l’avancement des ouvrages, six compteurs et les patrons PDF dans un espace clair et apaisant.
 

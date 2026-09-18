@@ -16,8 +16,8 @@ import Testing
             let baseSettings = try #require(settings["base"] as? [String: Any])
 
             #expect(baseSettings["PRODUCT_BUNDLE_IDENTIFIER"] as? String == identity.bundleIdentifier)
-            #expect(baseSettings["MARKETING_VERSION"] as? String == "1.7.0")
-            #expect(baseSettings["CURRENT_PROJECT_VERSION"] as? String == "15")
+            #expect(baseSettings["MARKETING_VERSION"] as? String == "1.7.1")
+            #expect(baseSettings["CURRENT_PROJECT_VERSION"] as? String == "16")
         }
     }
 
@@ -41,8 +41,8 @@ import Testing
 
             #expect(settings["PRODUCT_BUNDLE_IDENTIFIER"] as? String == product.bundleIdentifier)
             #expect(settings["INFOPLIST_FILE"] as? String == product.infoPlist)
-            #expect(settings["MARKETING_VERSION"] as? String == "1.7.0")
-            #expect(settings["CURRENT_PROJECT_VERSION"] as? String == "15")
+            #expect(settings["MARKETING_VERSION"] as? String == "1.7.1")
+            #expect(settings["CURRENT_PROJECT_VERSION"] as? String == "16")
             #expect(settings["CODE_SIGN_STYLE"] as? String == "Automatic")
             #expect(settings["CODE_SIGN_IDENTITY"] as? String == "Apple Development")
             #expect(settings["DEVELOPMENT_TEAM"] as? String == "9CFPAUL5N5")

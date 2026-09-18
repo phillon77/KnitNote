@@ -1,12 +1,18 @@
 import SwiftUI
+import ShortRowKit
 
 struct KnittingCalculatorsView: View {
+    @Environment(\.locale) private var locale
     var body: some View {
         ZStack {
             WatercolorBackground()
 
             ScrollView {
                 VStack(spacing: 18) {
+                    calculatorLink(title: LocalizedStringKey(ShortRowTool.title(locale: locale)), systemImage: "stairs") {
+                        ShortRowCalculatorView()
+                    }
+
                     calculatorLink(title: "stitchDictionary.title", systemImage: "book") {
                         StitchDictionaryView()
                     }

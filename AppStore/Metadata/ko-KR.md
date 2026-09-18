@@ -7,7 +7,7 @@
 - Support URL: https://phillon77.github.io/KnitNote/support.html
 - Marketing URL: https://phillon77.github.io/KnitNote/
 - Privacy URL: https://phillon77.github.io/KnitNote/privacy.html
-- What's New: 뜨개 일기를 공유하고 작품을 만드는 모든 과정을 간직하세요. • 일기를 공유용 이미지 카드로 만들 수 있습니다. 게시물용 4:5와 세로형 9:16 두 가지 비율을 제공합니다. • 원본 일기는 변경하지 않고, 공유 전에 카드의 글과 표시 내용을 조정할 수 있습니다. • 카드를 사진 앱에 저장하거나 공유할 글을 복사하고, 시스템 공유 메뉴를 통해 다른 앱으로 공유할 수 있습니다.
+- What's New: 도식과 단별 지침을 제공하는 어깨 경사 부분뜨기 계산기와 튜토리얼 링크가 포함된 뜨개 기법 사전을 추가했습니다. 부분뜨기 도구는 영어와 중국어 번체를 지원하며, 다른 언어에서는 영어로 표시됩니다.
 - Description: |
   손에 든 실에 집중하세요. KnitNote는 뜨개질 프로젝트, 6개 카운터, 도안과 메모를 차분하고 보기 쉬운 작업 공간에 모아 줍니다.
 

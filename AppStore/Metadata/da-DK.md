@@ -7,7 +7,7 @@
 - Support URL: https://phillon77.github.io/KnitNote/support.html
 - Marketing URL: https://phillon77.github.io/KnitNote/
 - Privacy URL: https://phillon77.github.io/KnitNote/privacy.html
-- What's New: Del din strikkedagbog, og gem hvert trin i dit projekt. • Opret dagbogskort til deling i opslagsformatet 4:5 eller det lodrette format 9:16. • Tilpas teksten og det indhold, der vises på kortet, før du deler, uden at ændre det oprindelige dagbogsindlæg. • Gem kort i Fotos, kopiér teksten til deling, eller del med andre apps via systemets delingsmenu.
+- What's New: Ny beregner til skulderformning med vendepinde, diagrammer og vejledning pind for pind samt en strikkeordbog med links til vejledninger. Beregneren understøtter engelsk og traditionelt kinesisk; andre sprog viser engelsk.
 - Description: |
   Bevar fokus på garnet i hænderne. KnitNote samler strikkeprojekter, seks tællere, opskrifter og noter i et roligt og overskueligt arbejdsområde.
 

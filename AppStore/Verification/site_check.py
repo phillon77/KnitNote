@@ -54,7 +54,7 @@ def check_page(path: Path, root: Path) -> list[str]:
             if urlparse(resource).scheme in {"http", "https"}:
                 errors.append(f"{path}: external resource: {resource}")
     if path.name == "privacy.html":
-        required = ["不需要帳號", "不含廣告", "不會跨 App 或網站追蹤", "requires no account", "no advertising", "does not track you across apps or websites"]
+        required = ["不需要帳號", "Google AdMob", "廣告隱私選項", "requires no account", "Advertising privacy options", "legacy paid owners"]
         for claim in required:
             if claim not in text:
                 errors.append(f"{path}: missing privacy claim: {claim}")

@@ -4,7 +4,7 @@
 
 本次修訂發布日期／Revision publication date: 2026-10-06. 前版政策日期／Previous policy date: 2026-09-20.
 
-**1.8.0 尚待發布／1.8.0 is not yet released.** 本政策預告 1.8.0 的變更；更新至該版本後才適用。／This policy previews the changes in 1.8.0, which apply after you update to that version.
+**1.8.0 已發布／1.8.0 is now available.** 本政策說明 1.8.0 的變更；更新至該版本後才適用。／This policy describes the changes in 1.8.0, which apply after you update to that version.
 
 ## 繁體中文
 

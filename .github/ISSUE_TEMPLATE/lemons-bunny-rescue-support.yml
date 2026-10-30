@@ -1,0 +1,34 @@
+name: Lemon 小兔救援客服 / Lemon Bunny Rescue Support
+description: 回報 Lemon 小兔救援問題 / Report a Lemon Bunny Rescue issue
+title: "[Lemon 小兔救援] "
+labels:
+  - support
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感謝你協助改善 Lemon 小兔救援。請勿提供個人資料、Apple ID 或 Game Center 帳號資料。
+        Thank you for helping improve Lemon Bunny Rescue. Do not include personal information, Apple ID details, or Game Center account information.
+  - type: dropdown
+    id: device
+    attributes:
+      label: 裝置 / Device
+      options:
+        - iPhone
+        - iPad
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: iOS / iPadOS 版本
+      placeholder: 例如 iOS 26.6
+    validations:
+      required: true
+  - type: textarea
+    id: issue
+    attributes:
+      label: 問題說明 / What happened
+      description: 請描述操作步驟、預期結果與實際結果。
+    validations:
+      required: true

@@ -1,0 +1,55 @@
+name: Lemon’s Yarn Support
+description: Report a Lemon’s Yarn gameplay or technical problem. Reports are public.
+title: "[Lemon’s Yarn Support] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve Lemon’s Yarn. GitHub issues are public. Do not include personal information, Apple ID details, or Game Center account information.
+        感謝協助改善 Lemon’s Yarn。GitHub Issue 內容是公開的，請勿提供個人資料、Apple ID 或 Game Center 帳號資料。
+  - type: dropdown
+    id: issue-type
+    attributes:
+      label: Problem type / 問題類型
+      options:
+        - Gameplay / 遊戲操作
+        - Graphics or sound / 畫面或音效
+        - Game Center
+        - Crash or launch / 當機或無法開啟
+        - Other / 其他
+    validations:
+      required: true
+  - type: dropdown
+    id: device
+    attributes:
+      label: Device / 裝置
+      options: [iPhone, iPad]
+    validations:
+      required: true
+  - type: input
+    id: os-version
+    attributes:
+      label: iOS or iPadOS version / 系統版本
+      placeholder: "Example: iOS 26.6"
+    validations:
+      required: true
+  - type: input
+    id: app-version
+    attributes:
+      label: App version / App 版本
+      placeholder: "1.0 (1)"
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Description and steps / 問題描述與重現步驟
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy-confirmation
+    attributes:
+      label: Public report confirmation / 公開內容確認
+      options:
+        - label: I understand this report is public and confirm it contains no personal information. / 我了解內容將公開，並確認未填入個人資料。
+          required: true
